@@ -1,0 +1,5 @@
+== Version 0.2
+First public release
+
+== Version 0.1
+Extracted the Ruby log file manipulation library
