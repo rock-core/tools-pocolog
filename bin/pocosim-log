@@ -392,6 +392,25 @@ module Pocosim
 	end
     end
 
+    class RegistryDisplay < ModeConfig
+	def self.optname; "--types" end
+	attr_reader :logfiles
+	def initialize(io)
+	    super
+	    @logfiles   = Logfiles.new(*io)
+	end
+
+	def execute
+            registry = Typelib::Registry.new
+	    logfiles.streams.each do |stream|
+                registry.merge Typelib::Registry.from_xml(stream.marshalled_registry)
+	    end
+            registry.each_type do |type|
+                pp type
+            end
+	end
+    end
+
     class Config
 	attr_reader :mode
 	attr_reader :mode_config
@@ -426,6 +445,10 @@ module Pocosim
 	    self.mode = DisplayConfig
 	    mode_config.stream(name)
 	end
+
+        def types
+            self.mode = RegistryDisplay
+        end
 	
 	# Displays samples from +name+
 	def type(name)
@@ -490,6 +513,10 @@ parser = OptionParser.new do |opts|
     opts.on('-s', '--show NAME', String, "display info/samples from the specified streams") do |name| 
 	config.show(name)
     end
+    opts.on('--types', 'display the types registered in the file') do
+        config.types
+    end
+
     opts.on('--type [NAME]', String, 'display type definitions', 'pocosim-log --show NAME --type displays the stream type', 'pocosim-log --type NAME displays the definition of NAME') do |name|
 	config.type(name)
     end
