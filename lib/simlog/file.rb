@@ -44,7 +44,19 @@ module Pocosim
 	attr_accessor :basename
 
 	def tell; @next_block_pos end
-	def seek(pos); @next_block_pos = pos end
+	def seek(pos, rio = nil)
+            if pos.kind_of?(DataHeader)
+                unless io_index = @io.index(pos.io)
+                    raise "#{pos} does not come from this log fileset"
+                end
+                @next_block_pos = pos.pos
+            else
+                if rio
+                    @rio = rio
+                end
+                @next_block_pos = pos
+            end
+        end
 
 	# A new log file is created when the current one has reached this
 	# size in bytes
@@ -214,20 +226,60 @@ module Pocosim
 	    end
 	end
 
+        class StreamInfo
+            INDEX_STEP = 500
+
+            attr_accessor :interval_io
+            attr_accessor :interval_lg
+            attr_accessor :interval_rt
+            attr_accessor :size
+            attr_accessor :index
+
+            def initialize
+                @interval_io = []
+                @interval_lg = []
+                @interval_rt = []
+                @size        = 0
+                @index       = []
+            end
+        end
+
 	# The set of data streams found in this file. The file is read
 	# the first time this function is called
 	def streams
 	    return @streams.compact if @streams
 
-	    intervals = Hash.new
-	    each_data_block(nil, true) do |stream_index|
-		s = @streams[stream_index]
-		info = (intervals[stream_index] ||= [nil, nil, 0])
+            # Look for an index. If it is found, load it and use it.
+            index_filename = File.basename(@io[0].path, File.extname(@io[0].path)) + ".idx"
+            index_filename = File.join(File.dirname(@io[0].path), index_filename)
+            if File.readable?(index_filename)
+                puts "loading file info from #{index_filename}"
+                info = Marshal.load(File.open(index_filename))
+                info.each_with_index do |i, idx|
+                    # Read the stream declaration block and then update the
+                    # info attribute of the stream object
+                    @rio, pos = i.interval_io[0]
+                    rio.seek(pos)
 
-		pos = [@rio, rio.tell]
-		info[0] ||= pos
-		info[1] =   pos
-		info[2] += 1
+                    each_data_block { break }
+                    @streams[idx].instance_variable_set(:@info, i)
+                end
+                return @streams.compact
+            end
+
+            # No index file. Compute it.
+            puts "building index ..."
+	    each_data_block(nil, true) do |stream_index|
+                # The stream object itself is built when the declaration block
+                # has been found
+                s    = @streams[stream_index]
+                info = s.info
+                info.interval_io[1] = [@rio, rio.tell - BLOCK_HEADER_SIZE]
+
+                if info.size % StreamInfo::INDEX_STEP == 0
+                    info.index << [info.size, [@rio, rio.tell - BLOCK_HEADER_SIZE], read_time, read_time]
+                end
+                info.size += 1
 	    end
 
             if !@streams
@@ -237,24 +289,19 @@ module Pocosim
 	    @streams.each do |s|
 		next unless s
 
-		(first_io, first), (last_io, last), size = intervals[s.index]
-		if size
-		    rt_interval, lg_interval = [], []
-		    @rio = first_io
-		    rio.seek(first)
-		    rt_interval[0], lg_interval[0] = [read_time, read_time]
-		    @rio = last_io
-		    rio.seek(last)
-		    rt_interval[1], lg_interval[1] = [read_time, read_time]
-
-		    s.instance_variable_set("@rt_interval", rt_interval)
-		    s.instance_variable_set("@lg_interval", lg_interval)
-		    s.instance_variable_set("@size", size || 0)
-		    s.instance_variable_set("@read_info", true)
-		else
-		    s.instance_variable_set("@size", 0)
+                stream_info = s.info
+		if stream_info.size
+		    @rio, pos = stream_info.interval_io[0]
+		    rio.seek(pos + BLOCK_HEADER_SIZE)
+                    stream_info.interval_rt[0] = read_time
+                    stream_info.interval_lg[0] = read_time
+		    @rio, pos = stream_info.interval_io[1]
+		    rio.seek(pos + BLOCK_HEADER_SIZE)
+                    stream_info.interval_rt[1] = read_time
+                    stream_info.interval_lg[1] = read_time
 		end
 	    end
+            Marshal.dump(@streams.map { |s| s.info }, File.open(index_filename, 'w'))
 	    @streams.compact
 	end
 
@@ -300,6 +347,7 @@ module Pocosim
 		raise "bad data size #{payload_data.size}"
 	    end
 
+            io_index      = @rio
 	    block_start   = rio.tell
 	    type          = rio.read(1)
 	    name_size     = rio.read(4).unpack('V').first
@@ -320,7 +368,12 @@ module Pocosim
 		old
 	    else
 		@streams ||= Array.new
-		@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || '')
+		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || ''))
+
+                info = StreamInfo.new
+                s.instance_variable_set(:@info, info)
+                info.interval_io[0] = [io_index, block_start]
+                s
 	    end
 	end
 

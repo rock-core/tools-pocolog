@@ -3,12 +3,21 @@ module Pocosim
 
     # Interface for reading a stream in a Pocosim::Logfiles
     class DataStream
+        # The Logfiles::StreamInfo structure for that stream
+        attr_reader :info
+        # The index in the stream of the current sample
+        attr_reader :sample_index
+
 	# Returns a SampleEnumerator object for this stream
 	def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 
 	# Enumerates the blocks of this stream
 	def each_block(rewind = true)
-	    logfile.each_data_block(index, rewind) { yield if block_given? }
+            self.rewind if rewind
+	    logfile.each_data_block(index, false) do
+                yield if block_given?
+                @sample_index += 1
+            end
 	end
 
 	# Returns the +sample_index+ sample of this stream
@@ -17,21 +26,7 @@ module Pocosim
 		find { true }
 	end
 
-	# def read_info
-	#     return if @read_info
-	#     @rt_interval = []
-	#     @lg_interval = []
-	#     @size = 0
-	#     samples(false).each do |rt, lg|
-	# 	@rt_interval[0] ||= rt
-	# 	@lg_interval[0] ||= lg
-	# 	@rt_interval[1] = rt
-	# 	@lg_interval[1] = lg
-	# 	@size += 1
-	#     end
-	#     @read_info = true
-	# end
-
+        # The times of the current sample, as [rt, lg]
 	def time
 	    header = logfile.data_header
 	    [header.rt, Time.at(header.lg - logfile.time_base)]
@@ -40,15 +35,15 @@ module Pocosim
 	# Get the logical time of first and last samples in this stream. If
 	# +rt+ is true, returns the interval for the wall-clock time
 	def time_interval(rt = false)
-	    if rt then @rt_interval
-	    else @lg_interval
+	    if rt then info.interval_rt
+	    else info.interval_lg
 	    end
 	end
 
 	def data_header; logfile.data_header end
 
 	# The size, in bytes, of data in this stream
-	def size; @size end
+	def size; info.size end
 
 	# True if this data stream has a Typelib::Registry object associated
 	def has_type?; !marshalled_registry.empty? end
@@ -87,7 +82,9 @@ module Pocosim
 	end
 
 	def rewind
+            @sample_index = 0
 	    logfile.each_data_block(index, true) do
+                @sample_index += 1
 		header = logfile.data_header
 		next if header.lg == Time.at(0)
 		return header
@@ -100,23 +97,61 @@ module Pocosim
 	    [header.rt, Time.at(header.lg - logfile.time_base), data]
 	end
 
-	# Seek the stream at the first sample whose logical time is greater
-	# than +time+. Returns [rt, lg, data] for the sample just before (if
-	# there is one)
-	def seek(time)
-	    header = nil
-	    logfile.each_data_block(index, true) do
-		cur_header = logfile.data_header
-		lg     = Time.at(cur_header.lg - logfile.time_base)
-		if lg < time
-		    header = cur_header.dup
-		    next 
-		end
-		break
-	    end
+        # Seek the stream at the first sample whose logical time is greater
+        # than +pos+. Pos is either a Time -- in which case it is considered as
+        # a logical time or an integer, in which case it is interpreted as an
+        # index. Returns [rt, lg, data] for the sample just before (if there is
+        # one)
+	def seek(pos)
+            # Search the position in the index
+            if pos.kind_of?(Integer)
+                index_entry = info.index.find do |size, _|
+                    size + Logfiles::StreamInfo::INDEX_STEP > pos
+                end
+
+                unless index_entry = info.index.find { |size, _| size + Logfiles::StreamInfo::INDEX_STEP > pos }
+                    raise "cannot find #{pos} in index"
+                end
+
+                header = nil
+                @sample_index = index_entry[0]
+                logfile.seek(index_entry[1][1], index_entry[1][0])
+                each_block(false) do
+                    if sample_index == pos
+                        header = logfile.data_header
+                        break
+                    end
+                end
+                if sample_index != pos
+                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
+                end
+            elsif pos.kind_of?(Time)
+                if pos < info.interval_lg[0] || pos > info.interval_lg[1]
+                    raise "#{pos} is out of bounds"
+                end
+                index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
+                if index_entry
+                    index_entry = info.index[index_entry - 1]
+                else
+                    index_entry = info.index.last
+                end
+
+                header = nil
+                logfile.seek(index_entry[1][1], index_entry[1][0])
+                each_block(false) do
+                    break if data_header.lg > pos
+                    header = data_header.dup
+                end
+
+                @sample_index = block_index
+                if sample_index != pos
+                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
+                end
+            end
 
 	    if header
-		return [header.rt, Time.at(header.lg - logfile.time_base), data(header)]
+                data = self.data(header)
+		return [header.rt, Time.at(header.lg - logfile.time_base), data]
 	    end
 	end
 
@@ -317,13 +352,18 @@ module Pocosim
 	attr_accessor :sample_count
 
 	def each(&block)
-	    sample_index = 0
 	    self.sample_count = 0
 	    self.next_sample = nil
 
 	    last_data_block = nil
 
-	    stream.each_block(true) do
+            if min_index || min_time
+                stream.seek(min_index || min_time)
+            else
+                stream.rewind
+            end
+	    sample_index = stream.sample_index
+	    stream.each_block(false) do
 		sample_index += 1
 
 		next if min_index && sample_index < min_index
