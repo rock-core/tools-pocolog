@@ -1,4 +1,5 @@
 require 'utilrb/module/attr_predicate'
+require 'fileutils'
 module Pocosim
     class Logfiles
 	FORMAT_VERSION = 2
@@ -244,31 +245,52 @@ module Pocosim
             end
         end
 
+        def load_index_file(index_filename)
+            # Look for an index. If it is found, load it and use it.
+            return unless File.readable?(index_filename)
+
+            STDERR.print "loading file info from #{index_filename}... "
+            begin
+                file_info, stream_info = Marshal.load(File.open(index_filename))
+            rescue
+                STDERR.puts "invalid file"
+                return
+            end
+
+            coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
+                size == File.size(@io[idx].path) && @io[idx].mtime == time
+            end
+
+            if !coherent
+                STDERR.puts "index file does not match logfile data"
+                return
+            end
+
+            stream_info.each_with_index do |i, idx|
+                # Read the stream declaration block and then update the
+                # info attribute of the stream object
+                @rio, pos = i.interval_io[0]
+                rio.seek(pos)
+
+                each_data_block { break }
+                @streams[idx].instance_variable_set(:@info, i)
+            end
+            return @streams.compact
+        end
+
 	# The set of data streams found in this file. The file is read
 	# the first time this function is called
 	def streams
 	    return @streams.compact if @streams
 
-            # Look for an index. If it is found, load it and use it.
             index_filename = File.basename(@io[0].path, File.extname(@io[0].path)) + ".idx"
             index_filename = File.join(File.dirname(@io[0].path), index_filename)
-            if File.readable?(index_filename)
-                puts "loading file info from #{index_filename}"
-                info = Marshal.load(File.open(index_filename))
-                info.each_with_index do |i, idx|
-                    # Read the stream declaration block and then update the
-                    # info attribute of the stream object
-                    @rio, pos = i.interval_io[0]
-                    rio.seek(pos)
-
-                    each_data_block { break }
-                    @streams[idx].instance_variable_set(:@info, i)
-                end
-                return @streams.compact
+            if streams = load_index_file(index_filename)
+                return streams
             end
 
             # No index file. Compute it.
-            puts "building index ..."
+            STDERR.puts "building index ..."
 	    each_data_block(nil, true) do |stream_index|
                 # The stream object itself is built when the declaration block
                 # has been found
@@ -301,7 +323,18 @@ module Pocosim
                     stream_info.interval_lg[1] = read_time
 		end
 	    end
-            Marshal.dump(@streams.map { |s| s.info }, File.open(index_filename, 'w'))
+
+            file_info   = @io.map { |io| [File.size(io.path), io.mtime] }
+            stream_info = @streams.map { |s| s.info }
+
+            begin
+                File.open(index_filename, 'w') do |io|
+                    Marshal.dump([file_info, stream_info], io)
+                end
+            rescue
+                FileUtils.rm_f index_filename
+                raise
+            end
 	    @streams.compact
 	end
 
