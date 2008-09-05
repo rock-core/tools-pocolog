@@ -275,6 +275,7 @@ module Pocosim
                 each_data_block { break }
                 @streams[idx].instance_variable_set(:@info, i)
             end
+            STDERR.puts "done"
             return @streams.compact
         end
 
@@ -290,7 +291,7 @@ module Pocosim
             end
 
             # No index file. Compute it.
-            STDERR.puts "building index ..."
+            STDERR.print "building index ..."
 	    each_data_block(nil, true) do |stream_index|
                 # The stream object itself is built when the declaration block
                 # has been found
@@ -304,7 +305,8 @@ module Pocosim
                 info.size += 1
 	    end
 
-            if !@streams
+            unless @streams
+                STDERR.puts "done"
                 return []
             end
 
@@ -335,6 +337,7 @@ module Pocosim
                 FileUtils.rm_f index_filename
                 raise
             end
+            STDERR.puts "done"
 	    @streams.compact
 	end
 
