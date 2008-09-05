@@ -42,7 +42,7 @@ module Pocosim
 
 	def data_header; logfile.data_header end
 
-	# The size, in bytes, of data in this stream
+	# The size, in samples, of data in this stream
 	def size; info.size end
 
 	# True if this data stream has a Typelib::Registry object associated
