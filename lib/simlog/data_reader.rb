@@ -97,6 +97,13 @@ module Pocosim
 	    [header.rt, Time.at(header.lg - logfile.time_base), data]
 	end
 
+        # Read the last sample in the stream
+        def last
+            last_sample_pos = info.interval_io[1]
+            logfile.seek(last_sample_pos[1], last_sample_pos[0])
+            self.next
+        end
+
         # Seek the stream at the first sample whose logical time is greater
         # than +pos+. Pos is either a Time -- in which case it is considered as
         # a logical time or an integer, in which case it is interpreted as an
