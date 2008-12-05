@@ -319,7 +319,7 @@ module Pocosim
 		    rio.seek(pos + BLOCK_HEADER_SIZE)
                     stream_info.interval_rt[0] = read_time
                     stream_info.interval_lg[0] = read_time
-		    @rio, pos = stream_info.interval_io[1]
+		    @rio, pos = stream_info.interval_io[1] || stream_info.interval_io[0]
 		    rio.seek(pos + BLOCK_HEADER_SIZE)
                     stream_info.interval_rt[1] = read_time
                     stream_info.interval_lg[1] = read_time
