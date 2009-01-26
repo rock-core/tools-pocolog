@@ -250,20 +250,10 @@ module Pocosim
             return unless File.readable?(index_filename)
 
             STDERR.print "loading file info from #{index_filename}... "
-            begin
-                file_info, stream_info = Marshal.load(File.open(index_filename))
-            rescue
-                STDERR.puts "invalid file"
-                return
-            end
+            file_info, stream_info = Marshal.load(File.open(index_filename))
 
             coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
                 size == File.size(@io[idx].path) && @io[idx].mtime == time
-            end
-
-            if !coherent
-                STDERR.puts "index file does not match logfile data"
-                return
             end
 
             stream_info.each_with_index do |i, idx|
@@ -277,6 +267,9 @@ module Pocosim
             end
             STDERR.puts "done"
             return @streams.compact
+
+        rescue
+            STDERR.puts "invalid index file"
         end
 
 	# The set of data streams found in this file. The file is read
