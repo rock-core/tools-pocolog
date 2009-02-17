@@ -255,6 +255,9 @@ module Pocosim
             coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
                 size == File.size(@io[idx].path) && @io[idx].mtime == time
             end
+            if !coherent
+                raise "invalid index file"
+            end
 
             stream_info.each_with_index do |i, idx|
                 # Read the stream declaration block and then update the
