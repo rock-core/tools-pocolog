@@ -1,6 +1,6 @@
 
 module Pocosim
-    SIMLOG_VERSION = "0.2"
+    SIMLOG_VERSION = "0.3"
 end
 
 
