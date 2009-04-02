@@ -24,6 +24,6 @@ Hoe.new('pocosim-log', Pocosim::SIMLOG_VERSION) do |p|
 
     p.extra_deps << ['utilrb']
     p.extra_deps << ['genom']
-    p.rdoc_pattern = /(ext\/.*cc$|lib)|txt/
+    # p.rdoc_pattern = /(ext\/.*cc$|lib)|txt/
 end
 
