@@ -11,7 +11,7 @@ class Rake::RDocTask
 end
 
 require 'hoe'
-require './lib/simlog'
+require './lib/simlog/version'
 
 Hoe.new('pocosim-log', Pocosim::SIMLOG_VERSION) do |p|
     p.author = "Sylvain Joyeux"

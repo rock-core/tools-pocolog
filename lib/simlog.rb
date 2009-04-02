@@ -9,11 +9,10 @@ require 'simlog/convert'
 require 'simlog/data_reader'
 require 'simlog/data_writer'
 require 'simlog/file'
+require 'simlog/version'
 require 'utilrb/pkgconfig'
 
 module Pocosim
-    SIMLOG_VERSION = "0.2"
-
     # true if this machine is big endian
     def self.big_endian?
 	"LAAS".unpack('L').pack('N') == "LAAS"
