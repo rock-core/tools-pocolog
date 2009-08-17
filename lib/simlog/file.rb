@@ -488,7 +488,7 @@ module Pocosim
 
 	def read_stream_declaration # :nodoc:
 	    if block_info.payload_size <= 8
-		raise "bad data size #{payload_data.size}"
+		raise "bad data size #{block_info.size}"
 	    end
 
             io_index      = @rio
