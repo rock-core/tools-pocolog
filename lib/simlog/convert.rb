@@ -13,6 +13,9 @@ module Pocosim
 	    # copy the block as-is
 	    from_io.seek(block_info.pos)
 	    buffer = from_io.read(BLOCK_HEADER_SIZE + block_info.payload_size, buffer)
+            if block_given?
+                yield(buffer)
+            end
 	    to_io.write(buffer)
 	end
 
