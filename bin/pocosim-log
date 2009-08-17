@@ -147,21 +147,34 @@ module Pocosim
 	def execute
 	    buffer = ""
 	    init do |from, to|
-		from = Logfiles.new(*from)
-		Logfiles.write_prologue(to, Pocosim.big_endian?)
+                Logfiles.write_prologue(to, Pocosim.big_endian?)
+                
+                next_index = 0
+                enabled = Hash.new
 
-		enabled = Array.new
-		from.each_block do |info|
-		    if info.type == STREAM_BLOCK
-			stream = from.read_stream_declaration
-			if streams.include?(stream.name)
-			    enabled[stream.index] = true
-			end
-		    end
-		    if info.type != DATA_BLOCK || enabled[info.index]
-			Logfiles.copy_block(info, from.rio, to, buffer)
-		    end
-		end
+                from.each do |file_io|
+                    from    = Logfiles.new(file_io)
+                    index_mapping = Array.new
+                    from.each_block do |info|
+                        if info.type == STREAM_BLOCK
+                            stream = from.read_stream_declaration
+                            if streams.empty? || streams.include?(stream.name)
+                                if !enabled[[stream.name, stream.typename]]
+                                    enabled[[stream.name, stream.typename]] = next_index
+                                    next_index += 1
+                                end
+                                index_mapping[info.index] = [enabled[[stream.name, stream.typename]]].pack("v")
+                            end
+                        end
+
+                        stream_index = index_mapping[info.index]
+                        if info.type != DATA_BLOCK || stream_index
+                            Logfiles.copy_block(info, from.rio, to, buffer) do |buffer|
+                                buffer[2, 2] = stream_index
+                            end
+                        end
+                    end
+                end
 	    end
 	end
     end

@@ -17,7 +17,7 @@ module Pocosim
 	class ObsoleteVersion < RuntimeError; end
 	class MissingPrologue < RuntimeError; end
 
-	BlockInfo = Struct.new :pos, :type, :index, :payload_size
+	BlockInfo = Struct.new :io, :pos, :type, :index, :payload_size
 	attr_reader :block_info
 
 	# Whether or not data bigger than COMPRESSION_MIN_SIZE should be
@@ -288,6 +288,7 @@ module Pocosim
             end
 
             type, index, payload_size = header.unpack('CxvV')
+            @block_info.io           = @rio
             @block_info.pos          = @next_block_pos
             @block_info.type         = type
             @block_info.index        = index
