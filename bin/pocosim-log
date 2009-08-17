@@ -379,7 +379,9 @@ module Pocosim
 
 		    diff = last_sample - first_sample
 		    diff = Time.at(diff).to_hms if diff > 0
-		    info[stream.name] << " from #{first_sample.to_hms} to #{last_sample.to_hms} [#{diff}]"
+                    first_sample = first_sample.strftime("%a %d/%m/%Y %H:%M:%S")
+                    last_sample  = last_sample.strftime("%a %d/%m/%Y %H:%M:%S")
+		    info[stream.name] << " from #{first_sample} to #{last_sample} [#{diff}]"
 		end
 	    end
 	    info.keys.sort.each do |name|
