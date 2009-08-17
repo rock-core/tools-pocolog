@@ -24,6 +24,13 @@ module Pocosim
 	# compressed using Zlib when written to this log file. Defaults to true
 	attr_predicate :compress?
 
+        def self.valid_file?(file)
+            Logfiles.new(file)
+            true
+        rescue
+            false
+        end
+
 	attr_reader :io
 	attr_reader :streams
 	def initialize(*io)
@@ -32,6 +39,7 @@ module Pocosim
 	    @block_info  = BlockInfo.new
 	    @compress    = true
 	    rewind
+            read_prologue
 	end
 
 	def close
