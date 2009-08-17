@@ -196,6 +196,63 @@ module Pocosim
 	rescue EOFError
 	end
 
+        # Finds the entry in the index just before the position specified by
+        # +pos+ in the given stream.
+        #
+        # +stream_idx+ is the stream index. +pos+ is either an integer or a
+        # Time. In the first case, it is the sample index. In the latter case,
+        # it is the sample time.
+        def seek_stream(stream_idx, pos)
+            info = streams[stream_idx].info
+            if info.empty?
+                raise ArgumentError, "#{pos} out of bounds"
+            end
+
+            if pos.kind_of?(Integer)
+                index_entry = info.index.find do |size, _|
+                    size + Logfiles::StreamInfo::INDEX_STEP > pos
+                end
+
+                unless index_entry = info.index.find { |size, _| size + Logfiles::StreamInfo::INDEX_STEP > pos }
+                    raise "cannot find #{pos} in index"
+                end
+
+                header = nil
+                sample_index = index_entry[0]
+                seek(index_entry[1][1], index_entry[1][0])
+                each_data_block(stream_idx, false) do
+                    break if sample_index == pos
+                    sample_index += 1
+                end
+
+                if sample_index != pos
+                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
+                end
+
+                return sample_index
+
+            elsif pos.kind_of?(Time)
+                if pos < info.interval_lg[0] || pos > info.interval_lg[1]
+                    raise ArgumentError, "#{pos} is out of bounds"
+                end
+                index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
+                if index_entry
+                    index_entry = info.index[index_entry - 1]
+                else
+                    index_entry = info.index.last
+                end
+
+                header = nil
+                @sample_index = index_entry[0]
+                seek(index_entry[1][1], index_entry[1][0])
+                each_data_block(stream_idx, false) do
+                    break if data_header.lg > pos
+                end
+
+                return data_header.lg
+            end
+        end
+
         # Reads one block at the specified position and returns the block type
         # (equal to block_info.type). If the block is a control or stream block,
         # also call the relevant parsing methods.

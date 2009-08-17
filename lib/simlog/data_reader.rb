@@ -110,51 +110,8 @@ module Pocosim
         # index. Returns [rt, lg, data] for the sample just before (if there is
         # one)
 	def seek(pos)
-            # Search the position in the index
-            if pos.kind_of?(Integer)
-                index_entry = info.index.find do |size, _|
-                    size + Logfiles::StreamInfo::INDEX_STEP > pos
-                end
-
-                unless index_entry = info.index.find { |size, _| size + Logfiles::StreamInfo::INDEX_STEP > pos }
-                    raise "cannot find #{pos} in index"
-                end
-
-                header = nil
-                @sample_index = index_entry[0]
-                logfile.seek(index_entry[1][1], index_entry[1][0])
-                each_block(false) do
-                    if sample_index == pos
-                        header = logfile.data_header
-                        break
-                    end
-                end
-                if sample_index != pos
-                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
-                end
-            elsif pos.kind_of?(Time)
-                if pos < info.interval_lg[0] || pos > info.interval_lg[1]
-                    raise "#{pos} is out of bounds"
-                end
-                index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
-                if index_entry
-                    index_entry = info.index[index_entry - 1]
-                else
-                    index_entry = info.index.last
-                end
-
-                header = nil
-                logfile.seek(index_entry[1][1], index_entry[1][0])
-                each_block(false) do
-                    break if data_header.lg > pos
-                    header = data_header.dup
-                end
-
-                @sample_index = block_index
-                if sample_index != pos
-                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
-                end
-            end
+            @sample_index = logfile.seek_stream(self.index, pos)
+            header = self.data_header.dup
 
 	    if header
                 data = self.data(header)
