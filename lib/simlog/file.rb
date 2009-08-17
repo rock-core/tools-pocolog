@@ -178,44 +178,72 @@ module Pocosim
 		@data = nil
 		@data_header.updated = false
 
-		unless header = io.read(BLOCK_HEADER_SIZE)
-		    next_io
-		    next
-		end
-
-		type, index, payload_size = header.unpack('CxvV')
-		@block_info.pos          = @next_block_pos
-		@block_info.type         = type
-		@block_info.index        = index
-		@block_info.payload_size = payload_size
-		@next_block_pos = io.tell + payload_size
-
-		if !BLOCK_TYPES.include?(type)
-		    raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
-		end
+                if !read_block_header
+                    next_io
+                    next
+                end
 
 		yield(@block_info)
 	    end
 	rescue EOFError
 	end
 
+        # Reads one block at the specified position and returns the block type
+        # (equal to block_info.type). If the block is a control or stream block,
+        # also call the relevant parsing methods.
+        def read_one_block(pos = nil, rio = nil)
+            if pos
+                seek(pos, rio)
+            end
+            each_block(false) do |block_info|
+                return handle_block(block_info)
+            end
+            nil
+        end
+
+        # Gets the block information in +block_info+ and acts accordingly: calls
+        # the relevant parsing methods if it is a control or stream block. It
+        # does nothing for data blocks.
+        def handle_block(block_info) # :nodoc:
+            if block_info.type == CONTROL_BLOCK
+                read_control_block
+            elsif block_info.type == DATA_BLOCK
+                if !declared_stream?(block_info.index)
+                    raise "found data block for stream #{block_info.index} but this stream has never been declared"
+                end
+            elsif block_info.type == STREAM_BLOCK
+                read_stream_declaration
+            end
+            block_info.type
+        end
+
+        def read_block_header
+            unless header = rio.read(BLOCK_HEADER_SIZE)
+                return
+            end
+
+            type, index, payload_size = header.unpack('CxvV')
+            @block_info.pos          = @next_block_pos
+            @block_info.type         = type
+            @block_info.index        = index
+            @block_info.payload_size = payload_size
+            @next_block_pos = rio.tell + payload_size
+
+            if !BLOCK_TYPES.include?(type)
+                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
+            end
+            true
+        end
+
 	# Yields for each data block in stream +stream_index+, or in all
 	# streams if +stream_index+ is nil.
 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
 	    each_block(rewind) do |block_info|
-		if block_info.type == CONTROL_BLOCK
-		    read_control_block
-		elsif !stream_index || stream_index == block_info.index
-		    if block_info.type == DATA_BLOCK
-			if !declared_stream?(block_info.index)
-			    raise "found data block for stream #{block_info.index} but this stream has never been declared"
-			else
-			    yield(block_info.index)
-			end
-		    elsif block_info.type == STREAM_BLOCK
-			read_stream_declaration
-		    end
-		end
+                if handle_block(block_info) == DATA_BLOCK
+                    if !stream_index || stream_index == block_info.index
+                        yield(block_info.index)
+                    end
+                end
 	    end
 
 	rescue EOFError
@@ -230,11 +258,14 @@ module Pocosim
         class StreamInfo
             INDEX_STEP = 500
 
+            attr_accessor :declaration_block
             attr_accessor :interval_io
             attr_accessor :interval_lg
             attr_accessor :interval_rt
             attr_accessor :size
             attr_accessor :index
+
+            def empty?; size == 0 end
 
             def initialize
                 @interval_io = []
@@ -259,19 +290,34 @@ module Pocosim
                 raise "invalid index file"
             end
 
-            stream_info.each_with_index do |i, idx|
+            stream_info.each_with_index do |info, idx|
+                if !info.declaration_block
+                    raise "old index file found"
+                end
+
+                @rio, pos = info.declaration_block
+                if read_one_block(pos, @rio) != STREAM_BLOCK
+                    raise "invalid declaration_block reference in index"
+                end
+
                 # Read the stream declaration block and then update the
                 # info attribute of the stream object
-                @rio, pos = i.interval_io[0]
-                rio.seek(pos)
+                if !info.empty?
+                    @rio, pos = info.interval_io[0]
+                    if read_one_block(pos, @rio) != DATA_BLOCK
+                        raise "invalid start IO reference in index"
+                    end
 
-                each_data_block { break }
-                @streams[idx].instance_variable_set(:@info, i)
+                    if block_info.index != idx
+                        raise "invalid interval_io: stream index mismatch for #{@streams[idx].name}. Expected #{idx}, got #{data_block_index}."
+                    end
+                    @streams[idx].instance_variable_set(:@info, info)
+                end
             end
             STDERR.puts "done"
             return @streams.compact
 
-        rescue
+        rescue Exception => e
             STDERR.puts "invalid index file"
         end
 
@@ -293,10 +339,11 @@ module Pocosim
                 # has been found
                 s    = @streams[stream_index]
                 info = s.info
-                info.interval_io[1] = [@rio, rio.tell - BLOCK_HEADER_SIZE]
+                info.interval_io[1] = [@rio, block_info.pos]
+                info.interval_io[0] ||= info.interval_io[1]
 
                 if info.size % StreamInfo::INDEX_STEP == 0
-                    info.index << [info.size, [@rio, rio.tell - BLOCK_HEADER_SIZE], read_time, read_time]
+                    info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
                 end
                 info.size += 1
 	    end
@@ -310,7 +357,7 @@ module Pocosim
 		next unless s
 
                 stream_info = s.info
-		if stream_info.size
+		if !stream_info.empty?
 		    @rio, pos = stream_info.interval_io[0]
 		    rio.seek(pos + BLOCK_HEADER_SIZE)
                     stream_info.interval_rt[0] = read_time
@@ -404,7 +451,7 @@ module Pocosim
 
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
-                info.interval_io[0] = [io_index, block_start]
+                info.declaration_block = [io_index, block_info.pos]
                 s
 	    end
 	end
