@@ -515,6 +515,17 @@ module Pocosim
 		@streams ||= Array.new
 		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || ''))
 
+                # if we do have a registry, then adapt it to the local machine
+                # if needed. Right now, this is required if containers changed
+                # size.
+                resize_containers = Hash.new
+                s.registry.each_type do |type|
+                    if type <= Typelib::ContainerType && type.size != type.natural_size
+                        resize_containers[type] = type.natural_size
+                    end
+                end
+                s.registry.resize(resize_containers)
+
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
                 info.declaration_block = [io_index, block_info.pos]
@@ -582,12 +593,34 @@ module Pocosim
 	    end
 	end
 
-	# Writes a new block of the given type in the stream +index+.
-	# +type+ is one of CONTROL_BLOCK, STREAM_BLOCK or DATA_BLOCK
-	def write_block(type, index) # :nodoc:
-	    payload = yield
+        # Formats a block and writes it to +io+
+        def self.write_block(wio, type, index, payload)
 	    wio << [type, index, payload.size].pack('CxvV')
 	    wio << payload
+            return wio
+        end
+
+        def self.write_stream_declaration(wio, index, name, type, type_registry = nil)
+            if !type_registry
+                if type.kind_of?(Typelib::Type)
+                    type_registry = type.registry.to_xml
+                    type_name = type.name
+                else
+                    raise ArgumentError, "expected either a Type class or a type name, XML type registry pair"
+                end
+            else
+                type_name = type.to_str
+            end
+
+            payload = [DATA_STREAM, name.size, name, 
+                type_name.size, type_name,
+                type_registry.size, type_registry
+            ].pack("CVa#{name.size}Va#{type_name.size}Va#{type_registry.size}")
+	    write_block(wio, STREAM_BLOCK, index, payload)
+        end
+
+	def do_write # :nodoc:
+            yield
 	    
 	    if wio.tell > MAX_FILE_SIZE
 		new_file
@@ -595,14 +628,9 @@ module Pocosim
 	end
 
 	def write_stream_declaration(index, name, type)
-	    typename  = type.name
-	    registry  = type.registry.to_xml
-	    write_block(STREAM_BLOCK, index) do
-		[DATA_STREAM, name.size, name, 
-		    typename.size, typename,
-		    registry.size, registry
-		].pack("CVa#{name.size}Va#{typename.size}Va#{registry.size}")
-	    end
+            do_write do
+                Logfiles.write_stream_declaration(wio, index, name, type)
+            end
 	end
 
 	# Returns the DataStream object for +name+, +registry+ and
@@ -646,11 +674,12 @@ module Pocosim
 		compress = 1
 	    end
 
-	    write_block(DATA_BLOCK, stream.index) do
-		[rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
+            do_write do
+		payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
 		    data.length, compress, data
 		].pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
-	    end
+                write_block(DATA_BLOCK, stream.index, payload)
+            end
 	end
     end
 end
