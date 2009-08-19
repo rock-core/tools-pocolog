@@ -426,6 +426,21 @@ module Pocosim
 	end
     end
 
+    class XMLRegistryDisplay < ModeConfig
+	def self.optname; "--types-xml" end
+	attr_reader :logfiles
+	def initialize(io)
+	    super
+	    @logfiles   = Logfiles.new(*io)
+	end
+
+	def execute
+	    logfiles.streams.each do |stream|
+                puts stream.marshalled_registry
+	    end
+	end
+    end
+
     class Config
 	attr_reader :mode
 	attr_reader :mode_config
@@ -463,6 +478,10 @@ module Pocosim
 
         def types
             self.mode = RegistryDisplay
+        end
+	
+        def types_xml
+            self.mode = XMLRegistryDisplay
         end
 	
 	# Displays samples from +name+
@@ -530,6 +549,9 @@ parser = OptionParser.new do |opts|
     end
     opts.on('--types', 'display the types registered in the file') do
         config.types
+    end
+    opts.on('--types-xml', 'display the complete type registry in a XML form') do
+        config.types_xml
     end
 
     opts.on('--type [NAME]', String, 'display type definitions', 'pocosim-log --show NAME --type displays the stream type', 'pocosim-log --type NAME displays the definition of NAME') do |name|
