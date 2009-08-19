@@ -350,7 +350,7 @@ module Pocosim
             file_info, stream_info = Marshal.load(File.open(index_filename))
 
             coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
-                size == File.size(@io[idx].path) && @io[idx].mtime == time
+                size == File.size(@io[idx].path)
             end
             if !coherent
                 raise "invalid index file"
