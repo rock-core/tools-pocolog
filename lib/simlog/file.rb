@@ -426,7 +426,7 @@ module Pocosim
                 info.size += 1
 	    end
 
-            unless @streams
+            if !@streams
                 STDERR.puts "done"
                 return []
             end
