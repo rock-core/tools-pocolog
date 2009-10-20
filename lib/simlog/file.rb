@@ -95,7 +95,8 @@ module Pocosim
         end
 
 	# Create an empty log file using +basename+ to build its name.
-	# See #basename
+        # Namely, it will create a new file named <basename>.0.log. Then,
+        # calls to #new_file would create <basename>.1.log and so on
 	def self.create(basename)
 	    file = Logfiles.new
 	    file.basename = basename
