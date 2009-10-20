@@ -326,7 +326,7 @@ module Pocosim
             else
                 stream.rewind
             end
-	    sample_index = stream.sample_index
+	    sample_index = stream.sample_index - 1
 	    stream.each_block(false) do
 		sample_index += 1
 
