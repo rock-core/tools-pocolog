@@ -9,7 +9,7 @@ module Pocosim
 		if data.class == self.type
 		    data = data.to_byte_array
 		else
-		    raise ArgumentError, "wrong data type #{data}, expected #{self.stream_type}"
+		    raise TypeError, "wrong data type #{data}, expected #{self.type}"
 		end
 	    elsif data.respond_to?(:to_str)
 		data = data.to_str
