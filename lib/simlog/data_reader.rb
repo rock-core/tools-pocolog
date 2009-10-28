@@ -152,6 +152,7 @@ module Pocosim
 	    streams.each_with_index do |s, i|
 		@streams << [s, i]
 	    end
+            rewind
 	end
 
 	def time
@@ -173,6 +174,7 @@ module Pocosim
 	end
 	def rewind; seek(nil) end
 
+        # Advances the given stream, and returns the next sample in that stream.
 	def advance_stream(s, i)
 	    # Check that we haven't reached the end of the streams yet
 	    return unless next_samples[i]
@@ -225,12 +227,32 @@ module Pocosim
 	    [header.rt, header.lg, data(header)]
 	end
 
+        # call-seq:
+        #   joint_stream.step => updated_stream_index, time
+        #
+        # Advances one step in the joint stream, an returns the index of the
+        # updated stream as well as the time.
+        #
+        # The associated data sample can then be retrieved by
+        # single_data(stream_idx)
+        def step
+	    return unless next_samples.all? { |s| s }
+	    min_sample = next_samples.min { |s1, s2| s1.time <=> s2.time }
+	    advance_stream(min_sample.stream, min_sample.sample_index)
+	    return min_sample.sample_index, min_sample.time, single_data(min_sample.sample_index)
+        end
+
+        # Returns the current data sample for the given stream index
+        def single_data(index)
+            s = current_samples[index]
+            s.stream.data(s.header)
+        end
+
 	def next
 	    return unless next_samples.all? { |s| s }
 	    min_sample = next_samples.min { |s1, s2| s1.time <=> s2.time }
-	    new_sample = advance_stream(min_sample.stream, min_sample.sample_index)
-	    return unless new_sample
-	    [new_sample.time, new_sample.time, data]
+	    advance_stream(min_sample.stream, min_sample.sample_index)
+	    [min_sample.time, min_sample.time, data]
 	end
 
 	def each_block(rewind = true)
