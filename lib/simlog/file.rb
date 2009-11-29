@@ -448,7 +448,7 @@ module Pocosim
 	    end
 
             file_info   = @io.map { |io| [File.size(io.path), io.mtime] }
-            stream_info = @streams.map { |s| s.info }
+            stream_info = @streams.compact.map { |s| s.info }
 
             begin
                 File.open(index_filename, 'w') do |io|
