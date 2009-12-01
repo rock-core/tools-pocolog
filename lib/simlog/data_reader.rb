@@ -65,6 +65,18 @@ module Pocosim
 			
 			stream_registry.import(io.path, 'tlb')
 		    end
+
+                    # if we do have a registry, then adapt it to the local machine
+                    # if needed. Right now, this is required if containers changed
+                    # size.
+                    resize_containers = Hash.new
+                    stream_registry.each_type do |type|
+                        if type <= Typelib::ContainerType && type.size != type.natural_size
+                            resize_containers[type] = type.natural_size
+                        end
+                    end
+                    stream_registry.resize(resize_containers)
+
 		    @registry.merge(stream_registry)
 		end
 	    end

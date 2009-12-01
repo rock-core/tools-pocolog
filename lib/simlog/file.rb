@@ -533,17 +533,6 @@ module Pocosim
 		@streams ||= Array.new
 		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || ''))
 
-                # if we do have a registry, then adapt it to the local machine
-                # if needed. Right now, this is required if containers changed
-                # size.
-                resize_containers = Hash.new
-                s.registry.each_type do |type|
-                    if type <= Typelib::ContainerType && type.size != type.natural_size
-                        resize_containers[type] = type.natural_size
-                    end
-                end
-                s.registry.resize(resize_containers)
-
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
                 info.declaration_block = [io_index, block_info.pos]
