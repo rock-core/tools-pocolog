@@ -33,7 +33,12 @@ module Pocosim
 
 	attr_reader :io
 	attr_reader :streams
+	attr_reader :registry
 	def initialize(*io)
+	    if io.last.kind_of?(Typelib::Registry)
+		@registry = io.pop
+	    end
+
 	    @io          = io
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
@@ -128,6 +133,7 @@ module Pocosim
 	    super
 
 	    @io		 = from.io.map { |obj| obj.dup }
+	    @registry    = from.registry
 	    @block_info  = BlockInfo.new
 	    @time_base   = @time_base.dup
 	    @time_offset = @time_offset.dup

@@ -51,7 +51,9 @@ module Pocosim
 	# Get the Typelib::Registry object for this stream
 	def registry
 	    unless @registry
-		@registry = Typelib::Registry.new
+		@registry = logfile.registry || Typelib::Registry.new
+
+		stream_registry = Typelib::Registry.new
 
 		# Load the pocosim TLB in this registry, if it is found
 		Pocosim.load_tlb(@registry)
@@ -61,8 +63,9 @@ module Pocosim
 			io.write(marshalled_registry)
 			io.flush
 			
-			@registry.import(io.path, 'tlb')
+			stream_registry.import(io.path, 'tlb')
 		    end
+		    @registry.merge(stream_registry)
 		end
 	    end
 	    @registry
