@@ -13,7 +13,11 @@ module Pocosim
 
 	# Enumerates the blocks of this stream
 	def each_block(rewind = true)
-            self.rewind if rewind
+            if rewind
+                self.rewind
+                yield if block_given?
+            end
+
 	    logfile.each_data_block(index, false) do
                 yield if block_given?
                 @sample_index += 1
@@ -360,14 +364,9 @@ module Pocosim
 
             if min_index || min_time
                 stream.seek(min_index || min_time)
-            else
-                stream.rewind
             end
-	    sample_index = stream.sample_index - 1
-	    stream.each_block(false) do
-		sample_index += 1
-
-		next if min_index && sample_index < min_index
+	    stream.each_block(!(min_index || min_time)) do
+                sample_index = stream.sample_index
 		return self if max_index && max_index < sample_index
 		return self if max_count && max_count <= sample_count
 
