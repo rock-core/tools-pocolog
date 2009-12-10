@@ -1,0 +1,79 @@
+One log file is a prologue followed by a suite of blocks.
+
+All values in headers and prologue are saved in little endian byte format. The
+data itself is marshalled in the Typelib marshalling format, i.e. in an
+endian-specific format. Use typelib to swap the endianness if needed.
+
+Prologue (12 bytes)
+-------------------
+ Offset    Size      Field description
+ +0        7         Magic field, currently "POCOSIM" (see Logging::FORMAT_MAGIC)
+ +7        4         Format version (currently 2, see Logging::FORMAT_VERSION)
+ +11       1         Endianness (1 = big, 0 = little)
+
+
+General block header (8 bytes)
+------------------------------
+ Offset    Size      Field description
+ +0        1         Block type (see "Block types" below)
+ +1        1         Padding
+ +2        2         Stream index
+ +4        4         Payload size
+
+Block types
+-----------
+StreamBlockType = 1
+  these blocks declare a new stream. There are two stream types: control and
+  data, and the actual stream type is determined in the block payload. See below
+  for the two stream declaration format.
+
+DataBlockType = 2
+  A sample in an already declared data stream
+
+ControlBlockType = 3
+  A sample in an already declared control stream
+
+Note that control streams are currently unused.
+
+Data stream declaration block
+-----------------------------
+ Offset    Size      Field description
+ +0        1         Block type   (= 1 for stream declaration block)
+ +1        1         Padding
+ +2        2         Stream index
+ +4        4         Payload size (variable)
+ +8        1         Stream type (= 1 for data streams)
+ +9        4         stream name size
+ +13       -         stream name
+ -         4         stream type name size
+ -         -         stream type name
+ -         4         type registry size
+ -         -         type registry marshalled in Typelib's XML format
+
+Data block
+----------
+ Offset    Size      Field description
+ +0        1         Block type   (= 2 for data block)
+ +1        1         Padding
+ +2        2         Stream index
+ +4        4         Payload size (variable)
+ +8        4         real time (sec)
+ +12       4         real time (usec)
+ +16       4         logical time (sec)
+ +20       4         logical time (usec)
+ +24       4         data size
+ +25       1         block flags
+ +26       data_size data
+
+The only bit used in the block flags is the first one. If set, the payload is
+compressed using gzip compression. Otherwise, it is not compressed.
+
+Control stream declaration block
+--------------------------------
+ Offset    Size      Field description
+ +0        1         Block type   (= 1 for stream declaration block)
+ +1        1         Padding
+ +2        2         Stream index
+ +4        4         Payload size (= 1)
+ +8        1         Stream type (= 2 for control streams)
+
