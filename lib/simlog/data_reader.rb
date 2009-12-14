@@ -14,7 +14,9 @@ module Pocosim
 	# Enumerates the blocks of this stream
 	def each_block(rewind = true)
             if rewind
-                self.rewind
+                if !self.rewind
+                    return
+                end
                 yield if block_given?
             end
 
@@ -108,6 +110,7 @@ module Pocosim
 		next if header.lg == Time.at(0)
 		return header
 	    end
+            nil
 	end
 
 	# Go to the first sample whose logical time is not null
