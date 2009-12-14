@@ -216,8 +216,11 @@ module Pocosim
 	end
 
 	def seek(time_limit)
+            @next_samples = @current_samples = nil
 	    @next_samples = streams.map do |s, i|
 		header = s.rewind
+                return if !header
+
 		time = if use_rt then header.rt
 		       else Time.at(header.lg - s.logfile.time_base)
 		       end
@@ -258,7 +261,7 @@ module Pocosim
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def step
-	    return unless next_samples.all? { |s| s }
+	    return if !next_samples || next_samples.all? { |s| s }
 	    min_sample = next_samples.min { |s1, s2| s1.time <=> s2.time }
 	    advance_stream(min_sample.stream, min_sample.sample_index)
 	    return min_sample.sample_index, min_sample.time, single_data(min_sample.sample_index)
