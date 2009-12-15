@@ -40,6 +40,7 @@ module Pocosim
 	    end
 
 	    @io          = io
+            @io_size     = io.map { |rio| rio.stat.size }
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
 	    @compress    = true
@@ -188,6 +189,8 @@ module Pocosim
 	def rio; @io[@rio] end
 	# Returns the IO object used for writing
 	def wio; @io.last end
+        # Returns the file size of +rio+
+        def file_size; @io_size[@rio] end
 	
 	# Yields for each block found. The block header can be used
 	# through #block_info
@@ -306,12 +309,17 @@ module Pocosim
             end
 
             type, index, payload_size = header.unpack('CxvV')
+            next_block_pos = rio.tell + payload_size
+            if file_size < next_block_pos
+                return
+            end
+
             @block_info.io           = @rio
             @block_info.pos          = @next_block_pos
             @block_info.type         = type
             @block_info.index        = index
             @block_info.payload_size = payload_size
-            @next_block_pos = rio.tell + payload_size
+            @next_block_pos = next_block_pos
 
             if !BLOCK_TYPES.include?(type)
                 raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
