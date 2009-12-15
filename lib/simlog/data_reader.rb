@@ -84,7 +84,13 @@ module Pocosim
                     end
                     stream_registry.resize(resize_containers)
 
-		    @registry.merge(stream_registry)
+                    begin
+                        @registry.merge(stream_registry)
+                    rescue RuntimeError => e
+                        if e.message =~ /but with a different definition/
+                            raise e, e.message + ". Are you mixing 32 and 64 bit data ?", e.backtrace
+                        end
+                    end
 		end
 	    end
 	    @registry
