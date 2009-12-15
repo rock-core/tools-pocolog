@@ -71,6 +71,7 @@ module Pocosim
 			
 			stream_registry.import(io.path, 'tlb')
 		    end
+                    stream_registry = stream_registry.minimal(typename)
 
                     # if we do have a registry, then adapt it to the local machine
                     # if needed. Right now, this is required if containers changed
