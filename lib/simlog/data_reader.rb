@@ -158,7 +158,9 @@ module Pocosim
 	# Returns the next sample beginning at the current position in the file
 	def next
 	    header = advance
-	    return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            if(header) 
+              return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            end
 	end
     end
 
