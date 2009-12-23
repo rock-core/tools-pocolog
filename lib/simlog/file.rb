@@ -33,8 +33,14 @@ module Pocosim
 
 	attr_reader :io
 	attr_reader :streams
+	attr_reader :registry
 	def initialize(*io)
+	    if io.last.kind_of?(Typelib::Registry)
+		@registry = io.pop
+	    end
+
 	    @io          = io
+            @io_size     = io.map { |rio| rio.stat.size }
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
 	    @compress    = true
@@ -128,6 +134,7 @@ module Pocosim
 	    super
 
 	    @io		 = from.io.map { |obj| obj.dup }
+	    @registry    = from.registry
 	    @block_info  = BlockInfo.new
 	    @time_base   = @time_base.dup
 	    @time_offset = @time_offset.dup
@@ -182,6 +189,8 @@ module Pocosim
 	def rio; @io[@rio] end
 	# Returns the IO object used for writing
 	def wio; @io.last end
+        # Returns the file size of +rio+
+        def file_size; @io_size[@rio] end
 	
 	# Yields for each block found. The block header can be used
 	# through #block_info
@@ -300,12 +309,17 @@ module Pocosim
             end
 
             type, index, payload_size = header.unpack('CxvV')
+            next_block_pos = rio.tell + payload_size
+            if file_size < next_block_pos
+                return
+            end
+
             @block_info.io           = @rio
             @block_info.pos          = @next_block_pos
             @block_info.type         = type
             @block_info.index        = index
             @block_info.payload_size = payload_size
-            @next_block_pos = rio.tell + payload_size
+            @next_block_pos = next_block_pos
 
             if !BLOCK_TYPES.include?(type)
                 raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
@@ -526,17 +540,6 @@ module Pocosim
 	    else
 		@streams ||= Array.new
 		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || ''))
-
-                # if we do have a registry, then adapt it to the local machine
-                # if needed. Right now, this is required if containers changed
-                # size.
-                resize_containers = Hash.new
-                s.registry.each_type do |type|
-                    if type <= Typelib::ContainerType && type.size != type.natural_size
-                        resize_containers[type] = type.natural_size
-                    end
-                end
-                s.registry.resize(resize_containers)
 
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
