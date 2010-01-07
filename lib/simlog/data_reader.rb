@@ -32,20 +32,29 @@ module Pocosim
 		find { true }
 	end
 
-        # The times of the current sample, as [rt, lg]
+        # Returns the time of the current sample
 	def time
 	    header = logfile.data_header
-	    [header.rt, Time.at(header.lg - logfile.time_base)]
+            [header.rt, Time.at(header.lg - logfile.time_base)]
 	end
 
 	# Get the logical time of first and last samples in this stream. If
 	# +rt+ is true, returns the interval for the wall-clock time
+        #
+        # Returns nil if the stream is empty
 	def time_interval(rt = false)
 	    if rt then info.interval_rt
 	    else info.interval_lg
 	    end
 	end
 
+        # The data header for the current sample. You can store a copy of this
+        # header to retrieve data later on with #data:
+        #
+        #   # Don't forget to duplicate !
+        #   stored_header = stream.data_header.dup
+        #   ...
+        #   data = stream.data(stored_header)
 	def data_header; logfile.data_header end
 
 	# The size, in samples, of data in this stream
@@ -99,7 +108,10 @@ module Pocosim
 	# Get a Typelib object describing the type of this data stream
 	def type; @type ||= registry.get(typename) end
 
-	# Get the data at the current sample, or at the given data_header block
+	# Returns the decoded data sample associated with the given block
+        # header.
+        #
+        # Block headers are returned by #rewind 
 	def data(data_header = nil)
 	    data = type.wrap(logfile.data(data_header))
 	    if logfile.endian_swap
@@ -109,6 +121,13 @@ module Pocosim
 	    end
 	end
 
+        # call-seq:
+        #   rewind => data_header
+        #
+        # Goes to the first sample in the stream, and returns its header.
+        # Returns nil if the stream is empty.
+        #
+        # It differs from #first as it does not decode the data payload.
 	def rewind
             @sample_index = 0
 	    logfile.each_data_block(index, true) do
@@ -120,13 +139,23 @@ module Pocosim
             nil
 	end
 
-	# Go to the first sample whose logical time is not null
+        # call-seq:
+        #   first => [time_rt, time_lg, data]
+        #
+	# Returns the first sample in the stream, or nil if the stream is empty
+        #
+        # It differs from #rewind as it always decodes the data payload.
 	def first
 	    header = rewind
-	    [header.rt, Time.at(header.lg - logfile.time_base), data]
+            if header
+                [header.rt, Time.at(header.lg - logfile.time_base), data]
+            end
 	end
 
-        # Read the last sample in the stream
+        # call-seq:
+        #   last => [time_rt, time_lg, data]
+        #
+        # Returns the last sample in the stream, or nil if the stream is empty.
         def last
             last_sample_pos = info.interval_io[1]
             logfile.seek(last_sample_pos[1], last_sample_pos[0])
@@ -148,6 +177,9 @@ module Pocosim
 	    end
 	end
 
+        # Reads the next sample in the file, and returns its header. Returns nil
+        # if the end of file has been reached. Unlike +next+, it does not
+        # decodes the data payload.
 	def advance
 	    logfile.each_data_block(index, false) do
 		return logfile.data_header
@@ -155,10 +187,16 @@ module Pocosim
 	    nil
 	end
 
-	# Returns the next sample beginning at the current position in the file
+	# call-seq:
+        #   next => [time_rt, time_lg, data]
+        #
+        # Reads the next sample in the file, and returns it. It differs from
+        # +advance+ as it always decodes the data sample.
 	def next
 	    header = advance
-	    return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            if(header) 
+              return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            end
 	end
     end
 
@@ -268,7 +306,7 @@ module Pocosim
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def step
-	    return if !next_samples || next_samples.all? { |s| s }
+	    return if !next_samples || !next_samples.all? { |s| s }
 	    min_sample = next_samples.min { |s1, s2| s1.time <=> s2.time }
 	    advance_stream(min_sample.stream, min_sample.sample_index)
 	    return min_sample.sample_index, min_sample.time, single_data(min_sample.sample_index)

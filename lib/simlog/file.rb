@@ -58,7 +58,19 @@ module Pocosim
 	#   #{basename}.#{index}.log
 	attr_accessor :basename
 
+        # Returns the current position in the file
+        #
+        # This is the position of the next block.
 	def tell; @next_block_pos end
+
+        # call-seq:
+        #   seek(data_header) => position
+        #   seek(raw_position[, rio]) => position
+        #
+        # Seeks in the file at the given position. In the first form, seeks to
+        # the place where the data_header is stored. In the second form, seeks
+        # to the given raw position, and optionally changes the current IO
+        # object (rio is an index in the set of IOs given to #initialize)
 	def seek(pos, rio = nil)
             if pos.kind_of?(DataHeader)
                 unless io_index = @io.index(pos.io)
@@ -140,7 +152,7 @@ module Pocosim
 	    @time_offset = @time_offset.dup
 	end
 
-	# Start reading at the beginning of the first log file
+	# Returns at the beginning of the first file of the file set
 	def rewind
 	    @rio     = 0
 	    @time_base      = []
@@ -192,8 +204,9 @@ module Pocosim
         # Returns the file size of +rio+
         def file_size; @io_size[@rio] end
 	
-	# Yields for each block found. The block header can be used
-	# through #block_info
+        # Yields for each block found in the file set.
+        #
+        # This is not meant for direct use. Use #each_data_block instead.
 	def each_block(rewind = true, with_prologue = true)
 	    self.rewind if rewind
 	    while true
@@ -221,8 +234,16 @@ module Pocosim
         # +pos+ in the given stream.
         #
         # +stream_idx+ is the stream index. +pos+ is either an integer or a
-        # Time. In the first case, it is the sample index. In the latter case,
-        # it is the sample time.
+        # Time.
+        #
+        # If +pos+ is an integer, it is interpreted as a sample index in the
+        # stream. #seek_stream will then return the sample index of the entry
+        # found in the index.
+        #
+        # If +pos+ is a time, it is interpreted as a sample time. #seek_stream
+        # will then return the sample time of the entry found in the index.
+        #
+        # Raises ArgumentError if no sample can be found that matches +pos+
         def seek_stream(stream_idx, pos)
             info = streams[stream_idx].info
             if info.empty?
@@ -235,7 +256,7 @@ module Pocosim
                 end
 
                 unless index_entry = info.index.find { |size, _| size + Logfiles::StreamInfo::INDEX_STEP > pos }
-                    raise "cannot find #{pos} in index"
+                    raise ArgumentError, "cannot find #{pos} in index"
                 end
 
                 header = nil
@@ -247,7 +268,7 @@ module Pocosim
                 end
 
                 if sample_index != pos
-                    raise "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
+                    raise InternalError, "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
                 end
 
                 return sample_index
@@ -277,6 +298,9 @@ module Pocosim
         # Reads one block at the specified position and returns the block type
         # (equal to block_info.type). If the block is a control or stream block,
         # also call the relevant parsing methods.
+        #
+        # See #seek for the meaning of +pos+ and +rio+. If both are nil, reads
+        # the sample at the current position.
         def read_one_block(pos = nil, rio = nil)
             if pos
                 seek(pos, rio)
@@ -290,6 +314,8 @@ module Pocosim
         # Gets the block information in +block_info+ and acts accordingly: calls
         # the relevant parsing methods if it is a control or stream block. It
         # does nothing for data blocks.
+        #
+        # Returns the block type (CONTROL_BLOCK, DATA_BLOCK or STREAM_BLOCK)
         def handle_block(block_info) # :nodoc:
             if block_info.type == CONTROL_BLOCK
                 read_control_block
@@ -303,7 +329,12 @@ module Pocosim
             block_info.type
         end
 
-        def read_block_header
+        # Reads the block header at the current position. Returns true if the
+        # read was successful and false if we reached the end of file.
+        #
+        # It updates the @block_info and @next_block_pos instance variable
+        # accordingly.
+        def read_block_header # :nodoc:
             unless header = rio.read(BLOCK_HEADER_SIZE)
                 return
             end
@@ -327,8 +358,16 @@ module Pocosim
             true
         end
 
-	# Yields for each data block in stream +stream_index+, or in all
-	# streams if +stream_index+ is nil.
+	# call-seq:
+        #   each_data_block([stream_index[, rewind]]) do |stream_index|
+        #   end
+        #
+        # Yields for each data block in stream +stream_index+, or in all
+	# streams if +stream_index+ is nil. The block header can be retrieved
+        # using #data_header, and the sample by using #data
+        #--
+        # the with_prologue parameter is a backward compatibility feature that
+        # allowed to read old files that did not have a prologue.
 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
 	    each_block(rewind) do |block_info|
                 if handle_block(block_info) == DATA_BLOCK
@@ -347,16 +386,32 @@ module Pocosim
 	    end
 	end
 
+        # Basic information about a stream, as saved in the index files
         class StreamInfo
             INDEX_STEP = 500
 
+            # Position of the declaration block as [raw_pos, io_index]. This
+            # information can directly be given to Logfiles#seek
             attr_accessor :declaration_block
+            # The position of the first and last samples in the file set, as
+            # [[raw_pos, io_index], [raw_pos, io_index]]. It is empty for empty
+            # streams.
             attr_accessor :interval_io
+            # The logical time of the first and last samples of that stream
+            # [beginning, end]. It is empty for empty streams.
             attr_accessor :interval_lg
+            # The real time of the first and last samples of that stream
+            # [beginning, end]. It is empty for empty streams.
             attr_accessor :interval_rt
+            # The number of samples in this stream
             attr_accessor :size
+            # The index data itself. It is an ordered set of 4-tuples:
+            #     [sample_index, [raw_pos, io_index], real_time, logical_time]
+            #
+            # Seeking using this index is done by Logfiles#seek_stream
             attr_accessor :index
 
+            # True if this stream is empty
             def empty?; size == 0 end
 
             def initialize
@@ -368,10 +423,11 @@ module Pocosim
             end
         end
 
+        # Load the given index file. Returns nil if the index file does not
+        # match the files in the file set.
         def load_index_file(index_filename)
             # Look for an index. If it is found, load it and use it.
             return unless File.readable?(index_filename)
-
             STDERR.print "loading file info from #{index_filename}... "
             file_info, stream_info = Marshal.load(File.open(index_filename))
 
@@ -413,8 +469,8 @@ module Pocosim
             STDERR.puts "invalid index file"
         end
 
-	# The set of data streams found in this file. The file is read
-	# the first time this function is called
+	# Loads and returns the set of data streams found in this file. Will
+        # lazily build an index file when required.
 	def streams
 	    return @streams.compact if @streams
 
@@ -513,6 +569,11 @@ module Pocosim
 	    end
 	end
 
+        # Reads the stream declaration block present at the current position in
+        # the file.
+        #
+        # Raise if a new definition block is found for an already existing
+        # stream, and the definition does not match the old one.
 	def read_stream_declaration # :nodoc:
 	    if block_info.payload_size <= 8
 		raise "bad data size #{block_info.size}"
@@ -526,6 +587,7 @@ module Pocosim
 	    typename_size = rio.read(4).unpack('V').first
 	    typename      = rio.read(typename_size)
 
+            # Load the registry if it seems that there is one
 	    unless rio.tell == block_start + block_info.payload_size
 		registry_size = rio.read(4).unpack('V').first
 		registry      = rio.read(registry_size)
@@ -552,7 +614,7 @@ module Pocosim
 	# order
 	attr_reader :endian_swap
 
-	# Reads a time in #rio and returns it 
+        # Reads a time at the current position, and returns it as a Time object
 	def read_time # :nodoc:
 	    rt_sec, rt_usec = rio.read(TIME_SIZE).unpack('VV')
 	    Time.at(rt_sec, rt_usec)
@@ -568,7 +630,7 @@ module Pocosim
 	#   block = file.data_header.dup
 	#   [do something, including reading the file]
 	#   data  = file.data(block)
-	def data_header # :nodoc:
+	def data_header
 	    if @data_header.updated
 		@data_header
 	    else
