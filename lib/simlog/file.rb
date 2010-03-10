@@ -1,6 +1,7 @@
 require 'utilrb/module/attr_predicate'
 require 'fileutils'
 module Pocosim
+    class InvalidIndex < RuntimeError; end
     class Logfiles
 	FORMAT_VERSION = 2
 
@@ -431,21 +432,24 @@ module Pocosim
             STDERR.print "loading file info from #{index_filename}... "
             file_info, stream_info = Marshal.load(File.open(index_filename))
 
+            if file_info.size != @io.size
+                raise InvalidIndex, "invalid index file: file set changed"
+            end
             coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
                 size == File.size(@io[idx].path)
             end
             if !coherent
-                raise "invalid index file"
+                raise InvalidIndex, "invalid index file: file size is different"
             end
 
             stream_info.each_with_index do |info, idx|
                 if !info.declaration_block
-                    raise "old index file found"
+                    raise InvalidIndex, "old index file found"
                 end
 
                 @rio, pos = info.declaration_block
                 if read_one_block(pos, @rio) != STREAM_BLOCK
-                    raise "invalid declaration_block reference in index"
+                    raise InvalidIndex, "invalid declaration_block reference in index"
                 end
 
                 # Read the stream declaration block and then update the
@@ -453,11 +457,11 @@ module Pocosim
                 if !info.empty?
                     @rio, pos = info.interval_io[0]
                     if read_one_block(pos, @rio) != DATA_BLOCK
-                        raise "invalid start IO reference in index"
+                        raise InvalidIndex, "invalid start IO reference in index"
                     end
 
                     if block_info.index != idx
-                        raise "invalid interval_io: stream index mismatch for #{@streams[idx].name}. Expected #{idx}, got #{data_block_index}."
+                        raise InvalidIndex, "invalid interval_io: stream index mismatch for #{@streams[idx].name}. Expected #{idx}, got #{data_block_index}."
                     end
                     @streams[idx].instance_variable_set(:@info, info)
                 end
@@ -465,7 +469,7 @@ module Pocosim
             STDERR.puts "done"
             return @streams.compact
 
-        rescue Exception => e
+        rescue InvalidIndex => e
             STDERR.puts "invalid index file"
         end
 
