@@ -3,10 +3,10 @@ Manifest.txt
 README.txt
 Rakefile
 bin/pocosim-log
-bin/pocosim-logger
 lib/simlog.rb
 lib/simlog/convert.rb
 lib/simlog/data_reader.rb
 lib/simlog/data_writer.rb
 lib/simlog/file.rb
 lib/simlog/logger.rb
+lib/simlog/version.rb
