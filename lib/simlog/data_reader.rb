@@ -199,6 +199,14 @@ module Pocosim
               return [header.rt, Time.at(header.lg - logfile.time_base), data]
             end
 	end
+
+	# call-seq:
+        #   previous => [time_rt, time_lg, data]
+        #
+        # Reads the previous sample in the file, and returns it.
+        def previous
+	    seek(sample_index - 1)
+        end
     end
 
     class JointStream
@@ -325,6 +333,22 @@ module Pocosim
 	    advance_stream(min_sample.stream, min_sample.sample_index)
 	    [min_sample.time, min_sample.time, data]
 	end
+
+        def previous
+	    max_sample = current_samples.max { |s1, s2| s1.time <=> s2.time }
+            stream_index = max_sample.sample_index
+
+            if result = max_sample.stream.previous
+              time = if use_rt then result[0]
+                     else result[1]
+                     end
+
+              next_samples[stream_index] = current_samples[stream_index]
+              current_samples[stream_index] =
+                StreamSample.new(time, max_sample.stream.data_header, max_sample.stream, stream_index)
+              [time, time, data]
+            end
+        end
 
 	def each_block(rewind = true)
 	    if rewind
