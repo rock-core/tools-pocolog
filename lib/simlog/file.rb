@@ -2,6 +2,7 @@ require 'utilrb/module/attr_predicate'
 require 'fileutils'
 module Pocosim
     class InvalidIndex < RuntimeError; end
+    class InternalError < RuntimeError; end
     class Logfiles
 	FORMAT_VERSION = 2
 
