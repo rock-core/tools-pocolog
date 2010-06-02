@@ -182,6 +182,7 @@ module Pocosim
         # decodes the data payload.
 	def advance
 	    logfile.each_data_block(index, false) do
+                @sample_index += 1
 		return logfile.data_header
 	    end
 	    nil
