@@ -289,7 +289,10 @@ module Pocosim
 	    if fields
 		header_names = fields.map do |name| 
                     type = name.split('.').inject(stream.type) do |type, subname|
-                        subname = $' if subname =~ /\[.*\]$/
+                        if subname =~ /(.*)\[.*\]$/
+                            subname = $1
+                        end
+
                         type[subname]
                     end
 		    subnames = type.to_csv
@@ -328,7 +331,9 @@ module Pocosim
 		if fields
 		    values = fields.map do |name| 
                         v = name.split('.').inject(data) do |v, subname|
-                            subname = $' if subname =~ /\[.*\]$/
+                            if subname =~ /(.*)\[.*\]$/
+                                subname = $1 
+                            end
                             v[subname]
                         end
 			if v.respond_to?(:to_csv) then v.to_csv
