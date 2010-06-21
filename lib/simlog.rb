@@ -7,6 +7,7 @@ require 'zlib'
 
 require 'simlog/convert'
 require 'simlog/data_reader'
+require 'simlog/stream_aligner'
 require 'simlog/data_writer'
 require 'simlog/file'
 require 'simlog/version'

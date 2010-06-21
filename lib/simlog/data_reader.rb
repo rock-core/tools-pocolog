@@ -32,10 +32,16 @@ module Pocosim
 		find { true }
 	end
 
+        attr_accessor :time_getter
+
         # Returns the time of the current sample
 	def time
-	    header = logfile.data_header
-            [header.rt, Time.at(header.lg - logfile.time_base)]
+            header = logfile.data_header
+            if !time_getter
+                [header.rt, Time.at(header.lg - logfile.time_base)]
+            else
+                [header.rt, time_getter[data(header)]]
+            end
 	end
 
 	# Get the logical time of first and last samples in this stream. If
@@ -262,10 +268,11 @@ module Pocosim
 		return
 	    end
 
-	    time = if use_rt then header.rt
-		   else Time.at(header.lg - s.logfile.time_base)
-		   end
-
+	    time = s.time
+            puts time.map(&:tv_usec).inspect
+            time = if use_rt then time.first
+                   else time.last
+                   end
 	    next_samples[i] = StreamSample.new time, header, s, i
 	end
 
@@ -275,9 +282,10 @@ module Pocosim
 		header = s.rewind
                 return if !header
 
-		time = if use_rt then header.rt
-		       else Time.at(header.lg - s.logfile.time_base)
-		       end
+                time = s.time
+                time = if use_rt then time.first
+                       else time.last
+                       end
 
 		StreamSample.new time, header, s, i
 	    end
