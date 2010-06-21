@@ -665,7 +665,7 @@ module Pocosim
 
 	# Returns the raw data payload of the current block
 	def data(data_header = nil)
-	    if @data then @data
+	    if @data && !data_header then @data
 	    else
 		data_header ||= self.data_header
 		data_header.io.seek(data_header.pos)
@@ -674,7 +674,10 @@ module Pocosim
 		    # Payload is compressed
 		    data = Zlib::Inflate.inflate(data)
 		end
-		@data = data
+                if !data_header
+                    @data = data
+                end
+                data
 	    end
 	end
 
