@@ -322,9 +322,9 @@ module Pocosim
 	    samples.each do |rt, lg, data|
 		if time
 		    if samples.use_rt
-			print "#{rt.to_hms} "
+			print "#{rt.tv_sec}.#{rt.tv_usec} "
 		    else
-			print "#{lg.to_hms} "
+			print "#{lg.tv_sec}.#{lg.tv_usec} "
 		    end
 		end
 
