@@ -269,7 +269,6 @@ module Pocosim
 	    end
 
 	    time = s.time
-            puts time.map(&:tv_usec).inspect
             time = if use_rt then time.first
                    else time.last
                    end
