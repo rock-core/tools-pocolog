@@ -143,6 +143,7 @@ module Pocosim
                 @sample_index += 1
 		header = logfile.data_header
 		next if header.lg == Time.at(0)
+                @first_valid_sample_index = @sample_index
 		return header
 	    end
             nil
@@ -219,6 +220,7 @@ module Pocosim
         #
         # Reads the previous sample in the file, and returns it.
         def previous
+            return nil if @first_valid_sample_index == sample_index
 	    seek(sample_index - 1)
         end
     end
