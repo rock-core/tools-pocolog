@@ -171,11 +171,16 @@ module Pocosim
             self.next
         end
 
-        # Seek the stream at the first sample whose logical time is greater
-        # than +pos+. Pos is either a Time -- in which case it is considered as
-        # a logical time or an integer, in which case it is interpreted as an
-        # index. Returns [rt, lg, data] for the sample just before (if there is
-        # one)
+        # Seek the stream at the given position
+        #
+        # If +pos+ is a Time object, seeks to the first sample whose logical
+        # time is equal or greater than +pos+.
+        #
+        # If +pos+ is an integer, it is interpreted as an index and the stream
+        # goes to the sample that has this index.
+        #
+        # Returns [rt, lg, data] for the current sample (if there is one), and
+        # nil otherwise
 	def seek(pos)
             @sample_index = logfile.seek_stream(self.index, pos)
             if header = self.data_header
