@@ -178,12 +178,12 @@ module Pocosim
         # one)
 	def seek(pos)
             @sample_index = logfile.seek_stream(self.index, pos)
-            header = self.data_header.dup
+            if header = self.data_header
+                header = header.dup
 
-	    if header
                 data = self.data(header)
-		return [header.rt, Time.at(header.lg - logfile.time_base), data]
-	    end
+                return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            end
 	end
 
         # Reads the next sample in the file, and returns its header. Returns nil
