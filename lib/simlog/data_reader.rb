@@ -135,7 +135,10 @@ module Pocosim
         #
         # It differs from #first as it does not decode the data payload.
 	def rewind
-            @sample_index = 0
+            # The first sample in the file has index 0, so set sample_index to
+            # -1 so that (@sample_index += 1) sets the index to 0 for the first
+            # sample
+            @sample_index = -1
 	    logfile.each_data_block(index, true) do
                 @sample_index += 1
 		header = logfile.data_header
