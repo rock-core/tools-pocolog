@@ -260,7 +260,7 @@ module Pocosim
                     size + Logfiles::StreamInfo::INDEX_STEP > pos
                 end
 
-                unless index_entry = info.index.find { |size, _| size + Logfiles::StreamInfo::INDEX_STEP > pos }
+                if !index_entry
                     raise ArgumentError, "cannot find #{pos} in index"
                 end
 
