@@ -68,10 +68,10 @@ module Pocosim
 		prev_samples[i] = nil
 		return current_samples[i]
 	    end
-	    time = current_streams[i].time
-            @stream_time = if use_rt then time.first
-                    else time.last
-                    end
+            @stream_time =
+	        if use_rt then header.rt
+                else header.lg
+                end
 
             prev_samples[i] = StreamSample.new self.stream_time, header.dup, s, i
             current_samples[i]
@@ -91,10 +91,10 @@ module Pocosim
 		next_samples[i] = nil
 		return current_samples[i]
             end
-            time = current_streams[i].time
-            @stream_time = if use_rt then time.first
-                    else time.last
-                    end
+            @stream_time =
+		if use_rt then header.rt
+		else header.lg
+		end
 
 	    next_samples[i] = StreamSample.new self.stream_time, header.dup, s, i
             current_samples[i]
