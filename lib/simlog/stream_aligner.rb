@@ -32,7 +32,6 @@ module Pocosim
             @eof = false;
             @forward_replay = true
 
-            min_stream, min_time = nil
             streams.each_with_index do |s, i|
 		header = s.rewind
                 return if !header
@@ -41,11 +40,6 @@ module Pocosim
                 time = if use_rt then time.first
                        else time.last
                        end
-
-                if !min_time || min_time > time
-                    min_time = time
-                    min_stream = next_samples.size
-                end
 
 		next_samples    << StreamSample.new(time, header.dup, s, i)
                 current_streams << s
