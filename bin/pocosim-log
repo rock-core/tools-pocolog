@@ -181,84 +181,6 @@ module Pocosim
 	end
     end
 
-    class ExportConfig < SampleModeConfig
-	Spec = Struct.new(:samples, :as)
-
-	def self.optname; "--export" end
-
-	def initialize(io)
-	    @posters = []
-	    super
-	end
-
-	def as(poster_name)
-	    current.as = poster_name
-	end
-
-	# The list of created posters
-	attr_reader :posters
-
-	def self.posterlib
-	    return @posterlib if @posterlib
-
-	    @registry = Typelib::Registry.new
-	    pkg = Utilrb::PkgConfig.new('pocolibs')
-	    cflags = Shellwords.shellwords(pkg.cflags)
-	    incdir = pkg.includedir
-
-	    @registry.import File.join(incdir, 'portLib.h'), nil, :merge => true, :rawflag => cflags
-	    @registry.import File.join(incdir, 'h2timeLib.h'), nil, :merge => true, :rawflag => cflags
-	    @registry.import File.join(incdir, 'h2initGlob.h'), nil, :merge => true, :rawflag => cflags
-	    @registry.import File.join(incdir, 'posterLib.h'), nil, :merge => true, :rawflag => cflags
-
-	    @posterlib	= Typelib.dlopen(File.join(pkg.libdir, 'libposterLib.so'), @registry)
-	end
-	def self.poster_create
-	    @poster_create ||= posterlib.wrap('posterCreate', ['STATUS', 3], 'char*', 'int', 'POSTER_ID*')
-	end
-	def self.poster_write
-	    @poster_write  ||= posterlib.wrap('posterWrite', 'STATUS', 'POSTER_ID', 'int', 'void*', 'int')
-	end
-	def self.poster_delete
-	    @poster_delete ||= posterlib.wrap('posterDelete', 'STATUS', 'POSTER_ID')
-	end
-
-	# Creates a new poster and returns its ID
-	def poster_create(name, size)
-	    result, id = ExportConfig.poster_create[name, size]
-	    if result != 0
-		raise "cannot create poster #{name} of size #{size}"
-	    end
-
-	    @posters << id
-	    id
-	end
-
-	def execute
-	    specs.each do |spec|
-		spec.as ||= spec.samples.stream.name
-
-		_, lg, data = spec.samples.find { true }
-		if !data
-		    raise "no sample"
-		end
-
-		id   = poster_create(spec.as, data.class.size)
-		if 1 == ExportConfig.poster_write[id, 0, data, data.class.size]
-		    raise "cannot write to poster #{spec.as}"
-		end
-		STDERR.puts "#{spec.as}: written sample at #{lg.to_hms} from #{spec.samples.stream.name}"
-	    end
-	    sleep
-
-	rescue Interrupt
-	    STDERR.puts "Interrupted"
-
-	ensure
-	    posters.each { |id| ExportConfig.poster_delete[id] }
-	end
-    end
-
     class TypeConfig < ModeConfig
 	def self.optname; "--type" end
 	attr_reader :logfiles
@@ -476,14 +398,6 @@ module Pocosim
 	    @mode_config = mode.new(io)
 	end
 
-	# Exports samples into posters
-	def export(name)
-	    unless mode && mode == ExportConfig
-		self.mode = ExportConfig
-	    end
-	    mode_config.stream(name)
-	end
-
 	# Displays samples from +name+
 	def show(name)
 	    self.mode = DisplayConfig
@@ -625,16 +539,6 @@ parser = OptionParser.new do |opts|
     end
     opts.on('--big-endian', 'the source file of --to-new-format is big-endian', 'Needed by --to-new-format to convert v1 files') do
 	config.big_endian
-    end
-
-    opts.separator ""
-    opts.separator "Export samples into posters"
-    opts.separator "  pocosim-log FILE FILE --export STREAM1 [sample spec] --as POSTER1 [sample spec] --as POSTER2 --export STREAM2 ..."
-    opts.on('-e', '--export STREAM', String, 'exports data from stream STREAM') do |name|
-	config.export(name)
-    end
-    opts.on('--as POSTER', String, 'exports the sample into poster POSTER') do |name|
-	config.as(name)
     end
 
     opts.separator ""
