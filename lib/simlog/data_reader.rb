@@ -92,7 +92,7 @@ module Pocosim
                     # if needed. Right now, this is required if containers changed
                     # size.
                     resize_containers = Hash.new
-                    stream_registry.each_type do |type|
+                    stream_registry.each do |type|
                         if type <= Typelib::ContainerType && type.size != type.natural_size
                             resize_containers[type] = type.natural_size
                         end
