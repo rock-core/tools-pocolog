@@ -101,10 +101,10 @@ module Pocosim
 	end
 
         # call-seq:
-        #   joint_stream.step => updated_stream_index, time
+        #   joint_stream.step => updated_stream_index, time, data
         #
         # Advances one step in the joint stream, an returns the index of the
-        # updated stream as well as the time.
+        # updated stream as well as the time and the data sample
         #
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
