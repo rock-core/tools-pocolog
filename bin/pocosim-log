@@ -432,7 +432,7 @@ module Pocosim
 	    logfiles.streams.each do |stream|
                 registry.merge Typelib::Registry.from_xml(stream.marshalled_registry)
 	    end
-            registry.each_type do |type|
+            registry.each do |type|
                 pp type
             end
 	end
