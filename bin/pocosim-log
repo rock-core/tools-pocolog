@@ -12,6 +12,8 @@ def time_from_spec(spec)
     end
 end
 
+# Disable typelib plugin loading
+Typelib.load_type_plugins = false
 
 # Base configuration class. If we are displaying samples, the work will be done
 # by a DisplayConfig instance
