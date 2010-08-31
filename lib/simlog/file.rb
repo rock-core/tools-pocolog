@@ -688,6 +688,11 @@ module Pocosim
             return wio
         end
 
+        # wrapping static member function write_block
+        def write_block(type,index,payload)
+          return Logfiles.write_block(wio,type,index,payload)
+        end
+
         def self.write_stream_declaration(wio, index, name, type, type_registry = nil)
             if !type_registry
                 if type.kind_of?(Typelib::Type)
