@@ -47,7 +47,7 @@ module Pocosim
 	    @block_info  = BlockInfo.new
 	    @compress    = true
 	    rewind
-            read_prologue
+            read_prologue if !io.empty?
 	end
 
 	def close
