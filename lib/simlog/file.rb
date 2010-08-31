@@ -695,7 +695,7 @@ module Pocosim
 
         def self.write_stream_declaration(wio, index, name, type, type_registry = nil)
             if !type_registry
-                if type.kind_of?(Typelib::Type)
+                if type.is_a?(Typelib::Type)
                     type_registry = type.registry.to_xml
                     type_name = type.name
                 else
