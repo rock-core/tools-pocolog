@@ -434,7 +434,12 @@ module Pocosim
             # Look for an index. If it is found, load it and use it.
             return unless File.readable?(index_filename)
             STDERR.print "loading file info from #{index_filename}... "
-            file_info, stream_info = Marshal.load(File.open(index_filename))
+            io = File.open(index_filename)
+            file_info, stream_info =
+                begin Marshal.load(io)
+                rescue Exception => e
+                    raise InvalidIndex, "cannot unmarshal index data"
+                end
 
             if file_info.size != @io.size
                 raise InvalidIndex, "invalid index file: file set changed"
