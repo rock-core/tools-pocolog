@@ -106,7 +106,7 @@ module Pocosim
         # Opens a set of file. +pattern+ can be a globbing pattern, in which
         # case all the matching files will be opened as a log sequence
         def self.open(pattern, registry = nil)
-            io = Dir.enum_for(:glob, pattern).map { |name| puts name ; File.open(name) }
+            io = Dir.enum_for(:glob, pattern).map { |name| File.open(name) }
             if io.empty?
                 raise ArgumentError, "no files matching '#{pattern}'"
             end
