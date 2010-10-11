@@ -345,6 +345,10 @@ module Pocosim
             end
 
             type, index, payload_size = header.unpack('CxvV')
+            if !type || !index || !payload_size
+                return
+            end
+
             next_block_pos = rio.tell + payload_size
             if file_size < next_block_pos
                 return
