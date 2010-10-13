@@ -3,7 +3,6 @@ module Pocosim
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
 	attr_reader :use_rt
-
 	attr_reader :streams
         attr_reader :current_streams
 	attr_reader :current_samples
@@ -12,13 +11,14 @@ module Pocosim
         attr_reader :current_pos
         attr_reader :eof
         attr_reader :forward_replay
+        attr_reader :act_stream_index
 
 	def initialize(use_rt = false, *streams)
 	    @use_rt  = use_rt
 	    @streams = streams
 
             rewind
-	end
+        end
 
         attr_reader :stream_time
         attr_reader :time
@@ -54,7 +54,7 @@ module Pocosim
 
             next_samples[i] = current_samples[i]
             current_samples[i] = prev_samples[i]
-	    @time = current_samples[i].time
+	    @time = current_samples[i].time if current_samples[i]
 
             sample = s.previous
             header = s.data_header
@@ -75,10 +75,10 @@ module Pocosim
             if !next_samples[i]
               raise "Cannot advance stream #{s.name}. End is reached"
             end
-
+            
             prev_samples[i] = current_samples[i]
 	    current_samples[i] = next_samples[i]
-            @time = current_samples[i].time
+            @time = current_samples[i].time if current_samples[i]
 
 	    header = s.advance
 	    if !header
@@ -103,16 +103,30 @@ module Pocosim
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def step	   
-             
+          return nil if @eof   
           #check if play direction has changed 
             if @forward_replay == false
+              #
+              #Setting up cursor pos and next_samples
+              #
+              #copy current samples to next if they are older and 
+              #set cursor in stream to 
+              #n if the sample was copied
+              #n+1 if it was not copied 
+              last_sample = current_samples[act_stream_index]
               current_samples.compact.each do |sample|
-                sample.stream.advance if next_samples[sample.stream_index] != nil 
+                next if current_samples[sample.stream_index] == nil
                 sample.stream.advance if prev_samples[sample.stream_index] != nil
+                if sample.time > last_sample.time 
+                  next_samples[sample.stream_index] = sample
+                  current_samples[sample.stream_index] = prev_samples[sample.stream_index]
+                else
+                  sample.stream.advance if next_samples[sample.stream_index] != nil 
+                end
               end
-             @forward_replay = true
+              @forward_replay = true
             end
-	   
+
             min_sample = next_samples.compact.min { |s1, s2| s1.time <=> s2.time }
             if !min_sample
               @eof = true;
@@ -120,6 +134,7 @@ module Pocosim
             end
             @current_pos += 1
 	    advance_stream(min_sample.stream, min_sample.stream_index)
+            @act_stream_index = min_sample.stream_index
 	    return min_sample.stream_index, min_sample.time, single_data(min_sample.stream_index)
         end
 
@@ -130,21 +145,37 @@ module Pocosim
         # single_data(stream_idx)
 
         def step_back
+             return nil if @current_pos == 0
            #check if play direction has changed 
             if @forward_replay == true
+              #
+              #Setting up cursor pos and prev_samples
+              #
+              #copy current samples to prev if they are younger and 
+              #set cursor in stream to 
+              #n if the sample was copied
+              #n-1 if it was not copied 
+              last_sample = current_samples[act_stream_index]
               current_samples.compact.each do |sample|
                 next if current_samples[sample.stream_index] == nil
                 sample.stream.previous if next_samples[sample.stream_index] != nil 
-                sample.stream.previous if prev_samples[sample.stream_index] != nil
+                if sample.time < last_sample.time 
+                  prev_samples[sample.stream_index] = sample
+                  current_samples[sample.stream_index] = next_samples[sample.stream_index]
+                else
+                  sample.stream.previous if prev_samples[sample.stream_index] != nil
+                end
               end
-             @forward_replay = false
+              @forward_replay = false
             end
-
+          
             max_sample = prev_samples.compact.max{ |s1, s2| s1.time <=> s2.time }
             return nil if !max_sample
+
             @eof = false;
             @current_pos -=1
 	    decrement_stream(max_sample.stream, max_sample.stream_index)
+            @act_stream_index = max_sample.stream_index
 	    return max_sample.stream_index, max_sample.time, single_data(max_sample.stream_index)
         end
 
