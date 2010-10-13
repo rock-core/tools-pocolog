@@ -47,6 +47,47 @@ module Pocosim
             nil
         end
 
+        def seek(pos)
+          raise "Cannot seek to position #{pos}. Out of index!" if pos <0 || pos > count_samples
+          
+                  
+          #check if the StreamAligner has only one stream
+          #if so real seek can be used
+          if streams.length == 1
+            pos2 = [0,pos-1].max
+            streams[0].seek pos2
+            #fill data prev, current and next_samples
+            header = streams[0].data_header
+            
+            @stream_time =
+              if use_rt then header.rt
+                else header.lg
+               end
+    
+            prev_samples[0] = nil
+            current_samples[0] = nil
+            next_samples[0] = StreamSample.new self.stream_time, header.dup, streams[0], 0
+            advance_stream streams[0], 0 
+            advance_stream streams[0], 0 if pos2 != pos
+            #change direction to forward_replay
+            @forward_replay = true
+            @current_pos = pos
+            @act_stream_index = 0
+          else  #otherwise we have to simulate seeking
+                #very slow 
+                #improvment: do not read the data block
+            if @current_pos > pos 
+              while @current_pos > pos do
+                break if !step_back
+              end
+            else
+              while @current_pos < pos do
+                break if !step
+              end
+            end
+          end
+        end
+
         def decrement_stream(s,i)
             if !prev_samples[i]
               raise "Cannot decrement_stream #{s.name}. Beginning is reached"
