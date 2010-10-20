@@ -15,8 +15,7 @@ module Pocosim
 
 	def initialize(use_rt = false, *streams)
 	    @use_rt  = use_rt
-	    @streams = streams
-
+            @streams = streams
             rewind
         end
 
@@ -34,13 +33,15 @@ module Pocosim
 
             streams.each_with_index do |s, i|
 		header = s.rewind
-                raise "Error rewinding stream #{s.name}. The header is nil after the rewind!!!" if !header
-                time = s.time
-                time = if use_rt then time.first
+                if !header   
+                    next_samples << nil
+                else    
+                  time = s.time
+                  time = if use_rt then time.first
                        else time.last
                        end
-
-		next_samples    << StreamSample.new(time, header.dup, s, i)
+		  next_samples    << StreamSample.new(time, header.dup, s, i)
+                end
                 current_streams << s
 	    end
             nil
