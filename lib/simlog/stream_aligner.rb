@@ -34,8 +34,7 @@ module Pocosim
 
             streams.each_with_index do |s, i|
 		header = s.rewind
-                return if !header
-
+                raise "Error rewinding stream #{s.name}. The header is nil after the rewind!!!" if !header
                 time = s.time
                 time = if use_rt then time.first
                        else time.last
