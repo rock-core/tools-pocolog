@@ -1,12 +1,23 @@
-module Pocosim
-    DataStream = Struct.new :logfile, :index, :name, :typename, :marshalled_registry
-
-    # Interface for reading a stream in a Pocosim::Logfiles
+module Pocolog
+    # Interface for reading a stream in a Pocolog::Logfiles
     class DataStream
+        attr_reader :logfile
+        attr_reader :index
+        attr_reader :name
+        attr_reader :type_name
+        # Provided for backward compatibility reasons. Use #type_name
+        def typename; type_name end
+
+        attr_reader :marshalled_registry
         # The Logfiles::StreamInfo structure for that stream
         attr_reader :info
         # The index in the stream of the current sample
         attr_reader :sample_index
+
+        def initialize(logfile, index, name, type_name, marshalled_registry)
+            @logfile, @index, @name, @type_name, @marshalled_registry =
+                logfile, index, name, type_name, marshalled_registry
+        end
 
 	# Returns a SampleEnumerator object for this stream
 	def samples(read_data = true); SampleEnumerator.new(self, read_data) end
@@ -66,6 +77,8 @@ module Pocosim
 	# The size, in samples, of data in this stream
 	def size; info.size end
 
+        def eof?; size == sample_index - 1 end
+
 	# True if this data stream has a Typelib::Registry object associated
 	def has_type?; !marshalled_registry.empty? end
 
@@ -76,11 +89,8 @@ module Pocosim
 
 		stream_registry = Typelib::Registry.new
 
-		# Load the pocosim TLB in this registry, if it is found
-		Pocosim.load_tlb(@registry)
-
 		if has_type?
-		    Tempfile.open('simlog_load_registry') do |io|
+		    Tempfile.open('pocolog_load_registry') do |io|
 			io.write(marshalled_registry)
 			io.flush
 			

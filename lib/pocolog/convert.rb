@@ -1,10 +1,10 @@
 
-module Pocosim
+module Pocolog
     class Logfiles
 	def self.write_prologue(to_io, big_endian = nil)
 	    to_io.write(MAGIC)
 	    if big_endian.nil?
-		big_endian = Pocosim.big_endian?
+		big_endian = Pocolog.big_endian?
 	    end
 	    to_io.write(*[FORMAT_VERSION, big_endian ? 1 : 0].pack('xVV'))
 	end
@@ -77,7 +77,7 @@ module Pocosim
 	def self.compress(from_io, to_io)
 	    from = Logfiles.new(from_io)
 	    from.read_prologue
-	    write_prologue(to_io, from.endian_swap ^ Pocosim.big_endian?)
+	    write_prologue(to_io, from.endian_swap ^ Pocolog.big_endian?)
 
 	    compressed = [1].pack('C')
 	    buffer = ""

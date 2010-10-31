@@ -1,4 +1,4 @@
-module Pocosim
+module Pocolog
     class Logger
 	Sampling = Struct.new :next_sample, :stream, :source, :period, :last_write
 

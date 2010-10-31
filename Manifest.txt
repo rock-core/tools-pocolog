@@ -3,10 +3,10 @@ Manifest.txt
 README.txt
 Rakefile
 bin/pocosim-log
-lib/simlog.rb
-lib/simlog/convert.rb
-lib/simlog/data_reader.rb
-lib/simlog/data_writer.rb
-lib/simlog/file.rb
-lib/simlog/logger.rb
-lib/simlog/version.rb
+lib/pocolog.rb
+lib/pocolog/convert.rb
+lib/pocolog/data_reader.rb
+lib/pocolog/data_writer.rb
+lib/pocolog/file.rb
+lib/pocolog/logger.rb
+lib/pocolog/version.rb

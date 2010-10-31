@@ -1,6 +1,6 @@
 require 'utilrb/module/attr_predicate'
 require 'fileutils'
-module Pocosim
+module Pocolog
     class InvalidIndex < RuntimeError; end
     class InternalError < RuntimeError; end
     class Logfiles
@@ -120,8 +120,8 @@ module Pocosim
 	# Create an empty log file using +basename+ to build its name.
         # Namely, it will create a new file named <basename>.0.log. Then,
         # calls to #new_file would create <basename>.1.log and so on
-	def self.create(basename)
-	    file = Logfiles.new
+	def self.create(basename, registry = Typelib::Registry.new)
+	    file = Logfiles.new(registry)
 	    file.basename = basename
 	    file.instance_variable_set("@streams", Array.new)
 	    file.new_file
@@ -177,15 +177,15 @@ module Pocosim
 	    magic	   = io.read(MAGIC.size)
 	    if magic != MAGIC
 		# Not a valid file. Make the user try --export
-		raise MissingPrologue, "invalid prologue in #{io.path}. Try the --to-new-format of pocosim-log if it is an old file"
+		raise MissingPrologue, "invalid prologue in #{io.path}. Try the --to-new-format of pocolog if it is an old file"
 	    end
 
 	    @format_version, big_endian = io.read(9).unpack('xVV')
-	    @endian_swap = ((big_endian != 0) ^ Pocosim.big_endian?)
+	    @endian_swap = ((big_endian != 0) ^ Pocolog.big_endian?)
 	    if format_version < FORMAT_VERSION
-		raise ObsoleteVersion, "old format #{format_version}, current format is #{FORMAT_VERSION}. Convert it using the --to-new-format of pocosim-log"
+		raise ObsoleteVersion, "old format #{format_version}, current format is #{FORMAT_VERSION}. Convert it using the --to-new-format of pocolog"
 	    elsif format_version > FORMAT_VERSION
-		raise "this file is in v#{format_version} which is newer that the one we know #{FORMAT_VERSION}. Update pocosim"
+		raise "this file is in v#{format_version} which is newer that the one we know #{FORMAT_VERSION}. Update pocolog"
 	    end
 	    @next_block_pos = rio.tell
 	end
@@ -390,7 +390,7 @@ module Pocosim
 	rescue
 	    if !rio
 		raise $!
-	    else
+            elsif !rio.closed?
 		raise $!, "#{$!.message} at position #{rio.pos}", $!.backtrace
 	    end
 	end
@@ -702,18 +702,7 @@ module Pocosim
           return Logfiles.write_block(wio,type,index,payload)
         end
 
-        def self.write_stream_declaration(wio, index, name, type, type_registry = nil)
-            if !type_registry
-                if type < Typelib::Type
-                    type_registry = type.registry.to_xml
-                    type_name = type.name
-                else
-                    raise ArgumentError, "expected either a Type class or a type name, XML type registry pair"
-                end
-            else
-                type_name = type.to_str
-            end
-
+        def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,
                 type_registry.size, type_registry
@@ -729,9 +718,9 @@ module Pocosim
 	    end
 	end
 
-	def write_stream_declaration(index, name, type)
+	def write_stream_declaration(index, name, type, registry)
             do_write do
-                Logfiles.write_stream_declaration(wio, index, name, type)
+                Logfiles.write_stream_declaration(wio, index, name, type, registry)
             end
 	end
 
@@ -744,9 +733,13 @@ module Pocosim
 		raise ArgumentError, "no such stream #{name}"
 	    end
 
+            if type.respond_to?(:to_str)
+                type = registry.get(type)
+            end
+
 	    @streams ||= Array.new
 	    new_index = @streams.size
-	    write_stream_declaration(new_index, name, type)
+	    write_stream_declaration(new_index, name, type.name, registry.to_xml)
 
 	    typename  = type.name
 	    registry  = type.registry.to_xml
