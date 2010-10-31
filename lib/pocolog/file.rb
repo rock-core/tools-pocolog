@@ -202,6 +202,7 @@ module Pocolog
 	    end
 	end
 
+        def eof?; @io.size == @rio end
 	# Returns the IO object used for reading
 	def rio; @io[@rio] end
 	# Returns the IO object used for writing
@@ -214,7 +215,7 @@ module Pocolog
         # This is not meant for direct use. Use #each_data_block instead.
 	def each_block(rewind = true, with_prologue = true)
 	    self.rewind if rewind
-	    while true
+	    while !eof?
 		io = self.rio
 		if @next_block_pos == 0 && with_prologue
 		    read_prologue
@@ -623,6 +624,7 @@ module Pocolog
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
                 info.declaration_block = [io_index, block_info.pos]
+                s.rewind
                 s
 	    end
 	end

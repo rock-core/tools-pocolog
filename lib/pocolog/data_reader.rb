@@ -17,6 +17,8 @@ module Pocolog
         def initialize(logfile, index, name, type_name, marshalled_registry)
             @logfile, @index, @name, @type_name, @marshalled_registry =
                 logfile, index, name, type_name, marshalled_registry
+
+            @sample_index = -1
         end
 
 	# Returns a SampleEnumerator object for this stream
@@ -77,7 +79,8 @@ module Pocolog
 	# The size, in samples, of data in this stream
 	def size; info.size end
 
-        def eof?; size == sample_index - 1 end
+        # True if we read past the last sample
+        def eof?; size == sample_index end
 
 	# True if this data stream has a Typelib::Registry object associated
 	def has_type?; !marshalled_registry.empty? end
@@ -149,13 +152,6 @@ module Pocolog
             # -1 so that (@sample_index += 1) sets the index to 0 for the first
             # sample
             @sample_index = -1
-	    logfile.each_data_block(index, true) do
-                @sample_index += 1
-		header = logfile.data_header
-		next if header.lg == Time.at(0)
-                @first_valid_sample_index = @sample_index
-		return header
-	    end
             nil
 	end
 
@@ -166,11 +162,9 @@ module Pocolog
         #
         # It differs from #rewind as it always decodes the data payload.
 	def first
-	    header = rewind
-            if header
-                [header.rt, Time.at(header.lg - logfile.time_base), data]
-            end
-	end
+	    rewind
+            self.next
+        end
 
         # call-seq:
         #   last => [time_rt, time_lg, data]
@@ -179,6 +173,7 @@ module Pocolog
         def last
             last_sample_pos = info.interval_io[1]
             logfile.seek(last_sample_pos[1], last_sample_pos[0])
+            @sample_index = size - 1
             self.next
         end
 
@@ -206,10 +201,12 @@ module Pocolog
         # if the end of file has been reached. Unlike +next+, it does not
         # decodes the data payload.
 	def advance
-	    logfile.each_data_block(index, false) do
+            if sample_index < size
                 @sample_index += 1
-		return logfile.data_header
-	    end
+                logfile.each_data_block(index, sample_index == 0) do
+                    return logfile.data_header
+                end
+            end
 	    nil
 	end
 
@@ -230,8 +227,16 @@ module Pocolog
         #
         # Reads the previous sample in the file, and returns it.
         def previous
-            return nil if @first_valid_sample_index == sample_index
-	    seek(sample_index - 1)
+            if sample_index < 0
+                # Just rewind, never played
+                return nil
+            elsif sample_index == 0
+                # Beginning of file reached
+                rewind
+                return nil 
+            else
+                seek(sample_index - 1)
+            end
         end
     end
 
