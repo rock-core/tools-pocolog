@@ -179,8 +179,8 @@ module Pocolog
 
         # Seek the stream at the given position
         #
-        # If +pos+ is a Time object, seeks to the first sample whose logical
-        # time is equal or greater than +pos+.
+        # If +pos+ is a Time object, seeks to the last sample whose logical
+        # time is not greater than +pos+
         #
         # If +pos+ is an integer, it is interpreted as an index and the stream
         # goes to the sample that has this index.

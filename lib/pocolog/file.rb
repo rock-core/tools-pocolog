@@ -78,13 +78,15 @@ module Pocolog
                 unless io_index = @io.index(pos.io)
                     raise "#{pos} does not come from this log fileset"
                 end
-                @next_block_pos = pos.pos
+                @rio = io_index
+                @next_block_pos = pos.block_pos
             else
                 if rio
                     @rio = rio
                 end
                 @next_block_pos = pos
             end
+            nil
         end
 
 	# A new log file is created when the current one has reached this
@@ -639,7 +641,7 @@ module Pocolog
 	    Time.at(rt_sec, rt_usec)
 	end
 
-	DataHeader = Struct.new :io, :pos, :rt, :lg, :size, :compressed, :updated
+	DataHeader = Struct.new :io, :block_pos, :payload_pos, :rt, :lg, :size, :compressed, :updated
 
 	# Reads the header of a data block. This sets the @data_header
 	# instance variable to a new DataHeader object describing the
@@ -664,7 +666,8 @@ module Pocolog
 		end
 
 		@data_header.io  = rio
-		@data_header.pos = rio.tell
+                @data_header.block_pos   = @block_info.pos
+		@data_header.payload_pos = rio.tell
 		@data_header.rt = rt
 		@data_header.lg = lg
 		@data_header.size = data_size
@@ -679,7 +682,7 @@ module Pocolog
 	    if @data && !data_header then @data
 	    else
 		data_header ||= self.data_header
-		data_header.io.seek(data_header.pos)
+		data_header.io.seek(data_header.payload_pos)
 		data = data_header.io.read(data_header.size)
 		if data_header.compressed
 		    # Payload is compressed
