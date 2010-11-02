@@ -357,16 +357,16 @@ module Pocolog
                 return
             end
 
+            if !BLOCK_TYPES.include?(type)
+                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
+            end
+
             @block_info.io           = @rio
             @block_info.pos          = @next_block_pos
             @block_info.type         = type
             @block_info.index        = index
             @block_info.payload_size = payload_size
             @next_block_pos = next_block_pos
-
-            if !BLOCK_TYPES.include?(type)
-                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
-            end
             true
         end
 
