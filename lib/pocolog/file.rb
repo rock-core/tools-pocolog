@@ -238,6 +238,54 @@ module Pocolog
 	rescue EOFError
 	end
 
+        def seek_to_pos(stream_idx, info, pos)
+            index_entry = info.index.find do |size, _|
+                size + Logfiles::StreamInfo::INDEX_STEP > pos
+            end
+
+            if !index_entry
+                raise ArgumentError, "cannot find #{pos} in index"
+            end
+
+            header = nil
+            sample_index = index_entry[0]
+            seek(index_entry[1][1], index_entry[1][0])
+            each_data_block(stream_idx, false) do
+                break if sample_index == pos
+                sample_index += 1
+            end
+
+            if sample_index != pos
+                raise InternalError, "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
+            end
+
+            return sample_index
+        end
+
+        def seek_to_time(stream_idx, info, pos)
+            if pos < info.interval_lg[0] || pos > info.interval_lg[1]
+                raise ArgumentError, "#{pos} is out of bounds"
+            end
+            index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
+            if index_entry
+                index_entry = info.index[index_entry - 1]
+            else
+                index_entry = info.index.last
+            end
+
+            sample_index = index_entry[0]
+            seek(index_entry[1][1], index_entry[1][0])
+
+            header = nil
+            each_data_block(stream_idx, false) do
+                break if data_header.lg > pos
+                sample_index += 1
+                header = data_header.dup
+            end
+            read_one_block(header)
+            return sample_index - 1
+        end
+
         # Finds the entry in the index just before the position specified by
         # +pos+ in the given stream.
         #
@@ -259,47 +307,9 @@ module Pocolog
             end
 
             if pos.kind_of?(Integer)
-                index_entry = info.index.find do |size, _|
-                    size + Logfiles::StreamInfo::INDEX_STEP > pos
-                end
-
-                if !index_entry
-                    raise ArgumentError, "cannot find #{pos} in index"
-                end
-
-                header = nil
-                sample_index = index_entry[0]
-                seek(index_entry[1][1], index_entry[1][0])
-                each_data_block(stream_idx, false) do
-                    break if sample_index == pos
-                    sample_index += 1
-                end
-
-                if sample_index != pos
-                    raise InternalError, "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
-                end
-
-                return sample_index
-
-            elsif pos.kind_of?(Time)
-                if pos < info.interval_lg[0] || pos > info.interval_lg[1]
-                    raise ArgumentError, "#{pos} is out of bounds"
-                end
-                index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
-                if index_entry
-                    index_entry = info.index[index_entry - 1]
-                else
-                    index_entry = info.index.last
-                end
-
-                header = nil
-                @sample_index = index_entry[0]
-                seek(index_entry[1][1], index_entry[1][0])
-                each_data_block(stream_idx, false) do
-                    break if data_header.lg > pos
-                end
-
-                return data_header.lg
+                seek_to_pos(stream_idx, info, pos)
+            else
+                seek_to_time(stream_idx, info, pos)
             end
         end
 

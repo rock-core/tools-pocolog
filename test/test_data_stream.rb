@@ -11,7 +11,7 @@ class TC_DataStream < Test::Unit::TestCase
         all_values = logfile.stream('all', 'int', true)
         @expected_data = Array.new
         100.times do |i|
-            all_values.write(Time.now, Time.now, i)
+            all_values.write(Time.at(i), Time.at(i * 100), i)
             expected_data << i
         end
         logfile.close
@@ -38,7 +38,7 @@ class TC_DataStream < Test::Unit::TestCase
             stream_data  = Array.new
             sample_index = Array.new
             while (data = stream.next) && (stream_data.size <= expected_data.size * 2)
-                stream_data << data[2]
+                stream_data  << data[2]
                 sample_index << stream.sample_index
             end
             # verify that calling #step again is harmless
@@ -89,6 +89,39 @@ class TC_DataStream < Test::Unit::TestCase
         _, _, value = stream.next
         assert_equal 20, value
         assert_equal 20, stream.sample_index
+    end
+
+    def test_seek_time
+        [0, 1].each do |offset|
+            _, _, value = stream.seek(Time.at(1000, offset))
+            assert_equal 10, value
+            assert_equal 10, stream.sample_index
+            _, _, value = stream.next
+            assert_equal 11, value
+            assert_equal 11, stream.sample_index
+            _, _, value = stream.previous
+            assert_equal 10, value
+            assert_equal 10, stream.sample_index
+
+            _, _, value = stream.seek(Time.at(2000, offset))
+            assert_equal 20, value
+            assert_equal 20, stream.sample_index
+            _, _, value = stream.previous
+            assert_equal 19, value
+            assert_equal 19, stream.sample_index
+            _, _, value = stream.next
+            assert_equal 20, value
+            assert_equal 20, stream.sample_index
+        end
+    end
+
+    def test_get_data_using_data_header
+        stream.seek(10)
+        header = stream.data_header.dup
+        stream.seek(20)
+        assert_equal 10, stream.data(header)
+        # Using #data(header) should not have moved the stream position
+        assert_equal 21, stream.next[2]
     end
 
     def test_first
