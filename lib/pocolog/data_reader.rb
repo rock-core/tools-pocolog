@@ -81,6 +81,8 @@ module Pocolog
 
         # True if we read past the last sample
         def eof?; size == sample_index end
+        # True if the size of this stream is zero
+        def empty?; size == 0 end
 
 	# True if this data stream has a Typelib::Registry object associated
 	def has_type?; !marshalled_registry.empty? end
