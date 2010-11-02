@@ -69,7 +69,7 @@ module Pocolog
                     end
                 end
 
-                index << [positions.find_all { |p| !p.respond_to?(:to_sym) }.inject(&:+), positions]
+                index << [positions.find_all { |p| !p.kind_of?(Symbol) }.inject(&:+), positions]
             end
             @index = index
         end
