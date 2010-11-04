@@ -147,6 +147,17 @@ class TC_DataStream < Test::Unit::TestCase
         assert_equal nil, stream.next
         assert_equal 99, stream.previous[2]
     end
+
+    def test_each_block
+        data = []
+        stream.each_block do
+            puts "BLAH"
+            data << [stream.sample_index, stream.data]
+        end
+
+        assert_equal (0...expected_data.size).to_a, data.map(&:first)
+        assert_equal expected_data, data.map(&:last)
+    end
 end
 
 

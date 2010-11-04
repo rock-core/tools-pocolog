@@ -27,15 +27,11 @@ module Pocolog
 	# Enumerates the blocks of this stream
 	def each_block(rewind = true)
             if rewind
-                if !self.rewind
-                    return
-                end
-                yield if block_given?
+                self.rewind
             end
 
-	    logfile.each_data_block(index, false) do
+            while advance
                 yield if block_given?
-                @sample_index += 1
             end
 	end
 
