@@ -339,7 +339,7 @@ module Pocolog
                 read_control_block
             elsif block_info.type == DATA_BLOCK
                 if !declared_stream?(block_info.index)
-                    raise "found data block for stream #{block_info.index} but this stream has never been declared"
+                    STDERR.puts "found data block for stream #{block_info.index} but this stream has never been declared, seems Logfile is Corrupted. Skipping..."
                 end
             elsif block_info.type == STREAM_BLOCK
                 read_stream_declaration
@@ -368,7 +368,7 @@ module Pocolog
             end
 
             if !BLOCK_TYPES.include?(type)
-                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
+                pp "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
             end
 
             @block_info.io           = @rio
@@ -516,14 +516,19 @@ module Pocolog
                 # The stream object itself is built when the declaration block
                 # has been found
                 s    = @streams[stream_index]
-                info = s.info
-                info.interval_io[1] = [@rio, block_info.pos]
-                info.interval_io[0] ||= info.interval_io[1]
+				if !s.nil? 
+						info = s.info
+						info.interval_io[1] = [@rio, block_info.pos]
+						info.interval_io[0] ||= info.interval_io[1]
 
-                if info.size % StreamInfo::INDEX_STEP == 0
-                    info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
-                end
-                info.size += 1
+						if info.size % StreamInfo::INDEX_STEP == 0
+							info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
+						end
+						info.size += 1
+				end
+				if s.nil?
+					STDERR.puts "Got empty Streamline. Seems file is corrupted, skipping this" 
+				end
 	    end
 
             if !@streams
