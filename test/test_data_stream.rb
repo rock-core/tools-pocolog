@@ -151,7 +151,6 @@ class TC_DataStream < Test::Unit::TestCase
     def test_each_block
         data = []
         stream.each_block do
-            puts "BLAH"
             data << [stream.sample_index, stream.data]
         end
 
