@@ -18,6 +18,7 @@ module Pocolog
             @logfile, @index, @name, @type_name, @marshalled_registry =
                 logfile, index, name, type_name, marshalled_registry
 
+            @registry = nil
             @sample_index = -1
         end
 
@@ -85,7 +86,7 @@ module Pocolog
 
 	# Get the Typelib::Registry object for this stream
 	def registry
-	    unless @registry
+	    if !@registry
 		@registry = logfile.registry || Typelib::Registry.new
 
 		stream_registry = Typelib::Registry.new
