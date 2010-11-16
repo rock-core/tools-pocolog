@@ -54,22 +54,25 @@ module Pocolog
 
             index = Array.new
             reference_index.each do |index_entry|
+                glob_index = -1
                 index_time = index_entry.last
                 positions = streams.map do |s|
                     time_range = s.time_interval(use_rt)
                     if s == reference
+                        glob_index += index_entry.first+1
                         index_entry.first
                     elsif index_time < time_range[0]
                         :before
                     elsif index_time > time_range[1]
+                        glob_index += s.size+1
                         :after
                     else
                         s.seek(index_entry.last)
-                        s.sample_index - 1
+                        glob_index += s.sample_index+1
+                        s.sample_index
                     end
                 end
-
-                index << [positions.find_all { |p| !p.kind_of?(Symbol) }.inject(&:+), positions]
+                index << [glob_index, positions]
             end
             @index = index
         end
@@ -80,7 +83,6 @@ module Pocolog
             # Forcefully switch to forward play direction
             @current_samples = prev_samples
             return if !entry
-
             streams.each_with_index do |s, i|
                 positions = entry.last
                 case positions[i]
@@ -126,13 +128,12 @@ module Pocolog
                     after[0] > pos
                 end
             end
-
             preseek(entry)
-
-            while @sample_index != pos
-                result = self.step
+            while @sample_index < pos
+                self.step
             end
-            result
+            return @last_sample.stream_index, @last_sample.time,
+                single_data(@last_sample.stream_index)
         end
 
         def seek_to_time(time)
