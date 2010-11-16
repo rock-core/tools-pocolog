@@ -104,7 +104,7 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal 10, stream.sample_index
         assert_equal Time.at(5), stream.time
         assert_equal [0, Time.at(5), 5], sample
-
+        
         # Check that seeking did not break step / step_back
         assert_equal [1, Time.at(5, 500), 50000], stream.step
         assert_equal [0, Time.at(6), 6], stream.step
@@ -113,6 +113,13 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal [2, Time.at(4, 500), 400], stream.step_back
         assert_equal [0, Time.at(4), 4], stream.step_back
         assert_equal [1, Time.at(3, 500), 30000], stream.step_back
+
+        #check if seeking is working if index is not cached 
+        #see INDEX_STEP
+        sample = stream.seek(21)
+        assert_equal 21, stream.sample_index
+        assert_equal Time.at(10,500), stream.time
+        assert_equal [2, Time.at(10,500), 1000], sample
     end
 end
 
