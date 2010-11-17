@@ -141,10 +141,9 @@ module Pocolog
             end
             preseek(entry)
             while @sample_index < pos
-                self.step(false)
+                self.advance
             end
-            return @last_sample.stream_index, @last_sample.time,
-                single_data(@last_sample.stream_index)
+            [@last_sample.stream_index, @last_sample.time,single_data(@last_sample.stream_index)]
         end
 
         #seeks all streams to a sample which logical time is not greater than the given
@@ -158,10 +157,9 @@ module Pocolog
           preseek(entry)
 
           while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
-              self.step(false)
+              self.advance
           end
-          return @last_sample.stream_index, @last_sample.time,
-                single_data(@last_sample.stream_index)
+          [@last_sample.stream_index, @last_sample.time,single_data(@last_sample.stream_index)]
         end
 
         def seek(pos_or_time)
@@ -214,7 +212,21 @@ module Pocolog
         #
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
-        def step(data=true)
+        def step
+          index,time = advance 
+          [index,time,single_data(index)]
+        end
+
+        # call-seq:
+        #  joint_stream.advance => updated_stream_index, time 
+        #
+        # Advances one step in the joint stream, and returns the index of
+        # the update stream as well as the time but does not encode the data sample_index
+        # like step or next does
+        #
+        # The associated data sample can then be retrieved by
+        # single_data(stream_idx)
+        def advance
             return if sample_index == size
 
             # Check if we are changing the replay direction. If it is the case,
@@ -235,16 +247,15 @@ module Pocolog
             end
 
             advance_stream(min_sample.stream, min_sample.stream_index)
-            return min_sample.stream_index, min_sample.time,
-                single_data(min_sample.stream_index) if data
-        end
+            [min_sample.stream_index, min_sample.time]
+         end
 
         # Decrements one step in the joint stream, an returns the index of the
         # updated stream as well as the time.
         #
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
-        def step_back(data = true)
+        def step_back
             return if sample_index == -1
 
             # Check if we are changing the replay direction. If it is the case,
@@ -265,8 +276,7 @@ module Pocolog
             end
 
             decrement_stream(max_sample.stream, max_sample.stream_index)
-            return max_sample.stream_index, max_sample.time,
-                single_data(max_sample.stream_index) if data
+            [max_sample.stream_index, max_sample.time,single_data(max_sample.stream_index) ]
         end
 
         # call-seq:
