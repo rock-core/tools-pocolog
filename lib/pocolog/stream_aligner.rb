@@ -214,7 +214,8 @@ module Pocolog
         # single_data(stream_idx)
         def step
           index,time = advance 
-          [index,time,single_data(index)]
+          return if !index
+          [index,time,single_data(index)] 
         end
 
         # call-seq:
