@@ -9,6 +9,7 @@ module Pocolog
 	attr_reader :current_samples
         attr_reader :last_sample
         attr_reader :prev_samples
+        attr_reader :index
 
 	def initialize(use_rt = false, *streams)
 	    @use_rt  = use_rt
@@ -54,30 +55,37 @@ module Pocolog
 
             index = Array.new
             reference_index.each do |index_entry|
-                glob_index = -1
-                index_time = index_entry.last
-                positions = streams.map do |s|
-                    time_range = s.time_interval(use_rt)
-                    if s == reference
-                        glob_index += index_entry.first+1
-                        index_entry.first
-                    elsif index_time < time_range[0]
-                        :before
-                    elsif index_time > time_range[1]
-                        glob_index += s.size+1
-                        :after
-                    else
-                        s.seek(index_entry.last)
-                        glob_index += s.sample_index+1
-                        s.sample_index
-                    end
-                end
-                index << [glob_index, positions]
+                index << build_index_entry(index_entry, reference)
             end
             @index = index
         end
 
-        attr_reader :index
+        #generates an entry for the global index, based on a time
+        #object or an stream index_entry
+        #if a reference stream is provided it is
+        #assumed that index_entry is an index entry of 
+        #the reference stream
+        def build_index_entry(index_entry,reference_stream=nil)
+          glob_index = -1
+          index_time = index_entry.is_a?(Array) ? index_entry.last : index_entry
+          positions = streams.map do |s|
+              time_range = s.time_interval(use_rt)
+              if s == reference_stream
+                  glob_index += index_entry.first+1
+                  index_entry.first
+              elsif index_time < time_range[0]
+                  :before
+              elsif index_time > time_range[1]
+                  glob_index += s.size+1
+                  :after
+              else
+                  s.seek(index_entry.last)
+                  glob_index += s.sample_index+1
+                  s.sample_index
+              end
+          end
+          [glob_index, positions]
+        end
 
         def preseek(entry)
             # Forcefully switch to forward play direction
