@@ -98,6 +98,16 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal [1, Time.at(1, 500), 10000], stream.step
     end
 
+    #Test if index was build properly
+    def test_index
+      index = stream.instance_variable_get(:@index)
+      assert_equal 50,index.size
+      assert_equal [0,[0,:before,:before]], index[0]
+      assert_equal [4,[2,0,0]], index[1]
+      assert_equal [8,[4,1,1]], index[2]
+      assert_equal [196,[98,48,48]], index.last
+    end
+
     # Tests seeking on an integer position
     def test_seek_at_position
         sample = stream.seek(10)
@@ -120,6 +130,14 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal 21, stream.sample_index
         assert_equal Time.at(10,500), stream.time
         assert_equal [2, Time.at(10,500), 1000], sample
+
+        #seek to the end and check if we are at the right position
+        sample = stream.seek(197)
+        assert_equal false, stream.eof?
+        stream.step
+        assert_equal false, stream.eof?
+        stream.step
+        assert_equal true, stream.eof?
     end
 end
 
