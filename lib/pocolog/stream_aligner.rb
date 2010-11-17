@@ -10,10 +10,13 @@ module Pocolog
         attr_reader :last_sample
         attr_reader :prev_samples
         attr_reader :index
+        attr_reader :time_interval      #time interval for which samples are avialable
 
 	def initialize(use_rt = false, *streams)
 	    @use_rt  = use_rt
-            @streams = streams
+            @streams = streams 
+            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
+            @time_interval = [time_ranges.min,time_ranges.max]
             build_index
             rewind
         end
