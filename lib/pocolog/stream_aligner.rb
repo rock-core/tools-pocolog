@@ -141,7 +141,7 @@ module Pocolog
             end
             preseek(entry)
             while @sample_index < pos
-                self.step
+                self.step(false)
             end
             return @last_sample.stream_index, @last_sample.time,
                 single_data(@last_sample.stream_index)
@@ -158,7 +158,7 @@ module Pocolog
           preseek(entry)
 
           while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
-              self.step
+              self.step(false)
           end
           return @last_sample.stream_index, @last_sample.time,
                 single_data(@last_sample.stream_index)
@@ -214,7 +214,7 @@ module Pocolog
         #
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
-        def step
+        def step(data=true)
             return if sample_index == size
 
             # Check if we are changing the replay direction. If it is the case,
@@ -236,7 +236,7 @@ module Pocolog
 
             advance_stream(min_sample.stream, min_sample.stream_index)
             return min_sample.stream_index, min_sample.time,
-                single_data(min_sample.stream_index)
+                single_data(min_sample.stream_index) if data
         end
 
         # Decrements one step in the joint stream, an returns the index of the
@@ -244,7 +244,7 @@ module Pocolog
         #
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
-        def step_back
+        def step_back(data = true)
             return if sample_index == -1
 
             # Check if we are changing the replay direction. If it is the case,
@@ -266,7 +266,7 @@ module Pocolog
 
             decrement_stream(max_sample.stream, max_sample.stream_index)
             return max_sample.stream_index, max_sample.time,
-                single_data(max_sample.stream_index)
+                single_data(max_sample.stream_index) if data
         end
 
         # call-seq:
