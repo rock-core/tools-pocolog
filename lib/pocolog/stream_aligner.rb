@@ -344,7 +344,7 @@ module Pocolog
         # Returns the current data sample for the given stream index
         def single_data(index)
             s = current_samples[index]
-            s.stream.data(s.header)
+            s.stream.data(s.header) if s
         end
     end
 end
