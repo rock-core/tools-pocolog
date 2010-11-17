@@ -82,7 +82,7 @@ module Pocolog
                   glob_index += s.size+1
                   :after
               else
-                  s.seek(index_entry.last)
+                  s.seek(index_time)
                   glob_index += s.sample_index+1
                   s.sample_index
               end
@@ -147,8 +147,21 @@ module Pocolog
                 single_data(@last_sample.stream_index)
         end
 
+        #seeks all streams to a sample which logical time is not greater than the given
+        #time. If this is not possible the stream will be re winded.
         def seek_to_time(time)
-            raise NotImplementedError
+          raise ArgumentError "a time object is expected" if !time.is_a?(Time) 
+          raise OutOfBounds if time < time_interval.first || time > time_interval.last
+
+          #we can calc the  preseek settings we do not have to cache them like for sample based index
+          entry = build_index_entry(time)
+          preseek(entry)
+
+          while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
+              self.step
+          end
+          return @last_sample.stream_index, @last_sample.time,
+                single_data(@last_sample.stream_index)
         end
 
         def seek(pos_or_time)
