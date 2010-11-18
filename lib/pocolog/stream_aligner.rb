@@ -79,7 +79,7 @@ module Pocolog
               elsif index_time < time_range[0]
                   :before
               elsif index_time > time_range[1]
-                  glob_index += s.size+1
+                  glob_index += s.size
                   :after
               else
                   s.seek(index_time)
@@ -143,7 +143,8 @@ module Pocolog
             while @sample_index < pos
                 self.advance
             end
-            [@last_sample.stream_index, @last_sample.time,single_data(@last_sample.stream_index)]
+            [@last_sample.stream_index, @last_sample.time,
+                      single_data(@last_sample.stream_index)] if @last_sample
         end
 
         #seeks all streams to a sample which logical time is not greater than the given
@@ -159,7 +160,8 @@ module Pocolog
           while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
               self.advance
           end
-          [@last_sample.stream_index, @last_sample.time,single_data(@last_sample.stream_index)]
+          [@last_sample.stream_index, @last_sample.time,
+            single_data(@last_sample.stream_index)] if @last_sample
         end
 
         def seek(pos_or_time)
@@ -241,8 +243,8 @@ module Pocolog
                 @current_samples = prev_samples
             end
 
-            @sample_index += 1
             @last_sample = min_sample = next_samples.compact.min { |s1, s2| s1.time <=> s2.time }
+            @sample_index += 1
             if !min_sample
                 return nil 
             end
