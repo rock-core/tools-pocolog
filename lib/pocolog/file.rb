@@ -101,7 +101,7 @@ module Pocolog
 	    Logfiles.write_prologue(io)
 	    @io << io
 	    streams.each_with_index do |s, i|
-		write_stream_declaration(i, s.name, s.type)
+		write_stream_declaration(i, s.name, s.type,registry)
 	    end
 	end
 
