@@ -3,6 +3,7 @@ module Pocolog
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
 	attr_reader :use_rt
+	attr_reader :use_sample_time
 	attr_reader :streams
         attr_reader :sample_index
 	attr_reader :next_samples
@@ -13,6 +14,7 @@ module Pocolog
         attr_reader :time_interval      #time interval for which samples are avialable
 
 	def initialize(use_rt = false, *streams)
+	    @use_sample_time = use_rt == :use_sample_time
 	    @use_rt  = use_rt
             @streams = streams 
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
@@ -182,7 +184,8 @@ module Pocolog
         def create_stream_sample(s, i)
             header = s.data_header
             stream_time =
-                if use_rt then header.rt
+		if use_sample_time then s.data.time
+		elsif use_rt then header.rt
                 else header.lg
                 end
             StreamSample.new stream_time, header.dup, s, i
