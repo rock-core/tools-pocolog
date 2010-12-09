@@ -8,7 +8,7 @@ module Pocolog
 	    if data.respond_to?(:to_str)
 		data = data.to_str
             else
-                data = type.from_ruby(data)
+                data = Typelib.from_ruby(data,type)
                 data = data.to_byte_array
 	    end
 

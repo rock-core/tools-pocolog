@@ -3,16 +3,22 @@ module Pocolog
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
 	attr_reader :use_rt
+	attr_reader :use_sample_time
 	attr_reader :streams
         attr_reader :sample_index
 	attr_reader :next_samples
 	attr_reader :current_samples
         attr_reader :last_sample
         attr_reader :prev_samples
+        attr_reader :index
+        attr_reader :time_interval      #time interval for which samples are avialable
 
 	def initialize(use_rt = false, *streams)
+	    @use_sample_time = use_rt == :use_sample_time
 	    @use_rt  = use_rt
-            @streams = streams
+            @streams = streams 
+            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
+            @time_interval = [time_ranges.min,time_ranges.max]
             build_index
             rewind
         end
@@ -54,33 +60,42 @@ module Pocolog
 
             index = Array.new
             reference_index.each do |index_entry|
-                index_time = index_entry.last
-                positions = streams.map do |s|
-                    time_range = s.time_interval(use_rt)
-                    if s == reference
-                        index_entry.first
-                    elsif index_time < time_range[0]
-                        :before
-                    elsif index_time > time_range[1]
-                        :after
-                    else
-                        s.seek(index_entry.last)
-                        s.sample_index - 1
-                    end
-                end
-
-                index << [positions.find_all { |p| !p.kind_of?(Symbol) }.inject(&:+), positions]
+                index << build_index_entry(index_entry, reference)
             end
             @index = index
         end
 
-        attr_reader :index
+        #generates an entry for the global index, based on a time
+        #object or an stream index_entry
+        #if a reference stream is provided it is
+        #assumed that index_entry is an index entry of 
+        #the reference stream
+        def build_index_entry(index_entry,reference_stream=nil)
+          glob_index = -1
+          index_time = index_entry.is_a?(Array) ? index_entry.last : index_entry
+          positions = streams.map do |s|
+              time_range = s.time_interval(use_rt)
+              if s == reference_stream
+                  glob_index += index_entry.first+1
+                  index_entry.first
+              elsif index_time < time_range[0]
+                  :before
+              elsif index_time > time_range[1]
+                  glob_index += s.size
+                  :after
+              else
+                  s.seek(index_time)
+                  glob_index += s.sample_index+1
+                  s.sample_index
+              end
+          end
+          [glob_index, positions]
+        end
 
         def preseek(entry)
             # Forcefully switch to forward play direction
             @current_samples = prev_samples
             return if !entry
-
             streams.each_with_index do |s, i|
                 positions = entry.last
                 case positions[i]
@@ -126,17 +141,29 @@ module Pocolog
                     after[0] > pos
                 end
             end
-
             preseek(entry)
-
-            while @sample_index != pos
-                result = self.step
+            while @sample_index < pos
+                self.advance
             end
-            result
+            [@last_sample.stream_index, @last_sample.time,
+                      single_data(@last_sample.stream_index)] if @last_sample
         end
 
+        #seeks all streams to a sample which logical time is not greater than the given
+        #time. If this is not possible the stream will be re winded.
         def seek_to_time(time)
-            raise NotImplementedError
+          raise ArgumentError "a time object is expected" if !time.is_a?(Time) 
+          raise OutOfBounds if time < time_interval.first || time > time_interval.last
+
+          #we can calc the  preseek settings we do not have to cache them like for sample based index
+          entry = build_index_entry(time)
+          preseek(entry)
+
+          while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
+              self.advance
+          end
+          [@last_sample.stream_index, @last_sample.time,
+            single_data(@last_sample.stream_index)] if @last_sample
         end
 
         def seek(pos_or_time)
@@ -157,7 +184,8 @@ module Pocolog
         def create_stream_sample(s, i)
             header = s.data_header
             stream_time =
-                if use_rt then header.rt
+		if use_sample_time then s.data.time
+		elsif use_rt then header.rt
                 else header.lg
                 end
             StreamSample.new stream_time, header.dup, s, i
@@ -190,6 +218,21 @@ module Pocolog
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def step
+          index,time = advance 
+          return if !index
+          [index,time,single_data(index)] 
+        end
+
+        # call-seq:
+        #  joint_stream.advance => updated_stream_index, time 
+        #
+        # Advances one step in the joint stream, and returns the index of
+        # the update stream as well as the time but does not encode the data sample_index
+        # like step or next does
+        #
+        # The associated data sample can then be retrieved by
+        # single_data(stream_idx)
+        def advance
             return if sample_index == size
 
             # Check if we are changing the replay direction. If it is the case,
@@ -203,16 +246,15 @@ module Pocolog
                 @current_samples = prev_samples
             end
 
-            @sample_index += 1
             @last_sample = min_sample = next_samples.compact.min { |s1, s2| s1.time <=> s2.time }
+            @sample_index += 1
             if !min_sample
                 return nil 
             end
 
             advance_stream(min_sample.stream, min_sample.stream_index)
-            return min_sample.stream_index, min_sample.time,
-                single_data(min_sample.stream_index)
-        end
+            [min_sample.stream_index, min_sample.time]
+         end
 
         # Decrements one step in the joint stream, an returns the index of the
         # updated stream as well as the time.
@@ -240,8 +282,7 @@ module Pocolog
             end
 
             decrement_stream(max_sample.stream, max_sample.stream_index)
-            return max_sample.stream_index, max_sample.time,
-                single_data(max_sample.stream_index)
+            [max_sample.stream_index, max_sample.time,single_data(max_sample.stream_index) ]
         end
 
         # call-seq:
@@ -319,7 +360,7 @@ module Pocolog
         # Returns the current data sample for the given stream index
         def single_data(index)
             s = current_samples[index]
-            s.stream.data(s.header)
+            s.stream.data(s.header) if s
         end
     end
 end

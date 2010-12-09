@@ -1,6 +1,8 @@
 require 'pocolog'
 require 'test/unit'
 
+Pocolog::Logfiles::StreamInfo::INDEX_STEP = 2 
+
 class TC_StreamAligner < Test::Unit::TestCase
     attr_reader :logfile
     attr_reader :stream
@@ -42,6 +44,7 @@ class TC_StreamAligner < Test::Unit::TestCase
     def test_properties
         assert !stream.eof?
         assert_equal 200, stream.size
+        assert_equal [Time.at(0),Time.at(99,500)], stream.time_interval
     end
 
     def test_playing_forward_backward
@@ -96,13 +99,23 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal [1, Time.at(1, 500), 10000], stream.step
     end
 
+    #Test if index was build properly
+    def test_index
+      index = stream.instance_variable_get(:@index)
+      assert_equal 50,index.size
+      assert_equal [0,[0,:before,:before]], index[0]
+      assert_equal [4,[2,0,0]], index[1]
+      assert_equal [8,[4,1,1]], index[2]
+      assert_equal [196,[98,48,48]], index.last
+    end
+
     # Tests seeking on an integer position
     def test_seek_at_position
         sample = stream.seek(10)
         assert_equal 10, stream.sample_index
         assert_equal Time.at(5), stream.time
         assert_equal [0, Time.at(5), 5], sample
-
+        
         # Check that seeking did not break step / step_back
         assert_equal [1, Time.at(5, 500), 50000], stream.step
         assert_equal [0, Time.at(6), 6], stream.step
@@ -111,6 +124,40 @@ class TC_StreamAligner < Test::Unit::TestCase
         assert_equal [2, Time.at(4, 500), 400], stream.step_back
         assert_equal [0, Time.at(4), 4], stream.step_back
         assert_equal [1, Time.at(3, 500), 30000], stream.step_back
+
+        #check if seeking is working if index is not cached 
+        #see INDEX_STEP
+        sample = stream.seek(21)
+        assert_equal 21, stream.sample_index
+        assert_equal Time.at(10,500), stream.time
+        assert_equal [2, Time.at(10,500), 1000], sample
+
+        #seek to the end and check if we are at the right position
+        sample = stream.seek(197)
+        assert_equal false, stream.eof?
+        stream.step
+        assert_equal false, stream.eof?
+        stream.step
+        assert_equal true, stream.eof?
+    end
+
+    # Tests seeking on a time position
+    def test_seek_at_time
+        #no sample must have a later logical time
+        #seek returns the last sample possible
+        sample = stream.seek(Time.at(5))
+        assert_equal 10, stream.sample_index
+        assert_equal Time.at(5), stream.time
+        assert_equal [0, Time.at(5), 5], sample
+
+        # Check that seeking did not break step / step_back
+        assert_equal [1, Time.at(5,500), 50000], stream.step
+        assert_equal [0, Time.at(6), 6], stream.step
+        assert_equal [2, Time.at(6, 500), 600], stream.step
+        sample = stream.seek(Time.at(50))
+        assert_equal [1, Time.at(49, 500), 490000], stream.step_back
+        assert_equal [0, Time.at(49), 49], stream.step_back
+        assert_equal [2, Time.at(48, 500), 4800], stream.step_back
     end
 end
 
