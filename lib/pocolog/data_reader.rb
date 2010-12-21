@@ -133,11 +133,10 @@ module Pocolog
         # Block headers are returned by #rewind 
 	def data(data_header = nil)
 	    data = type.wrap(logfile.data(data_header))
-	    if logfile.endian_swap
-		data.endian_swap
-	    else
-		data
-	    end
+            if logfile.endian_swap
+                data = data.endian_swap
+            end
+            Typelib.to_ruby(data)
 	end
 
         # call-seq:
