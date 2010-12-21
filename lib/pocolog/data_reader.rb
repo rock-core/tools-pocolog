@@ -92,8 +92,13 @@ module Pocolog
 		stream_registry = Typelib::Registry.new
 
 		if has_type?
-                    Typelib::Registry.add_standard_cxx_types(stream_registry)
-                    stream_registry.merge_xml(marshalled_registry)
+                    begin
+                        stream_registry.merge_xml(marshalled_registry)
+                    rescue ArgumentError
+                        Typelib::Registry.add_standard_cxx_types(stream_registry)
+                        stream_registry.merge_xml(marshalled_registry)
+                    end
+
                     stream_registry = stream_registry.minimal(typename)
 
                     # if we do have a registry, then adapt it to the local machine
