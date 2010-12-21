@@ -173,6 +173,7 @@ module Pocolog
                         if info.type != DATA_BLOCK || stream_index
                             Logfiles.copy_block(info, from.rio, to, buffer) do |buffer|
                                 buffer[2, 2] = stream_index
+                                buffer
                             end
                         end
                     end
