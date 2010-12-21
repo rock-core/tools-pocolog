@@ -143,7 +143,7 @@ module Pocolog
 	attr_accessor :streams
 	def initialize(io)
 	    super
-	    @streams = []
+	    @streams = Hash.new
 	end
 
 	def execute
@@ -153,6 +153,7 @@ module Pocolog
                 
                 next_index = 0
                 enabled = Hash.new
+                sample_count = Array.new
 
                 from.each do |file_io|
                     from    = Logfiles.new(file_io)
@@ -160,20 +161,29 @@ module Pocolog
                     from.each_block do |info|
                         if info.type == STREAM_BLOCK
                             stream = from.read_stream_declaration
-                            if streams.empty? || streams.include?(stream.name)
+                            if streams.empty? || streams.has_key?(stream.name)
                                 if !enabled[[stream.name, stream.typename]]
                                     enabled[[stream.name, stream.typename]] = next_index
                                     next_index += 1
                                 end
                                 index_mapping[info.index] = [enabled[[stream.name, stream.typename]]].pack("v")
+                                sample_count[info.index] = streams[stream.name]
                             end
                         end
 
                         stream_index = index_mapping[info.index]
-                        if info.type != DATA_BLOCK || stream_index
+                        if stream_index
                             Logfiles.copy_block(info, from.rio, to, buffer) do |buffer|
                                 buffer[2, 2] = stream_index
                                 buffer
+                            end
+                            remaining    = sample_count[info.index]
+                            if remaining && info.type == DATA_BLOCK
+                                if remaining > 1
+                                    sample_count[info.index] = remaining - 1
+                                else # reached the max count, disable copying that stream
+                                    index_mapping[info.index] = nil
+                                end
                             end
                         end
                     end
@@ -533,7 +543,13 @@ parser = OptionParser.new do |opts|
 	config.extract(output || config.io.first.path)
     end
     opts.on("--streams NAME", Array, 'specifies the stream names for --extract') do |names|
-	config.streams.concat names
+        names.each do |n|
+            if n =~ /(.*):(\d+)$/
+                config.streams[$1] = Integer($2)
+            else
+                config.streams[$1] = nil
+            end
+        end
     end
     opts.on('--little-endian', 'the source file of --to-new-format is little-endian', 'Needed by --to-new-format to convert v1 files') do
 	config.little_endian
