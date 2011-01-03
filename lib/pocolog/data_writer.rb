@@ -5,15 +5,15 @@ module Pocolog
 	# right type, or a String (in which case we consider that it is
 	# the raw data)
 	def write(rt, lg, data)
-	    if data.respond_to?(:to_str)
-		data = data.to_str
-            else
-                data = Typelib.from_ruby(data,type)
-                data = data.to_byte_array
-	    end
-
-	    logfile.write_data_block(self, rt, lg, data)
+            data = Typelib.from_ruby(data, type)
+            write_raw(rt, lg, data.to_byte_array)
 	end
+
+        # Write an already marshalled sample. +data+ is supposed to be a
+        # typelib-marshalled value of the stream type
+        def write_raw(rt, lg, data)
+	    logfile.write_data_block(self, rt, lg, data)
+        end
     end
 end
 
