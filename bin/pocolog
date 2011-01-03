@@ -277,7 +277,10 @@ module Pocolog
 		    end
 		    puts values.join(" ")
 		else
-		    data = data.to_csv
+		    data = if data.respond_to?(:to_csv) then data.to_csv
+                           else data.to_s
+                           end
+
 		    if field_indexes
 			puts data.split(' ').values_at(*field_indexes).join(' ')
 		    else
