@@ -503,6 +503,11 @@ module Pocolog
             STDERR.puts "invalid index file"
         end
 
+        # Returns a stream from its index
+        def stream_from_index(index)
+            @streams[index]
+        end
+
 	# Loads and returns the set of data streams found in this file. Will
         # lazily build an index file when required.
 	def streams
