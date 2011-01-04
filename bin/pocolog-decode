@@ -1,0 +1,193 @@
+#! /usr/bin/env ruby
+
+require 'typelib'
+Typelib.load_type_plugins = false
+
+require 'pocolog'
+require 'optparse'
+
+# Converts a byte count into a human-readable form
+def hr_bytes(v)
+    if v > 10_000_000
+        v /= 1_000_000
+        unit = "M"
+        format = "%i"
+    elsif v > 1_000_000
+        v /= 1_000_000
+        unit = "M"
+        format = "%.1f"
+    elsif v > 10000
+        v /= 1_000
+        unit = "k"
+        format = "%i"
+    elsif v > 1000
+        v /= 1_000
+        unit = "k"
+        format = "%.1f"
+    else
+        unit = "b"
+        format = "%i"
+    end
+    "#{format}#{unit}" % [v]
+end
+
+decode_data = false
+parser = OptionParser.new do |opts|
+    opts.banner = "pocolog-decode {show|stats} file\npocolog-decode file # equivalent to pocolog-decode show file"
+    opts.on("--decode-data") do
+        decode_data = true
+    end
+    opts.on("--help") do
+        puts parser
+        exit 0
+    end
+end
+
+remaining = parser.parse(ARGV)
+if remaining.size < 1 || remaining.size > 2
+    STDERR.puts parser
+    exit 1
+end
+
+mode, path = remaining
+if !path
+    mode, path = "show", mode
+end
+
+file = Pocolog::Logfiles.open(path)
+
+def simple_type?(type)
+    if type <= Numeric
+        true
+    elsif !type.respond_to?(:<) || !(type < Typelib::Type)
+        raise TypeError, "#{type} is not a typelib Type object"
+    elsif type < Typelib::CompoundType
+        type.each_field do |field_name, field_type|
+            return false if !simple_type?(field_type)
+        end
+    elsif type < Typelib::IndirectType
+        false
+    else
+        true
+    end
+end
+
+def size_details(data)
+    result = [data.marshalling_size]
+    return result if simple_type?(data.class)
+
+    case data
+    when Typelib::CompoundType
+        data.each_field do |name, value|
+            if !simple_type?(value.class)
+                result.concat([name, size_details(value)])
+            end
+        end
+    when Typelib::ContainerType, Typelib::ArrayType
+        if data.empty?
+            # Nothing to do ...
+        elsif simple_type?(data.class.deference)
+            result.concat(["[0:#{data.size - 1}]", [data.class.deference.size]])
+        else
+            range = [0, -1]
+            details = nil
+            data.each do |element|
+                element_details = size_details(element)
+                if element_details == details
+                    range[1] += 1
+                else
+                    result.concat([range.map(&:to_s).join(":"), details])
+                    details = element_details
+                    range[0] = range[1] = range[1] + 1
+                end
+            end
+        end
+    else
+        raise NotImplementedError, "found sample of type #{data.type} which is not supported"
+    end
+    result
+end
+
+def format_size_details(details, indent = "")
+    details.each_slice(2) do |field_name, field_details|
+        puts "#{indent}#{field_name} #{hr_bytes(field_details.first)}"
+        if field_details.size > 1
+            format_size_details(field_details[1..-1], indent + "  ")
+        end
+    end
+end
+
+if mode == "show"
+    block_types = {
+        Pocolog::CONTROL_BLOCK => "CONTROL_BLOCK",
+        Pocolog::DATA_BLOCK => "DATA_BLOCK",
+        Pocolog::STREAM_BLOCK => "STREAM_BLOCK" }
+
+    while block_type = file.read_one_block
+        block_info = file.block_info
+
+        type = block_types[block_info.type]
+        if block_type != Pocolog::CONTROL_BLOCK
+            stream_info = file.stream_from_index(block_info.index)
+            stream_name = stream_info.name
+            index = "#{stream_name}(#{block_info.index})"
+        end
+
+        puts "#{block_info.io}:#{block_info.pos} #{type} #{index} #{block_info.payload_size}"
+
+        if block_type == Pocolog::DATA_BLOCK && decode_data
+            stream_type = stream_info.type
+            sample = stream_type.wrap(file.data)
+
+            sizes = size_details(sample)
+            format_size_details(["Total", sizes])
+        end
+    end
+elsif mode == "stats"
+    block_types = {
+        Pocolog::CONTROL_BLOCK => "CONTROL_BLOCK",
+        Pocolog::DATA_BLOCK => "DATA_BLOCK",
+        Pocolog::STREAM_BLOCK => "STREAM_BLOCK" }
+
+    b_overhead = 0
+    b_stream_definitions = 0
+    c_stream_samples = []
+    b_stream_payload = []
+    c_packets = 0
+
+    while block_type = file.read_one_block
+        c_packets += 1
+        block_info = file.block_info
+
+        type = block_types[block_info.type]
+        b_overhead += Pocolog::Logfiles::BLOCK_HEADER_SIZE
+
+        if block_type == Pocolog::STREAM_BLOCK
+            b_stream_definitions += block_info.payload_size
+            b_stream_payload[block_info.index] = 0
+            c_stream_samples[block_info.index] = 0
+        elsif block_type == Pocolog::DATA_BLOCK
+            b_overhead += Pocolog::Logfiles::DATA_HEADER_SIZE
+            c_stream_samples[block_info.index] += 1
+            b_stream_payload[block_info.index] += block_info.payload_size - Pocolog::Logfiles::DATA_HEADER_SIZE
+        end
+    end
+
+    b_total = b_overhead + b_stream_definitions + b_stream_payload.inject(&:+)
+    puts <<-EOD
+Total:    #{hr_bytes(b_total)}
+Overhead: #{hr_bytes(b_overhead)} in #{c_packets} packets
+Stream Definitions: #{hr_bytes(b_stream_definitions)}
+Streams (sorted by size):
+    EOD
+
+    streams = []
+    b_stream_payload.each_with_index do |size, i|
+        streams << [size, "  #{hr_bytes(size)} #{c_stream_samples[i]} #{file.stream_from_index(i).name}"]
+    end
+    streams.sort_by { |s, _| s }.reverse.each do |_, str|
+        puts str
+    end
+end
+
+
