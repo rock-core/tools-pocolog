@@ -525,19 +525,18 @@ module Pocolog
                 # The stream object itself is built when the declaration block
                 # has been found
                 s    = @streams[stream_index]
-				if !s.nil? 
-						info = s.info
-						info.interval_io[1] = [@rio, block_info.pos]
-						info.interval_io[0] ||= info.interval_io[1]
+                if s.nil? 
+                    STDERR.puts "Got empty Streamline. Seems file is corrupted, skipping this" 
+                else
+                    info = s.info
+                    info.interval_io[1] = [@rio, block_info.pos]
+                    info.interval_io[0] ||= info.interval_io[1]
 
-						if info.size % StreamInfo::INDEX_STEP == 0
-							info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
-						end
-						info.size += 1
-				end
-				if s.nil?
-					STDERR.puts "Got empty Streamline. Seems file is corrupted, skipping this" 
-				end
+                    if info.size % StreamInfo::INDEX_STEP == 0
+                        info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
+                    end
+                    info.size += 1
+                end
 	    end
 
             if !@streams
