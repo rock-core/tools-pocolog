@@ -57,7 +57,7 @@ end
 file = Pocolog::Logfiles.open(path)
 
 def simple_type?(type)
-    if type <= Numeric
+    if type <= Numeric || type <= String
         true
     elsif !type.respond_to?(:<) || !(type < Typelib::Type)
         raise TypeError, "#{type} is not a typelib Type object"
@@ -72,6 +72,7 @@ def simple_type?(type)
     end
 end
 
+$DISPLAY = false
 def size_details(data)
     result = [data.marshalling_size]
     return result if simple_type?(data.class)
@@ -79,12 +80,20 @@ def size_details(data)
     case data
     when Typelib::CompoundType
         data.each_field do |name, value|
+	    if name == "particles"
+		puts "#{name} #{value.class.name}"
+		$DISPLAY = true
+	    end
             if !simple_type?(value.class)
                 result.concat([name, size_details(value)])
             end
+	    if name == "particles"
+		puts "DOE"
+		$DISPLAY = false
+	    end
         end
     when Typelib::ContainerType, Typelib::ArrayType
-        if data.empty?
+        if data.class < Typelib::ContainerType && data.empty?
             # Nothing to do ...
         elsif simple_type?(data.class.deference)
             result.concat(["[0:#{data.size - 1}]", [data.class.deference.size]])
@@ -93,6 +102,8 @@ def size_details(data)
             details = nil
             data.each do |element|
                 element_details = size_details(element)
+		details ||= element_details
+
                 if element_details == details
                     range[1] += 1
                 else
@@ -101,6 +112,9 @@ def size_details(data)
                     range[0] = range[1] = range[1] + 1
                 end
             end
+	    if details
+		result.concat([range.map(&:to_s).join(":"), details])
+	    end
         end
     else
         raise NotImplementedError, "found sample of type #{data.type} which is not supported"
@@ -153,6 +167,7 @@ elsif mode == "stats"
     b_stream_definitions = 0
     c_stream_samples = []
     b_stream_payload = []
+    b_stream_decoded_payload = []
     c_packets = 0
 
     while block_type = file.read_one_block
@@ -166,10 +181,17 @@ elsif mode == "stats"
             b_stream_definitions += block_info.payload_size
             b_stream_payload[block_info.index] = 0
             c_stream_samples[block_info.index] = 0
+            b_stream_decoded_payload[block_info.index] = 0
         elsif block_type == Pocolog::DATA_BLOCK
             b_overhead += Pocolog::Logfiles::DATA_HEADER_SIZE
             c_stream_samples[block_info.index] += 1
             b_stream_payload[block_info.index] += block_info.payload_size - Pocolog::Logfiles::DATA_HEADER_SIZE
+	    if decode_data
+		stream_info = file.stream_from_index(block_info.index)
+		stream_type = stream_info.type
+		sample = stream_type.wrap(file.data)
+		b_stream_decoded_payload[block_info.index] += sample.marshalling_size
+	    end
         end
     end
 
@@ -182,8 +204,14 @@ Streams (sorted by size):
     EOD
 
     streams = []
-    b_stream_payload.each_with_index do |size, i|
-        streams << [size, "  #{hr_bytes(size)} #{c_stream_samples[i]} #{file.stream_from_index(i).name}"]
+    if decode_data
+	b_stream_payload.each_with_index do |size, i|
+	    streams << [size, "  #{hr_bytes(size)} #{hr_bytes(b_stream_decoded_payload[i])} #{c_stream_samples[i]} #{file.stream_from_index(i).name}"]
+	end
+    else
+	b_stream_payload.each_with_index do |size, i|
+	    streams << [size, "  #{hr_bytes(size)} #{c_stream_samples[i]} #{file.stream_from_index(i).name}"]
+	end
     end
     streams.sort_by { |s, _| s }.reverse.each do |_, str|
         puts str
