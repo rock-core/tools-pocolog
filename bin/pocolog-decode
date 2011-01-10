@@ -72,7 +72,6 @@ def simple_type?(type)
     end
 end
 
-$DISPLAY = false
 def size_details(data)
     result = [data.marshalling_size]
     return result if simple_type?(data.class)
@@ -80,17 +79,9 @@ def size_details(data)
     case data
     when Typelib::CompoundType
         data.each_field do |name, value|
-	    if name == "particles"
-		puts "#{name} #{value.class.name}"
-		$DISPLAY = true
-	    end
             if !simple_type?(value.class)
                 result.concat([name, size_details(value)])
             end
-	    if name == "particles"
-		puts "DOE"
-		$DISPLAY = false
-	    end
         end
     when Typelib::ContainerType, Typelib::ArrayType
         if data.class < Typelib::ContainerType && data.empty?
