@@ -765,12 +765,13 @@ module Pocolog
                 type = registry.get(type)
             end
 
+	    typename  = type.name
+            registry = type.registry.minimal(type.name).to_xml
+
 	    @streams ||= Array.new
 	    new_index = @streams.size
-	    write_stream_declaration(new_index, name, type.name, registry.to_xml)
+	    write_stream_declaration(new_index, name, type.name, registry)
 
-	    typename  = type.name
-	    registry  = type.registry.to_xml
 	    stream = DataStream.new(self, new_index, name, typename, registry)
 	    @streams << stream
 	    stream
