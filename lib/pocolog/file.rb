@@ -91,7 +91,8 @@ module Pocolog
 
 	# A new log file is created when the current one has reached this
 	# size in bytes
-	MAX_FILE_SIZE = 100 * 1024**2
+	# MAX_FILE_SIZE = 100 * 1024**2
+        # define MAX_FILE_SIZE = n if you want to split the log file after n bytes
 
 	# Continue writing logs in a new file. See #basename to know how
 	# files are named
@@ -741,7 +742,7 @@ module Pocolog
 	def do_write # :nodoc:
             yield
 	    
-	    if wio.tell > MAX_FILE_SIZE
+	    if defined? MAX_FILE_SIZE && wio.tell > MAX_FILE_SIZE
 		new_file
 	    end
 	end
