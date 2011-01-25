@@ -757,6 +757,7 @@ module Pocolog
 	# +type+. Optionally creates it.
 	def stream(name, type = nil, create = false)
 	    if s = streams.find { |s| s.name == name }
+                s.registry # load the registry NOW
 		return s
 	    elsif !type || !create
 		raise ArgumentError, "no such stream #{name}"
