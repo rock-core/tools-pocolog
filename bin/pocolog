@@ -368,7 +368,7 @@ module Pocolog
 	def execute
             registry = Typelib::Registry.new
 	    logfiles.streams.each do |stream|
-                registry.merge Typelib::Registry.from_xml(stream.marshalled_registry)
+                registry.merge stream.registry
 	    end
             registry.each do |type|
                 pp type
