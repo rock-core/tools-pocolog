@@ -219,16 +219,64 @@ module Pocolog
 
 
     class DisplaySpec < Struct.new(:samples, :fields, :filter, :filter_out, :remove_prefix, :time)
+        def display_fields(v, ops)
+            ops = ops.dup
+
+            while !ops.empty?
+                op = ops.shift
+
+                if op == [:deference]
+                    return v.map { |el| display_fields(el, ops) }
+                elsif op[0] == :deference
+                    v = v[op[1]]
+                else
+                    v = v.send(*op)
+                end
+            end
+
+            if v.respond_to?(:to_csv)
+                v.to_csv
+            elsif v.respond_to?(:each)
+                v.join(" ")
+            else
+                v.to_s
+            end
+        end
+
 	def execute
 	    stream = samples.stream
-	    if fields
-		header_names = fields.map do |name| 
-                    type = name.split('.').inject(stream.type) do |type, subname|
-                        if subname =~ /(.*)\[.*\]$/
-                            subname = $1
-                        end
 
-                        type[subname]
+
+	    if fields
+                field_operations = fields.map do |name|
+                    ops = []
+                    name.split('.').each do |subname|
+                        if match = /(.*)((?:\[[^\]]*\])+)$/.match(subname)
+                            ops << [:[], match[1]]
+                            do_deference = match[2]
+                            while !do_deference.empty?
+                                match = /^\[([^\]]*)\]/.match(do_deference)
+                                if match[1].empty?
+                                    ops << [:deference]
+                                else
+                                    ops << [:deference, Integer(match[1])]
+                                end
+                                do_deference = match.post_match
+                            end
+                        else
+                            ops << [:[], subname]
+                        end
+                    end
+                    [name, ops]
+                end
+
+		header_names = field_operations.map do |name, field_ops| 
+                    type = field_ops.inject(stream.type) do |type, op|
+                        if op[0] == :deference
+                            type.deference
+                        else
+                            type.send(*op)
+                        end
                     end
 		    subnames = type.to_csv
 		    name + subnames.gsub(/ \./, " #{name}.")
@@ -264,16 +312,8 @@ module Pocolog
 		end
 
 		if fields
-		    values = fields.map do |name| 
-                        v = name.split('.').inject(data) do |v, subname|
-                            if subname =~ /(.*)\[.*\]$/
-                                subname = $1 
-                            end
-                            v[subname]
-                        end
-			if v.respond_to?(:to_csv) then v.to_csv
-			else v.to_s
-			end
+                    values = field_operations.map do |_, field_ops|
+                        display_fields(data, field_ops)
 		    end
 		    puts values.join(" ")
 		else
