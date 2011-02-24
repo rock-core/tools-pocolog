@@ -334,6 +334,16 @@ module Pocolog
             nil
         end
 
+        # Reads the next sample in the file, and returns its header. Returns nil
+        # if the end of file has been reached. Unlike +next+, it does not
+        # decodes the data payload.
+	def advance(index)
+            each_data_block(index, false) do
+                return data_header
+            end
+            nil
+	end
+
         # Gets the block information in +block_info+ and acts accordingly: calls
         # the relevant parsing methods if it is a control or stream block. It
         # does nothing for data blocks.
