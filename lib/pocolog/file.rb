@@ -383,7 +383,7 @@ module Pocolog
             end
 
             if !BLOCK_TYPES.include?(type)
-                pp "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
+                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
             end
 
             @block_info.io           = @rio
