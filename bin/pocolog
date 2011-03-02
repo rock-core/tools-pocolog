@@ -5,10 +5,11 @@ require 'optparse'
 require 'utilrb/pkgconfig'
 require 'fileutils'
 require 'shellwords'
+require 'time'
 
 def time_from_spec(spec)
     if spec =~ /^\d+$/ then Integer(spec)
-    else Time.from_hms(spec) 
+    else Time.parse(spec) 
     end
 end
 
