@@ -237,7 +237,7 @@ module Pocolog
 
             if v.respond_to?(:to_csv)
                 v.to_csv
-            elsif v.respond_to?(:each)
+            elsif v.respond_to?(:join)
                 v.join(" ")
             else
                 v.to_s
