@@ -200,7 +200,7 @@ module Pocolog
         # if the end of file has been reached. Unlike +next+, it does not
         # decodes the data payload.
 	def advance
-            if sample_index < size
+            if sample_index < size-1
                 @sample_index += 1
                 logfile.each_data_block(index, sample_index == 0) do
                     return logfile.data_header
