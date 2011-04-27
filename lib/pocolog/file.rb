@@ -763,6 +763,31 @@ module Pocolog
             end
 	end
 
+        # Returns all streams of the given type. The type can be given by its
+        # name or through a Typelib::Type subclass
+        def streams_from_type(type)
+            if type.respond_to?(:name)
+                type = type.name
+            end
+
+            streams.find_all { |s| s.type.name == type }
+        end
+
+        # Returns a stream of the given type, if there is only one. The type can
+        # be given by its name or through a Typelib::Type subclass
+        #
+        # If there is no match or multiple matches, raises ArgumentError.
+        def stream_from_type(type)
+            matches = streams_from_type(type)
+            if matches.empty?
+                raise ArgumentError, "there is no stream in this file with the required type"
+            elsif matches.size > 1
+                raise ArgumentError, "there is more than one stream in this file with the required type"
+            else
+                return matches.first
+            end
+        end
+
 	# Returns the DataStream object for +name+, +registry+ and
 	# +type+. Optionally creates it.
 	def stream(name, type = nil, create = false)
