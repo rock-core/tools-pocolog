@@ -843,5 +843,11 @@ module Pocolog
             end
 	end
     end
+
+    # Returns the stream called +stream_name+ from file
+    def self.file_stream(file_name, stream_name)
+        file = Logfiles.open(file_name)
+        file.stream(stream_name)
+    end
 end
 
