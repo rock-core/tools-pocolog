@@ -752,7 +752,7 @@ module Pocolog
 	def do_write # :nodoc:
             yield
 	    
-	    if defined? MAX_FILE_SIZE && wio.tell > MAX_FILE_SIZE
+	    if defined?(MAX_FILE_SIZE) && (wio.tell > MAX_FILE_SIZE)
 		new_file
 	    end
 	end
