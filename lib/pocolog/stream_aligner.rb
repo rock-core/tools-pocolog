@@ -148,13 +148,34 @@ module Pocolog
             [@last_sample.stream_index, @last_sample.time,
                       single_data(@last_sample.stream_index)] if @last_sample
         end
+            
+        
+        def get_stream_index_for_name(name)
+            streams.each_with_index do |s,i|
+                if(s.name == name)
+                    return i
+                end
+            end
+            return NIL
+        end
+        
+        def get_stream_index_for_type(name)
+            streams.each_with_index do |s,i|
+                if(s.type_name == name)
+                    return i
+                end
+            end
+            return NIL
+        end
 
         #seeks all streams to a sample which logical time is not greater than the given
         #time. If this is not possible the stream will be re winded.
         def seek_to_time(time)
           raise ArgumentError "a time object is expected" if !time.is_a?(Time) 
-          raise OutOfBounds if time < time_interval.first || time > time_interval.last
-
+          if time < time_interval.first || time > time_interval.last
+            pp "Time is not in bounds, NOT: #{time_interval.first} < #{time} < #{time_interval.last}"
+            raise OutOfBounds 
+          end
           #we can calc the  preseek settings we do not have to cache them like for sample based index
           entry = build_index_entry(time)
           preseek(entry)
