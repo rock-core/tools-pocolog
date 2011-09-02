@@ -150,22 +150,24 @@ module Pocolog
         end
             
         
-        def get_stream_index_for_name(name)
+        def stream_index_for_name(name)
             streams.each_with_index do |s,i|
                 if(s.name == name)
                     return i
                 end
             end
-            return NIL
+            return nil 
         end
         
-        def get_stream_index_for_type(name)
+        def stream_index_for_type(name)
+            stream = nil
             streams.each_with_index do |s,i|
                 if(s.type_name == name)
-                    return i
+                    raise "There exists more than one stream with type #{name}" if stream
+                    stream = i
                 end
             end
-            return NIL
+            stream
         end
 
         #seeks all streams to a sample which logical time is not greater than the given
