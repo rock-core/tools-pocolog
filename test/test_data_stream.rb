@@ -47,6 +47,7 @@ class TC_DataStream < Test::Unit::TestCase
             end
             # verify that calling #step again is harmless
             assert_equal 100, stream.sample_index
+            assert_equal 100, stream.size
             assert !stream.next
             assert stream.eof?
             assert_equal expected_data, stream_data

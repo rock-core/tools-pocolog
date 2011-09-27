@@ -11,7 +11,10 @@ module Pocolog
         attr_reader :marshalled_registry
         # The Logfiles::StreamInfo structure for that stream
         attr_reader :info
-        # The index in the stream of the current sample
+        # The index in the stream of the last read sample
+        #
+        # It is equal to size if we are past-the-end, i.e. if one called #next
+        # until it returned nil
         attr_reader :sample_index
         # The stream associated metadata
         attr_reader :metadata
@@ -162,6 +165,8 @@ module Pocolog
 	# Returns the first sample in the stream, or nil if the stream is empty
         #
         # It differs from #rewind as it always decodes the data payload.
+        #
+        # After a call to #first, #sample_index is 0
 	def first
 	    rewind
             self.next
@@ -171,6 +176,8 @@ module Pocolog
         #   last => [time_rt, time_lg, data]
         #
         # Returns the last sample in the stream, or nil if the stream is empty.
+        #
+        # After a call to #last, #sample_index is size - 1
         def last
             last_sample_pos = info.interval_io[1]
             logfile.seek(last_sample_pos[1], last_sample_pos[0])
@@ -207,6 +214,8 @@ module Pocolog
                 logfile.each_data_block(index, sample_index == 0) do
                     return logfile.data_header
                 end
+            else
+                @sample_index = size
             end
 	    nil
 	end
