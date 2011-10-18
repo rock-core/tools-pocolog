@@ -138,7 +138,12 @@ if mode == "show"
             index = "#{stream_name}(#{block_info.index})"
         end
 
-        puts "#{block_info.io}:#{block_info.pos} #{type} #{index} #{block_info.payload_size}"
+        print "#{block_info.io}:#{block_info.pos} #{type} #{index} #{block_info.payload_size}"
+	if block_type == Pocolog::DATA_BLOCK
+	    print " #{file.data_header.compressed ? "compressed" : "uncompressed"}"
+	end
+
+	puts
 
         if block_type == Pocolog::DATA_BLOCK && decode_data
             stream_type = stream_info.type
