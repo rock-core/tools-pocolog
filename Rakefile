@@ -1,14 +1,18 @@
 require 'rake'
 require './lib/pocolog/version'
-require 'rdoc/task'
 
 task 'default' do
 end
 
-RDoc::Task.new do |rd|
-    rd.main = "README.txt"
-    rd.rdoc_files.include("README.txt", "lib/**/*.rb")
-    rd.rdoc_dir = "doc"
+begin
+    require 'rdoc/task'
+    RDoc::Task.new do |rd|
+        rd.main = "README.txt"
+        rd.rdoc_files.include("README.txt", "lib/**/*.rb")
+        rd.rdoc_dir = "doc"
+    end
+    task 'redocs' => 'rerdoc'
+rescue LoadError
+    STDERR.puts "INFO: documentation targets disabled as the rdoc gem is not installed"
 end
-task 'redocs' => 'rerdoc'
 
