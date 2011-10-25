@@ -99,7 +99,7 @@ module Pocolog
                         stream_registry.merge_xml(marshalled_registry)
                     end
 
-                    stream_registry = stream_registry.minimal(typename)
+                    stream_registry = stream_registry.minimal(typename, false)
 
                     # if we do have a registry, then adapt it to the local machine
                     # if needed. Right now, this is required if containers changed
