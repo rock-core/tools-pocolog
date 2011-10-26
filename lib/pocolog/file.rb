@@ -3,11 +3,44 @@ require 'fileutils'
 module Pocolog
     class InvalidIndex < RuntimeError; end
     class InternalError < RuntimeError; end
+
+    # Low-level access to (consistent) set of logfiles.
+    #
+    # The pocolog logfiles can be split during recording in order to limit each
+    # file's size. This class allows to provide a list of files (to
+    # Logfiles.open) and have a uniform access to the data.
+    #
+    # Files are indexed (i.e. a .idx file gets generated along with the log
+    # file) to provide quick random access.
+    #
+    # A higher level access is provided by the streams (DataStream), that can be
+    # retrieved with #stream, #stream_from_type and #stream_from_index
+    #
+    # == Format
+    #
+    # Pocolog files are made of:
+    # 
+    # * a prologue
+    # * a sequence of generic blocks, each block pointing to the next block
+    # * blocks can either be stream blocks, control blocks or data blocks.
+    #   * Stream blocks define a new data stream with name, type name and type
+    #     definition, assigning it a stream ID which is unique in these logfiles
+    #   * Control blocks provide additional, logfile-wide, information. They are
+    #     not assigned to streams. This feature is currently unused.
+    #   * Data blocks store a single data sample in a stream
+    #
+    # See the tasks/logging.hh file in Rock's tools/logger package for a
+    # detailed description of each block's layout.
     class Logfiles
+        # Format version ID. Increment this when the file format changes in a
+        # non-backward-compatible way
 	FORMAT_VERSION = 2
 
+        # The size of the generic block header
 	BLOCK_HEADER_SIZE = 8
+        # The size of a time in a block header
 	TIME_SIZE = 8
+        # The size of a data header, excluding the generic block header
 	DATA_HEADER_SIZE = TIME_SIZE * 2 + 5
 
 	# Data blocks of less than COMPRESSION_MIN_SIZE are never compressed
@@ -16,16 +49,25 @@ module Pocolog
 	# compressed form
 	COMPRESSION_THRESHOLD = 0.3
 
+        # Exception thrown when opening if the log file is not 
+        #
+        # One should run pocolog --upgrade-version when this happen
 	class ObsoleteVersion < RuntimeError; end
+        # Logfiles.open could not find a valid prologue in the provided file(s)
+        #
+        # This is most often because the provided file(s) are not pocolog files
 	class MissingPrologue < RuntimeError; end
 
+        # Structure that stores additional information about a block
 	BlockInfo = Struct.new :io, :pos, :type, :index, :payload_size
+        # The BlockInfo instance storing information about the last block read
 	attr_reader :block_info
 
 	# Whether or not data bigger than COMPRESSION_MIN_SIZE should be
 	# compressed using Zlib when written to this log file. Defaults to true
 	attr_predicate :compress?
 
+        # Returns true if +file+ is a valid, up-to-date, pocolog file
         def self.valid_file?(file)
             Logfiles.new(file)
             true
@@ -33,9 +75,28 @@ module Pocolog
             false
         end
 
+        # An array of IO objects representing the underlying files
 	attr_reader :io
+        # The streams encountered so far. It is initialized the first time
+        # #streams gets called
 	attr_reader :streams
+        # The type registry for these logfiles, as a Typelib::Registry instance
 	attr_reader :registry
+
+        # call-seq:
+        #   Logfiles.open(io1, io2)
+        #   Logfiles.open(io1, io2, registry)
+        #
+        # This is usually not used directly. Most users want to use Pocolog.open
+        # to read existing file(s), and Pocolog.create to create new ones.
+        #
+        # Creates a new Logfiles object to read the given IO objects. If the
+        # last argument is a Typelib::Registry instance, update this registry
+        # with the type definitions found in the logfile.
+        #
+        # Providing a type registry guarantees that you get an error if the
+        # logfile's types do not match the type definitions found in the
+        # registry.
 	def initialize(*io)
 	    if io.last.kind_of?(Typelib::Registry)
 		@registry = io.pop
@@ -50,6 +111,7 @@ module Pocolog
             read_prologue if !io.empty?
 	end
 
+        # Close the underlying IO objects
 	def close
 	    io.each { |file| file.close }
 	end
@@ -60,7 +122,7 @@ module Pocolog
 	#   #{basename}.#{index}.log
 	attr_accessor :basename
 
-        # Returns the current position in the file
+        # Returns the current position in the current IO
         #
         # This is the position of the next block.
 	def tell; @next_block_pos end
@@ -88,11 +150,6 @@ module Pocolog
             end
             nil
         end
-
-	# A new log file is created when the current one has reached this
-	# size in bytes
-	# MAX_FILE_SIZE = 100 * 1024**2
-        # define MAX_FILE_SIZE = n if you want to split the log file after n bytes
 
 	# Continue writing logs in a new file. See #basename to know how
 	# files are named
@@ -178,6 +235,11 @@ module Pocolog
 	attr_reader :format_version # :nodoc:
 	MAGIC = "POCOSIM" # :nodoc:
 	    
+        # Tries to read the prologue of the underlying files
+        #
+        # Raises MissingPrologue if no prologue is found, or ObsoleteVersion if
+        # the file format is not up-to-date (in which case one has to run
+        # pocolog --to-new-format).
 	def read_prologue # :nodoc:
 	    io = rio
 	    io.seek(0)
@@ -209,15 +271,22 @@ module Pocolog
 	    end
 	end
 
+        # True if we read the last block in the file set
         def eof?; @io.size == @rio end
-	# Returns the IO object used for reading
+	# Returns the IO object currently used for reading
 	def rio; @io[@rio] end
-	# Returns the IO object used for writing
+	# Returns the IO object currently used for writing
 	def wio; @io.last end
-        # Returns the file size of +rio+
+        # Returns the file size of the IO object currently used
         def file_size; @io_size[@rio] end
 	
-        # Yields for each block found in the file set.
+        # Yields a BlockInfo instance for each block found in the file set.
+        #
+        # If +rewind+ is true, rewind the file to the first block before
+        # iterating.
+        #
+        # The with_prologue option specifies whether the prologue should be read
+        # after rewind. It is meant to be used internally to upgrade old files.
         #
         # This is not meant for direct use. Use #each_data_block instead.
 	def each_block(rewind = true, with_prologue = true)
@@ -243,6 +312,10 @@ module Pocolog
 	rescue EOFError
 	end
 
+        # Seek the file set to the data block of index +pos+, from stream
+        # +stream_idx+, using the file info object +info+.
+        #
+        # This is for internal use. Use #seek_stream.
         def seek_to_pos(stream_idx, info, pos)
             index_entry = info.index.find do |size, _|
                 size + Logfiles::StreamInfo::INDEX_STEP > pos
@@ -267,6 +340,11 @@ module Pocolog
             return sample_index
         end
 
+        # Seek the file set to the last data block whose logical time is not
+        # greater than +pos+, from stream +stream_idx+, using the file info
+        # object +info+.
+        #
+        # This is for internal use. Use #seek_stream.
         def seek_to_time(stream_idx, info, pos)
             if pos < info.interval_lg[0] || pos > info.interval_lg[1]
                 raise ArgumentError, "#{pos} is out of bounds"
@@ -298,13 +376,14 @@ module Pocolog
         # Time.
         #
         # If +pos+ is an integer, it is interpreted as a sample index in the
-        # stream. #seek_stream will then return the sample index of the entry
-        # found in the index.
+        # stream. #seek_stream will then return the sample index of the block
+        # found (i.e. will return +pos+ itself). If no block has such a position
+        # (i.e. past end-of-file), an ArgumentError exception is raised.
         #
         # If +pos+ is a time, it is interpreted as a sample time. #seek_stream
-        # will then return the sample time of the entry found in the index.
-        #
-        # Raises ArgumentError if no sample can be found that matches +pos+
+        # will then return the sample index of the corresponding block found in
+        # the stream. ArgumentError is raised if the given position is out of
+        # bounds.
         def seek_stream(stream_idx, pos)
             info = streams[stream_idx].info
             if info.empty?
@@ -334,9 +413,9 @@ module Pocolog
             nil
         end
 
-        # Reads the next sample in the file, and returns its header. Returns nil
-        # if the end of file has been reached. Unlike +next+, it does not
-        # decodes the data payload.
+        # Reads the next data sample in the file, and returns its header.
+        # Returns nil if the end of file has been reached. Unlike +next+, it
+        # does not decodes the data payload.
 	def advance(index)
             each_data_block(index, false) do
                 return data_header
@@ -402,8 +481,11 @@ module Pocolog
         # Yields for each data block in stream +stream_index+, or in all
 	# streams if +stream_index+ is nil. The block header can be retrieved
         # using #data_header, and the sample by using #data
-        #--
-        # the with_prologue parameter is a backward compatibility feature that
+        #
+        # If +rewind+ is true, starts at the beginning of the file. Otherwise,
+        # start at the current position
+        #
+        # The with_prologue parameter is a backward compatibility feature that
         # allowed to read old files that did not have a prologue.
 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
 	    each_block(rewind) do |block_info|
@@ -736,11 +818,15 @@ module Pocolog
             return wio
         end
 
-        # wrapping static member function write_block
+        # Write a raw block. +type+ is the block type (either CONTROL_BLOCK,
+        # DATA_BLOCK or STREAM_BLOCK), +index+ the stream index for stream and
+        # data blocks and the control block type for control blocs. +payload+ is
+        # the block's payload.
         def write_block(type,index,payload)
-          return Logfiles.write_block(wio,type,index,payload)
+            return Logfiles.write_block(wio,type,index,payload)
         end
 
+        # Encodes and writes a stream declaration block to +wio+
         def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,
@@ -749,6 +835,8 @@ module Pocolog
 	    write_block(wio, STREAM_BLOCK, index, payload)
         end
 
+        # Helper method that makes sure to create new files if the current file
+        # size is bigger than MAX_FILE_SIZE (if defined). 
 	def do_write # :nodoc:
             yield
 	    
@@ -757,6 +845,7 @@ module Pocolog
 	    end
 	end
 
+        # Writes a stream declaration to the current write IO
 	def write_stream_declaration(index, name, type, registry)
             do_write do
                 Logfiles.write_stream_declaration(wio, index, name, type, registry)
@@ -790,6 +879,9 @@ module Pocolog
 
 	# Returns the DataStream object for +name+, +registry+ and
 	# +type+. Optionally creates it.
+        #
+        # If +create+ is false, raises ArgumentError if the stream does not
+        # exist.
 	def stream(name, type = nil, create = false)
 	    if s = streams.find { |s| s.name == name }
                 s.registry # load the registry NOW
@@ -826,8 +918,12 @@ module Pocolog
 	end
 
 	TIME_PADDING = TIME_SIZE - 8
+        # Formatting string for Array.pack to create a data block
 	DATA_BLOCK_HEADER_FORMAT = "VVx#{TIME_PADDING}VVx#{TIME_PADDING}VC"
 
+        # Write a data block for stream index +stream+, with the provided times
+        # and the given data. +data+ must already be marshalled (i.e. it is
+        # meant to be a String that represents a byte array).
 	def write_data_block(stream, rt, lg, data) # :nodoc:
 	    compress = 0
 	    if compress? && data.size > COMPRESSION_MIN_SIZE
