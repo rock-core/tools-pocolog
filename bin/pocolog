@@ -129,7 +129,7 @@ module Pocolog
 	end
 
 	def method_missing(name, *args, &block)
-	    if name.to_s[-1] == ?= && current.respond_to?(name)
+	    if current.respond_to?(name)
 		current.send(name, *args)
 	    else
 		current.samples.send(name, *args)
@@ -220,7 +220,7 @@ module Pocolog
     end
 
 
-    class DisplaySpec < Struct.new(:samples, :fields, :filter, :filter_out, :remove_prefix, :time)
+    class DisplaySpec < Struct.new(:samples, :fields, :filter, :filter_out, :remove_prefix, :time, :expr)
         def display_fields(v, ops)
             ops = ops.dup
 
@@ -245,11 +245,15 @@ module Pocolog
             end
         end
 
+        def eval_expr(string)
+            Typelib.load_typelib_plugins
+            eval "self.expr = Proc.new { |sample| #{string} }"
+        end
+
 	def execute
 	    stream = samples.stream
 
-
-	    if fields
+	    if !expr && fields
                 field_operations = fields.map do |name|
                     ops = []
                     name.split('.').each do |subname|
@@ -285,7 +289,7 @@ module Pocolog
 		end
 		puts header_names.join(" ")
 
-	    else
+            elsif !expr
 		header = stream.type.to_csv(stream.name)
 		field_names = header.split(' ')
 		if remove_prefix
@@ -313,7 +317,9 @@ module Pocolog
 		    end
 		end
 
-		if fields
+                if expr
+                    expr.call(data)
+		elsif fields
                     values = field_operations.map do |_, field_ops|
                         display_fields(data, field_ops)
 		    end
@@ -546,6 +552,9 @@ parser = OptionParser.new do |opts|
     end
     opts.on('-t', '--time', 'display time of samples') do
 	config.time = true
+    end
+    opts.on('--expr=EXPR', String, "a Ruby expression to evaluate for each sample. In the code, 'sample' refers to the current stream value") do |spec|
+        config.eval_expr(spec)
     end
     opts.on('--at SPEC', String, 'config only specified sample, see below for definition of SPEC') do |spec| 
 	config.at(time_from_spec(spec))
