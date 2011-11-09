@@ -385,6 +385,15 @@ module Pocolog
             s = current_samples[index]
             s.stream.data(s.header) if s
         end
+
+        def each(do_rewind = true)
+            if do_rewind
+                rewind
+            end
+            while sample = self.step
+                yield(*sample)
+            end
+        end
     end
 end
 
