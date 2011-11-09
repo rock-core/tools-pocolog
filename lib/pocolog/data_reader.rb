@@ -302,8 +302,15 @@ module Pocolog
 
 	    last_data_block = nil
 
+            min_index = self.min_index
+            min_time  = self.min_time
+
             if min_index || min_time
-                stream.seek(min_index || min_time)
+                if min_time && stream.time_interval[0] > min_time
+                    min_time = nil
+                else
+                    stream.seek(min_index || min_time)
+                end
             end
 	    stream.each_block(!(min_index || min_time)) do
                 sample_index = stream.sample_index
