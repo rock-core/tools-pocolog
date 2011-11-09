@@ -9,6 +9,7 @@ require 'time'
 
 def time_from_spec(spec)
     if spec =~ /^\d+$/ then Integer(spec)
+    elsif spec =~ /^\d+\.\d+$/ then Time.at(Float(spec))
     else Time.parse(spec) 
     end
 end
