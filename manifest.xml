@@ -14,6 +14,5 @@
 
     <depend package="typelib" />
     <depend package="utilrb" />
-    <rosdep name="hoe" />
 </package>
 
