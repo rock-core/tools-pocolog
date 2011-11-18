@@ -8,7 +8,7 @@ class TC_DataStream < Test::Unit::TestCase
 
     def create_fixture
         logfile = Pocolog::Logfiles.create('test')
-        all_values = logfile.stream('all', 'int', true)
+        all_values = logfile.create_stream('all', 'int', 'test' => 'value', 'test2' => 'value2')
         @expected_data = Array.new
         100.times do |i|
             all_values.write(Time.at(i), Time.at(i * 100), i)
@@ -26,6 +26,10 @@ class TC_DataStream < Test::Unit::TestCase
     def teardown
         FileUtils.rm_f 'test.0.log'
         FileUtils.rm_f 'test.0.idx'
+    end
+
+    def test_metadata
+        assert_equal({'test' => "value", "test2" => "value2"}, stream.metadata)
     end
 
     def test_properties

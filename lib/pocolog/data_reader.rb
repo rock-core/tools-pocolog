@@ -13,10 +13,12 @@ module Pocolog
         attr_reader :info
         # The index in the stream of the current sample
         attr_reader :sample_index
+        # The stream associated metadata
+        attr_reader :metadata
 
-        def initialize(logfile, index, name, type_name, marshalled_registry)
-            @logfile, @index, @name, @type_name, @marshalled_registry =
-                logfile, index, name, type_name, marshalled_registry
+        def initialize(logfile, index, name, type_name, marshalled_registry, metadata)
+            @logfile, @index, @name, @type_name, @marshalled_registry, @metadata =
+                logfile, index, name, type_name, marshalled_registry, metadata
 
             @registry = nil
             @sample_index = -1

@@ -1,4 +1,5 @@
 require 'utilrb/module/attr_predicate'
+require 'yaml'
 require 'fileutils'
 module Pocolog
     class InvalidIndex < RuntimeError; end
@@ -729,6 +730,12 @@ module Pocolog
 		registry      = rio.read(registry_size)
 	    end
 
+            # Load the metadata if it seems that there is one
+	    unless rio.tell == block_start + block_info.payload_size
+		metadata_size = rio.read(4).unpack('V').first
+		metadata      = rio.read(metadata_size)
+	    end
+
 	    stream_index = block_info.index
 	    if @streams && (old = @streams[stream_index])
 		unless old.name == name && old.typename == typename || old.registry == registry
@@ -737,7 +744,7 @@ module Pocolog
 		old
 	    else
 		@streams ||= Array.new
-		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || ''))
+		s = (@streams[stream_index] = DataStream.new(self.dup, stream_index, name, typename, registry || '', YAML.load(metadata || '') || Hash.new))
 
                 info = StreamInfo.new
                 s.instance_variable_set(:@info, info)
@@ -827,11 +834,13 @@ module Pocolog
         end
 
         # Encodes and writes a stream declaration block to +wio+
-        def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil)
+        def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil, metadata = Hash.new)
+            metadata = YAML.dump(metadata)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,
-                type_registry.size, type_registry
-            ].pack("CVa#{name.size}Va#{type_name.size}Va#{type_registry.size}")
+                type_registry.size, type_registry,
+                metadata.size, metadata
+            ].pack("CVa#{name.size}Va#{type_name.size}Va#{type_registry.size}Va#{metadata.size}")
 	    write_block(wio, STREAM_BLOCK, index, payload)
         end
 
@@ -846,9 +855,9 @@ module Pocolog
 	end
 
         # Writes a stream declaration to the current write IO
-	def write_stream_declaration(index, name, type, registry)
+	def write_stream_declaration(index, name, type, registry, metadata)
             do_write do
-                Logfiles.write_stream_declaration(wio, index, name, type, registry)
+                Logfiles.write_stream_declaration(wio, index, name, type, registry, metadata)
             end
 	end
 
@@ -877,6 +886,25 @@ module Pocolog
             end
         end
 
+        # Explicitely creates a new stream named +name+, of the given type and
+        # metadata
+        def create_stream(name, type, metadata = Hash.new)
+            if type.respond_to?(:to_str)
+                type = registry.get(type)
+            end
+
+	    typename  = type.name
+            registry = type.registry.minimal(type.name).to_xml
+
+	    @streams ||= Array.new
+	    new_index = @streams.size
+	    write_stream_declaration(new_index, name, type.name, registry, metadata)
+
+	    stream = DataStream.new(self, new_index, name, typename, registry, metadata)
+	    @streams << stream
+	    stream
+        end
+
 	# Returns the DataStream object for +name+, +registry+ and
 	# +type+. Optionally creates it.
         #
@@ -889,21 +917,7 @@ module Pocolog
 	    elsif !type || !create
 		raise ArgumentError, "no such stream #{name}"
 	    end
-
-            if type.respond_to?(:to_str)
-                type = registry.get(type)
-            end
-
-	    typename  = type.name
-            registry = type.registry.minimal(type.name).to_xml
-
-	    @streams ||= Array.new
-	    new_index = @streams.size
-	    write_stream_declaration(new_index, name, type.name, registry)
-
-	    stream = DataStream.new(self, new_index, name, typename, registry)
-	    @streams << stream
-	    stream
+            create_stream(name, type)
 	end
 
 	# Creates a JointStream object on the streams whose names are given.
