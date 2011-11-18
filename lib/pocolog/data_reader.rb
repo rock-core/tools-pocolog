@@ -181,7 +181,7 @@ module Pocolog
         def last
             last_sample_pos = info.interval_io[1]
             logfile.seek(last_sample_pos[1], last_sample_pos[0])
-            @sample_index = size - 1
+            @sample_index = size - 2
             self.next
         end
 

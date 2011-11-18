@@ -144,8 +144,8 @@ class TC_DataStream < Test::Unit::TestCase
     def test_last
         stream.seek(10)
         assert_equal 99, stream.last[2]
-        assert_equal 99, stream.previous[2]
-        assert_equal nil, stream.next
+        assert_equal 98, stream.previous[2]
+        assert_equal 99, stream.next[2]
 
         stream.seek(10)
         assert_equal 99, stream.last[2]
