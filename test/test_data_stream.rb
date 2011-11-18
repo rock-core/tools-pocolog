@@ -14,11 +14,19 @@ class TC_DataStream < Test::Unit::TestCase
             all_values.write(Time.at(i), Time.at(i * 100), i)
             expected_data << i
         end
+
+        # Add a followup stream that fills in the file. It is used for a corner
+        # case in #test_past_the_end_does_not_read_whole_file
+        other_stream = logfile.create_stream('other', 'int')
+        100.times do |i|
+            other_stream.write(Time.at(i), Time.at(i * 100), i)
+        end
         logfile.close
     end
 
     def setup
         create_fixture
+        @file_size = File.stat('test.0.log').size
         @logfile = Pocolog::Logfiles.open('test.0.log')
         @stream  = logfile.stream('all')
     end
@@ -161,6 +169,12 @@ class TC_DataStream < Test::Unit::TestCase
 
         assert_equal (0...expected_data.size).to_a, data.map(&:first)
         assert_equal expected_data, data.map(&:last)
+    end
+
+    def test_past_the_end_does_not_read_whole_file
+        stream.seek(10)
+        stream.last
+        assert_not_equal @logfile.rio.tell, stream.logfile.rio.tell
     end
 end
 
