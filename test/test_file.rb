@@ -1,7 +1,7 @@
 require 'pocolog'
 require 'test/unit'
 
-class TC_DataStream < Test::Unit::TestCase
+class TC_File < Test::Unit::TestCase
     attr_reader :logfile
 
     def create_fixture
