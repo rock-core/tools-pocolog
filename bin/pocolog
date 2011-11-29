@@ -342,6 +342,10 @@ module Pocolog
     class DisplayConfig < SampleModeConfig
 	def self.optname; "--show" end
 	Spec = DisplaySpec
+        def show_metadata
+            @show_metadata = true
+        end
+
 	def execute
 	    if specs.empty?
 		return display_file_info
@@ -384,8 +388,14 @@ module Pocolog
 		if count == 0
 		    empty_streams[stream.name] = "#{stream.name} [#{stream.typename}]"
 		else
-		    info[stream.name] = 
-			"#{stream.name} [#{stream.typename}]\n" <<
+		    info[stream.name] = "#{stream.name} [#{stream.typename}]\n"
+                    puts stream.metadata.inspect
+                    if !stream.metadata.empty? && @show_metadata
+                        stream.metadata.sort.each do |key, value|
+                            info[stream.name] << "  #{key}: #{value}\n"
+                        end
+                    end
+		    info[stream.name] <<
 			"  #{count} samples"
 
 		    diff = last_sample - first_sample
@@ -473,6 +483,10 @@ module Pocolog
         def types_xml
             self.mode = XMLRegistryDisplay
         end
+
+        def show_metadata
+            @show_metadata = true
+        end
 	
 	# Displays samples from +name+
 	def type(name)
@@ -519,7 +533,15 @@ module Pocolog
 
 	# Process the file according to the given mode and options
 	def execute
-	    (mode_config || DisplayConfig.new(io)).execute
+            if mode_config
+                mode_config.execute
+            else
+                mode = DisplayConfig.new(io)
+                if @show_metadata
+                    mode.show_metadata
+                end
+                mode.execute
+            end
 	end
     end
 
@@ -530,6 +552,9 @@ parser = OptionParser.new do |opts|
     opts.separator ""
     opts.separator "Displays file information with"
     opts.separator "  pocolog FILE"
+    opts.on('--metadata', 'display stream metadata') do
+        config.show_metadata
+    end
 
     opts.separator ""
     opts.separator "Displays samples with"
