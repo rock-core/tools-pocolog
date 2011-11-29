@@ -920,6 +920,12 @@ module Pocolog
             create_stream(name, type)
 	end
 
+        # Returns true if +name+ is the name of an existing stream
+        def has_stream?(name)
+            !!stream(name)
+        rescue ArgumentError
+        end
+
 	# Creates a JointStream object on the streams whose names are given.
 	# The returned object is used to coherently iterate on the samples of
 	# the given streams (i.e. it will yield samples that are valid at the
