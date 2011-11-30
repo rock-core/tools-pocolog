@@ -386,7 +386,12 @@ module Pocolog
 		count = stream.size
 
 		if count == 0
-		    empty_streams[stream.name] = "#{stream.name} [#{stream.typename}]"
+		    empty_streams[stream.name] = "#{stream.name} [#{stream.typename}]\n"
+                    if !stream.metadata.empty? && @show_metadata
+                        stream.metadata.sort.each do |key, value|
+                            empty_streams[stream.name] << "    #{key}: #{value}\n"
+                        end
+                    end
 		else
 		    info[stream.name] = "#{stream.name} [#{stream.typename}]\n"
                     puts stream.metadata.inspect
@@ -410,7 +415,7 @@ module Pocolog
 	    end
 	    if !empty_streams.empty?
 		print "No samples for\n  "
-		puts empty_streams.values_at(*empty_streams.keys.sort).join("\n  ")
+		puts empty_streams.values_at(*empty_streams.keys.sort).join("  ")
 	    end
 	end
     end
