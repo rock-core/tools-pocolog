@@ -394,7 +394,6 @@ module Pocolog
                     end
 		else
 		    info[stream.name] = "#{stream.name} [#{stream.typename}]\n"
-                    puts stream.metadata.inspect
                     if !stream.metadata.empty? && @show_metadata
                         stream.metadata.sort.each do |key, value|
                             info[stream.name] << "  #{key}: #{value}\n"
