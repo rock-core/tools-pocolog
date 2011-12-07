@@ -155,19 +155,6 @@ module Pocolog
 	    index_helpers.compact!
 	    
 	    index_helpers = PQueue.new(index_helpers){ |a,b| a.time < b.time }
-	    
-# 	    test
-# 	    
-# 	    puts("PQ TEst")
-# 	    while(!test.empty?)
-# 		curElem = test.pop
-# 		puts("Elem #{curElem.time.to_f}")
-# 	    end
-
-	    # 	    #sort all helpers by time
-# 	    index_helpers.sort! do |a,b|
-# 		a.time <=> b.time
-# 	    end
 
 	    index_helpers
 	end	
@@ -218,8 +205,18 @@ module Pocolog
 
 	    replay_streams = PQueue.new(replay_streams){ |a,b| a.time < b.time }
 	    
+	    percentage = nil
+	    old_sync_val = STDOUT.sync
+	    STDOUT.sync = true
+	    
 	    #iterate over all streams and generate the index
-	    while(pos < max_pos)		
+	    while(pos < max_pos)
+		new_percentage = pos * 100 / max_pos
+		if(new_percentage != percentage)
+		   percentage = new_percentage
+		   print("\r#{percentage}% indexed")
+		end
+		
 		cur_index_helper = replay_streams.top
 		if(!cur_index_helper)
 		    raise("Internal error, no stream available for playback, but not all samples were played back")
@@ -243,7 +240,7 @@ module Pocolog
 		advance_indexes(replay_streams);
 
 	    end
-	    
+	    STDOUT.sync = old_sync_val
 	    puts("Stream Aligner index created")
         end
 	
