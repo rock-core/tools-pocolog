@@ -11,6 +11,7 @@ require 'pocolog/stream_aligner'
 require 'pocolog/data_writer'
 require 'pocolog/file'
 require 'pocolog/version'
+require 'pocolog/stream_index'
 require 'utilrb/pkgconfig'
 
 module Pocolog
