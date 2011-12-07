@@ -1,152 +1,290 @@
 module Pocolog
+    require 'pqueue'
     class StreamAligner
+	INDEX_DENSITY = 5
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
 	attr_reader :use_rt
 	attr_reader :use_sample_time
 	attr_reader :streams
+
+	#sample_index contains the global index in respect to
+	#the field @index
         attr_reader :sample_index
-	attr_reader :next_samples
-	attr_reader :current_samples
-        attr_reader :last_sample
-        attr_reader :prev_samples
+
         attr_reader :index
         attr_reader :time_interval      #time interval for which samples are avialable
 
+	#The samples contained in the StreamAligner
+	#Or in other words the sum over the sizes from all contained streams
+	attr_reader :size
+	
+	#helper classes, that are used for seeking and replaying
+	attr_reader :index_helpers
+	#map for mapping from stream_index to index helpers
+	attr_reader :stream_index_to_index_helpers
+	#contains weather a stream has allready replayed a sample 
+	#in respect to the sample_index 
+	attr_reader :stream_has_sample
+	
 	def initialize(use_rt = false, *streams)
 	    @use_sample_time = use_rt == :use_sample_time
 	    @use_rt  = use_rt
             @streams = streams 
+	    @stream_has_sample = Array.new
+	    @stream_index_to_index_helpers = Array.new
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
             @time_interval = [time_ranges.min,time_ranges.max]
             build_index
             rewind
         end
 
+	#returns the time of the last played back sample
         def time
-            if last_sample
-                last_sample.time
+            if !index_helpers.empty?
+                index_helpers.top().time
             end
         end
 
+	#checks if the end of all streams was reached
         def eof?
-            @next_samples.compact.empty?
+	    sample_index > (size - 2)
         end
 
+	#rewinds the stream aligner to the position
+	#before the first sample
 	def rewind
-            @prev_samples    = Array.new
-            @next_samples    = Array.new
-            @current_samples = prev_samples
-            @last_sample     = nil
-            @sample_index    = -1
-
-            streams.each_with_index do |s, i|
-                s.rewind
-                advance_stream(s, i)
-            end
+	    self.seek_to_pos(0)
+	    @sample_index = -1
             nil
         end
 
-        # This method builds a composite index based on the stream index. What
-        # it does is use the most fine-grained stream as a reference base, and
-        # sample in time at each of this stream's index entry. Then, record the
-        # sample index for each of the separate streams and compute the global
-        # index
-        def build_index
-            reference = streams.max do |s1, s2|
-                s1.info.index.size <=> s2.info.index.size
-            end
-            reference_index = reference.info.index
+	#helper class that is used to manipulate
+	#the index of an stream in an efficent way
+	class IndexHelper
+	    #current position of the stream that is handeled
+	    attr_accessor :position
+	    #current time of the stream that is handeled
+	    attr_accessor :time
+	    #the stream that if handeled by this class
+	    attr_accessor :stream
+	    #position of the stream in the streams array in the Stream Aligner
+	    attr_accessor :array_pos
+	    
+	    def initialize(array_pos, stream)
+		@stream = stream
+		@array_pos = array_pos
+		@position = 0
+		@time = @stream.info.index.get_time_by_sample_number(0)
+	    end
 
-            index = Array.new
-            reference_index.each do |index_entry|
-                index << build_index_entry(index_entry, reference)
-            end
-            @index = index
-        end
-
-        #generates an entry for the global index, based on a time
-        #object or an stream index_entry
-        #if a reference stream is provided it is
-        #assumed that index_entry is an index entry of 
-        #the reference stream
-        def build_index_entry(index_entry,reference_stream=nil)
-          glob_index = -1
-          index_time = index_entry.is_a?(Array) ? index_entry.last : index_entry
-          positions = streams.map do |s|
-              time_range = s.time_interval(use_rt)
-              if s == reference_stream
-                  glob_index += index_entry.first+1
-                  index_entry.first
-              elsif index_time < time_range[0]
-                  :before
-              elsif index_time > time_range[1]
-                  glob_index += s.size
-                  :after
-              else
-                  s.seek(index_time)
-                  glob_index += s.sample_index+1
-                  s.sample_index
-              end
-          end
-          [glob_index, positions]
-        end
-
-        def preseek(entry)
-            # Forcefully switch to forward play direction
-            @current_samples = prev_samples
-            return if !entry
-            streams.each_with_index do |s, i|
-                positions = entry.last
-                case positions[i]
+	    #move stream to given position
+    	    #Note that call does not do disc access
+	    def set_position(pos)
+		case pos
                 when :before
-                    s.rewind
-                    s.advance
-                    prev_samples[i] = nil
-                    next_samples[i] = create_stream_sample(s, i)
-                when :after
-                    s.last
-                    prev_samples[i] = create_stream_sample(s, i)
-                    next_samples[i] = nil
-                    s.next
-                else
-                    if positions[i] == 0
-                        s.rewind
-                        s.next
-                    else
-                        s.seek(positions[i])
-                    end
-                    next_samples[i] = create_stream_sample(s, i)
-                    advance_stream(s, i)
-                end
-            end
-            @sample_index = entry[0]
-            @last_sample = current_samples.compact.
-                max { |s1, s2| s1.time <=> s2.time }
-        end
+		    @position = 0
+		    @time = @stream.info.index.get_time_by_sample_number(0)
+		when :after
+		    @position = stream.size() - 1
+		    @stream.info.index.get_time_by_sample_number(@position)
+		else
+		    @position = pos
+		    @time = @stream.info.index.get_time_by_sample_number(pos)
+		end
+	    end
 
+	    #builds an index entry for the managed stream for the given time
+	    #this returns either the position, if the given time is in 
+	    #the time range of the managed stream, or :after or :before
+	    #Note the :after :before code can be removed
+	    def build_index_entry(index_time)
+		time_range = @stream.time_interval()
+		if index_time < time_range[0]
+		    :before
+		elsif index_time > time_range[1]
+		    :after
+		else
+		    @position
+		end
+	    end
+
+	    #advance on stream_index by one.
+	    #Note that call does not do disc access
+	    def next()
+		if(eof?)
+		    nil
+		else
+		    @position = @position + 1
+		    @time = @stream.info.index.get_time_by_sample_number(@position)
+		end
+	    end
+	    
+	    #checks weather the end of stream was reached
+	    def eof?
+		if(@position < @stream.size() - 1)
+		    false
+		else
+		    true
+		end
+	    end
+	end
+
+	#this function sets up the index helpers to
+	#be in the state of the given stream indexes
+	def setup_index_helpers(stream_indexes)
+	    index_helpers = Array.new(stream_indexes.size)
+	    stream_indexes.each_index do |i|
+		#mark is sample has stream or not
+		if(stream_indexes[i] == :before)
+		    @stream_has_sample[i] = false
+		else
+		    @stream_has_sample[i] = true
+		end
+		
+		stream_index_to_index_helpers[i] = index_helpers[i] = IndexHelper.new(i, @streams[i])
+		if(stream_indexes[i] == :after)
+		    #remove streams that have allready been played back
+		    index_helpers[i] = nil;
+		else
+		    index_helpers[i].set_position(stream_indexes[i])
+		end
+	    end
+	   
+	    #remove nil helpers
+	    index_helpers.compact!
+	    
+	    index_helpers = PQueue.new(index_helpers){ |a,b| a.time < b.time }
+	    
+# 	    test
+# 	    
+# 	    puts("PQ TEst")
+# 	    while(!test.empty?)
+# 		curElem = test.pop
+# 		puts("Elem #{curElem.time.to_f}")
+# 	    end
+
+	    # 	    #sort all helpers by time
+# 	    index_helpers.sort! do |a,b|
+# 		a.time <=> b.time
+# 	    end
+
+	    index_helpers
+	end	
+	
+	def advance_indexes(index_helpers)
+	    @sample_index = @sample_index + 1
+
+	    #cur_index_helper represents the last played back sample
+	    cur_index_helper = index_helpers.pop()
+
+	    #mark stream as played back
+	    @stream_has_sample[cur_index_helper.stream.index] = true
+
+	    #check if we can advance current stream
+	    if(cur_index_helper.next())
+		#stream is till playable, put it back into the queue
+		index_helpers.push(cur_index_helper)
+	    end
+	end
+	
+        # This method builds a composite index based on the stream index. 
+	# Therefor it iterates over all streams and builds an index sample
+	# every INDEX_DENSITY samples.
+	# These samples are stored in @index
+	# The Layout is [global_pos, [stream1 pos, stream2_pos...]]
+        def build_index
+	    @index = Array.new
+	    @sample_index = 0
+	    
+	    max_pos = 0
+	    replay_streams = Array.new
+	    indexes = Array.new
+	    
+	    #all streams start at 0
+	    stream_positions = Array.new
+	    @streams.each_index do |s| 
+		stream_positions[s] = 0
+		max_pos += @streams[s].size
+ 		replay_streams[s] = IndexHelper.new(s, @streams[s])
+		indexes[s] = :before
+	    end
+
+	    @size = max_pos
+	    
+	    puts("Got #{@streams.size} streams with #{size} samples")
+	    
+	    pos = 0
+
+	    replay_streams = PQueue.new(replay_streams){ |a,b| a.time < b.time }
+	    
+	    #iterate over all streams and generate the index
+	    while(pos < max_pos)		
+		cur_index_helper = replay_streams.top
+		if(!cur_index_helper)
+		    raise("Internal error, no stream available for playback, but not all samples were played back")
+		end
+
+		#generate a full index every INDEX_DENSITY samples
+		if(pos % INDEX_DENSITY == 0)
+		    stream_positions.each_index do |i|
+			stream_positions[i] = :after
+		    end
+		    cur_time = cur_index_helper.time
+		    replay_streams.to_a.each do |rh|
+			stream_positions[rh.array_pos] = rh.build_index_entry(cur_time)
+		    end
+		    @index << [pos, stream_positions.dup]
+		end
+
+		#increase global index
+		pos = pos + 1
+
+		advance_indexes(replay_streams);
+
+	    end
+	    
+	    puts("Stream Aligner index created")
+        end
+	
+	def seek(pos)
+	    if pos.kind_of?(Time)
+		raise "Error, seeking to time is not implemented"
+	    else
+		seek_to_pos(pos)
+	    end
+	end
+
+	#seeks to the given position
+	#note that this method does only disk io
+	#when loading the sample at pos
         def seek_to_pos(pos)
             if pos < 0 || pos > size
                 raise OutOfBounds, "#{pos} is out of bounds"
             end
 
-            if pos < index.first[0]
-                rewind
-            elsif pos > index.last[0]
-                entry = index.last
-            elsif index.size == 1
-                entry = index.first
-            else
-                entry, _ = index.each_cons(2).find do |before, after|
-                    after[0] > pos
-                end
-            end
-            preseek(entry)
-            while @sample_index < pos
-                self.advance
-            end
-            [@last_sample.stream_index, @last_sample.time,
-                      single_data(@last_sample.stream_index)] if @last_sample
+	    #position of index before pos
+	    index_pos = Integer(pos / INDEX_DENSITY)
+	    
+	    index_position, stream_positions = @index[index_pos]
+	    @sample_index = index_position
+
+	    #direrence from wanted position to current position
+	    diff_to_step = pos - index_position
+
+	    #genereate a valid set of index helpers from index
+	    @index_helpers = setup_index_helpers(stream_positions)
+	    
+	    #advance from the index position to the seeked position 
+	    while(diff_to_step > 0)
+		advance_indexes(@index_helpers)
+		diff_to_step = diff_to_step - 1
+	    end
+	    
+	    #load and return data
+	    rt, lg, data = @index_helpers.top().stream.seek(@index_helpers.top().position)
+	    
+	    [@index_helpers.top().array_pos, lg, data]
         end
             
         
@@ -170,80 +308,30 @@ module Pocolog
             stream
         end
 
-        #seeks all streams to a sample which logical time is not greater than the given
-        #time. If this is not possible the stream will be re winded.
-        def seek_to_time(time)
-          raise ArgumentError "a time object is expected" if !time.is_a?(Time) 
-          if time < time_interval.first || time > time_interval.last
-            pp "Time is not in bounds, NOT: #{time_interval.first} < #{time} < #{time_interval.last}"
-            raise OutOfBounds 
-          end
-          #we can calc the  preseek settings we do not have to cache them like for sample based index
-          entry = build_index_entry(time)
-          preseek(entry)
-
-          while @next_samples.compact.min { |s1, s2| s1.time <=> s2.time }.time < time
-              self.advance
-          end
-          [@last_sample.stream_index, @last_sample.time,
-            single_data(@last_sample.stream_index)] if @last_sample
-        end
-
-        def seek(pos_or_time)
-            if pos_or_time.kind_of?(Integer)
-                seek_to_pos(pos_or_time)
-            else
-                seek_to_time(pos_or_time)
-            end
-        end
-
-        # True if the last play operation was going forward
-        def playing_forward?;  current_samples.object_id == prev_samples.object_id end
-        # True if the last play operation was going backward
-        def playing_backward?; current_samples.object_id == next_samples.object_id end
-
-        # Create a StreamSample instance that represents the current state of
-        # the given stream
-        def create_stream_sample(s, i)
-            header = s.data_header
-            stream_time =
-		if use_sample_time then s.data.time
-		elsif use_rt then header.rt
-                else header.lg
-                end
-            StreamSample.new stream_time, header.dup, s, i
-        end
-
-        # When playing in the backward direction, prev_samples is the lookahead,
-        # next_samples the current stream
-        def decrement_stream(s,i)
-            next_samples[i], prev_samples[i] = prev_samples[i], nil
-            if s.previous
-                prev_samples[i] = create_stream_sample(s, i)
-            end
-        end
-
-        # When playing in the forward direction, next_samples is the lookahead
-        # and prev_samples the current stream
-	def advance_stream(s, i)
-            prev_samples[i], next_samples[i] = next_samples[i], nil
-	    if s.advance
-                next_samples[i] = create_stream_sample(s, i)
-            end
-	end
-
         # call-seq:
         #   joint_stream.step => updated_stream_index, time, data
         #
         # Advances one step in the joint stream, an returns the index of the
         # updated stream as well as the time and the data sample
         #
-        # The associated data sample can then be retrieved by
+        # The associated data sample can also be retrieved by
         # single_data(stream_idx)
         def step
-          index,time = advance 
-          return if !index
-          [index,time,single_data(index)] 
+	    if(eof?)
+		@sample_index = size
+		return nil
+	    end
+	    
+	    if(@sample_index == -1)
+		@sample_index = 0
+	    else
+		advance_indexes(@index_helpers)
+	    end
+	    
+	    #load and return data
+	    rt, lg, data = @index_helpers.top().stream.seek(@index_helpers.top().position)
+
+	    [@index_helpers.top().array_pos, lg, data]
         end
 
         # call-seq:
@@ -256,27 +344,17 @@ module Pocolog
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def advance
-            return if sample_index == size
-
-            # Check if we are changing the replay direction. If it is the case,
-            # we have to throw the first sample away as we are always reading
-            # with a one-sample lookahead
-            if playing_backward?
-                streams.each_with_index { |s, i| s.next }
-                if last_sample
-                    advance_stream(last_sample.stream, last_sample.stream_index)
-                end
-                @current_samples = prev_samples
-            end
-
-            @last_sample = min_sample = next_samples.compact.min { |s1, s2| s1.time <=> s2.time }
-            @sample_index += 1
-            if !min_sample
-                return nil 
-            end
-
-            advance_stream(min_sample.stream, min_sample.stream_index)
-            [min_sample.stream_index, min_sample.time]
+	    if(eof?)
+		return nil
+	    end
+	    
+	    if(@sample_index == -1)
+		@sample_index = 0
+	    else
+		advance_indexes(@index_helpers)
+	    end
+	    
+            [@index_helpers.top().array_pos, @index_helpers.top().time]
          end
 
         # Decrements one step in the joint stream, an returns the index of the
@@ -285,27 +363,13 @@ module Pocolog
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def step_back
-            return if sample_index == -1
-
-            # Check if we are changing the replay direction. If it is the case,
-            # we have to throw the first sample away as we are always reading
-            # with a one-sample lookahead
-            if playing_forward?
-                streams.each_with_index { |s, i| s.previous }
-                if last_sample
-                    decrement_stream(last_sample.stream, last_sample.stream_index)
-                end
-                @current_samples = next_samples
-            end
-
-            @sample_index -= 1
-            @last_sample = max_sample = prev_samples.compact.max { |s1, s2| s1.time <=> s2.time }
-            if !max_sample
-                return nil
-            end
-
-            decrement_stream(max_sample.stream, max_sample.stream_index)
-            [max_sample.stream_index, max_sample.time,single_data(max_sample.stream_index) ]
+	    if(@sample_index <= 0)
+		@sample_index = -1
+		return nil
+	    end
+	    
+	    #could be more performant, but does the job well
+	    seek_to_pos(sample_index - 1)
         end
 
         # call-seq:
@@ -320,26 +384,14 @@ module Pocolog
         end
 
         def pretty_print(pp)
-            pp.text "playing " + (playing_forward? ? "forward" : "backward")
-            pp.breakable
-            pp.text "prev_samples:"
-            pp.nest(2) do
-                pp.breakable
-                pp.seplist(prev_samples.each_with_index) do |s, i|
-                    if s
-                        pp.text "#{i} #{s.time.to_f}"
-                    else
-                        pp.text "#{i} -"
-                    end
-                end
-            end
-            pp.breakable
             pp.text "next_samples:"
             pp.nest(2) do
                 pp.breakable
-                pp.seplist(next_samples.each_with_index) do |s, i|
-                    if s
-                        pp.text "#{i} #{s.time.to_f}"
+		
+                pp.seplist(streams.each_index) do |i|
+		    ih = @stream_index_to_index_helpers[i]
+                    if ih
+                        pp.text "#{i} #{ih.time.to_f}"
                     else
                         pp.text "#{i} -"
                     end
@@ -377,13 +429,20 @@ module Pocolog
         #
         # This is the sum of samples available on each of the underlying streams
         def size
-            streams.inject(0) { |result, s| result += s.size }
+	    @size
         end
 
         # Returns the current data sample for the given stream index
+	# note stream index is the index of the data stream, not the 
+	# search index !
         def single_data(index)
-            s = current_samples[index]
-            s.stream.data(s.header) if s
+	    if(@stream_has_sample[index])
+		helper = @stream_index_to_index_helpers[index]
+		rt, lg, data = helper.stream.seek(helper.position)
+		data
+	    else
+		nil
+	    end
         end
 
         def each(do_rewind = true)
