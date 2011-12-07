@@ -1,7 +1,8 @@
 module Pocolog
-    require 'pqueue'
+    require 'priority_queue'
+    
     class StreamAligner
-	INDEX_DENSITY = 5
+	INDEX_DENSITY = 200
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
 	attr_reader :use_rt
@@ -42,7 +43,7 @@ module Pocolog
 	#returns the time of the last played back sample
         def time
             if !index_helpers.empty?
-                index_helpers.top().time
+                index_helpers.min_key().time
             end
         end
 
@@ -154,24 +155,30 @@ module Pocolog
 	    #remove nil helpers
 	    index_helpers.compact!
 	    
-	    index_helpers = PQueue.new(index_helpers){ |a,b| a.time < b.time }
-
-	    index_helpers
+	    pq = PriorityQueue.new()
+	    
+	    index_helpers.each do |helper|
+		pq.push(helper, helper.time)
+	    end
+	    
+	    pq
 	end	
 	
 	def advance_indexes(index_helpers)
 	    @sample_index = @sample_index + 1
 
 	    #cur_index_helper represents the last played back sample
-	    cur_index_helper = index_helpers.pop()
+	    cur_index_helper = index_helpers.min_key()
 
 	    #mark stream as played back
 	    @stream_has_sample[cur_index_helper.stream.index] = true
 
 	    #check if we can advance current stream
 	    if(cur_index_helper.next())
-		#stream is till playable, put it back into the queue
-		index_helpers.push(cur_index_helper)
+		#time advance, change priority of stream
+		index_helpers.change_priority(cur_index_helper, cur_index_helper.time)
+	    else
+		index_helpers.delete_min()
 	    end
 	end
 	
@@ -203,7 +210,13 @@ module Pocolog
 	    
 	    pos = 0
 
-	    replay_streams = PQueue.new(replay_streams){ |a,b| a.time < b.time }
+	    pq = PriorityQueue.new()
+	    
+	    replay_streams.each do |helper|
+		pq.push(helper, helper.time)
+	    end
+	    
+	    replay_streams = pq
 	    
 	    percentage = nil
 	    old_sync_val = STDOUT.sync
@@ -217,7 +230,7 @@ module Pocolog
 		   print("\r#{percentage}% indexed")
 		end
 		
-		cur_index_helper = replay_streams.top
+		cur_index_helper = replay_streams.min_key
 		if(!cur_index_helper)
 		    raise("Internal error, no stream available for playback, but not all samples were played back")
 		end
@@ -229,7 +242,7 @@ module Pocolog
 		    end
 		    cur_time = cur_index_helper.time
 		    replay_streams.to_a.each do |rh|
-			stream_positions[rh.array_pos] = rh.build_index_entry(cur_time)
+			stream_positions[rh[0].array_pos] = rh[0].build_index_entry(cur_time)
 		    end
 		    @index << [pos, stream_positions.dup]
 		end
@@ -240,8 +253,10 @@ module Pocolog
 		advance_indexes(replay_streams);
 
 	    end
-	    STDOUT.sync = old_sync_val
 	    puts("Stream Aligner index created")
+
+	    STDOUT.sync = old_sync_val
+
         end
 	
 	def seek(pos)
@@ -278,10 +293,12 @@ module Pocolog
 		diff_to_step = diff_to_step - 1
 	    end
 	    
-	    #load and return data
-	    rt, lg, data = @index_helpers.top().stream.seek(@index_helpers.top().position)
+	    cur_index_helper = @index_helpers.min_key()
 	    
-	    [@index_helpers.top().array_pos, lg, data]
+	    #load and return data
+	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
+	    
+	    [cur_index_helper.array_pos, lg, data]
         end
             
         
@@ -325,10 +342,12 @@ module Pocolog
 		advance_indexes(@index_helpers)
 	    end
 	    
+	    cur_index_helper = @index_helpers.min_key()
+	    
 	    #load and return data
-	    rt, lg, data = @index_helpers.top().stream.seek(@index_helpers.top().position)
-
-	    [@index_helpers.top().array_pos, lg, data]
+	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
+	    
+	    [cur_index_helper.array_pos, lg, data]
         end
 
         # call-seq:
@@ -351,7 +370,9 @@ module Pocolog
 		advance_indexes(@index_helpers)
 	    end
 	    
-            [@index_helpers.top().array_pos, @index_helpers.top().time]
+	    cur_index_helper = @index_helpers.min_key()
+	    
+            [cur_index_helper.array_pos, cur_index_helper.time]
          end
 
         # Decrements one step in the joint stream, an returns the index of the
