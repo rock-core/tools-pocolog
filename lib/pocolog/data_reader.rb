@@ -22,7 +22,7 @@ module Pocolog
         def initialize(logfile, index, name, type_name, marshalled_registry, metadata)
             @logfile, @index, @name, @type_name, @marshalled_registry, @metadata =
                 logfile, index, name, type_name, marshalled_registry, metadata
-
+	    
             @registry = nil
             @sample_index = -1
         end
@@ -196,7 +196,14 @@ module Pocolog
         # Returns [rt, lg, data] for the current sample (if there is one), and
         # nil otherwise
 	def seek(pos)
-            @sample_index = logfile.seek_stream(self.index, pos)
+	    if pos.kind_of?(Time)
+		@sample_index = info.index.sample_number_by_time(pos)
+	    else
+		@sample_index = pos
+	    end
+
+	    file_pos = info.index.file_position_by_sample_number(@sample_index)
+	    logfile.read_one_block(file_pos)
             if header = self.data_header
                 header = header.dup
 
@@ -211,9 +218,9 @@ module Pocolog
 	def advance
             if sample_index < size-1
                 @sample_index += 1
-                logfile.each_data_block(index, sample_index == 0) do
-                    return logfile.data_header
-                end
+		file_pos = info.index.file_position_by_sample_number(@sample_index)
+		logfile.read_one_block(file_pos)
+		return logfile.data_header
             else
                 @sample_index = size
             end

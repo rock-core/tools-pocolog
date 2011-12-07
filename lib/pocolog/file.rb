@@ -313,91 +313,6 @@ module Pocolog
 	rescue EOFError
 	end
 
-        # Seek the file set to the data block of index +pos+, from stream
-        # +stream_idx+, using the file info object +info+.
-        #
-        # This is for internal use. Use #seek_stream.
-        def seek_to_pos(stream_idx, info, pos)
-            index_entry = info.index.find do |size, _|
-                size + Logfiles::StreamInfo::INDEX_STEP > pos
-            end
-
-            if !index_entry
-                raise ArgumentError, "cannot find #{pos} in index"
-            end
-
-            header = nil
-            sample_index = index_entry[0]
-            seek(index_entry[1][1], index_entry[1][0])
-            each_data_block(stream_idx, false) do
-                break if sample_index == pos
-                sample_index += 1
-            end
-
-            if sample_index != pos
-                raise InternalError, "inconsistency in #seek: seek(#{pos}) led to sample_index == #{sample_index}"
-            end
-
-            return sample_index
-        end
-
-        # Seek the file set to the last data block whose logical time is not
-        # greater than +pos+, from stream +stream_idx+, using the file info
-        # object +info+.
-        #
-        # This is for internal use. Use #seek_stream.
-        def seek_to_time(stream_idx, info, pos)
-            if pos < info.interval_lg[0] || pos > info.interval_lg[1]
-                raise ArgumentError, "#{pos} is out of bounds"
-            end
-            index_entry = info.index.find_index { |_, _, _, lg| lg > pos }
-            if index_entry
-                index_entry = info.index[index_entry - 1]
-            else
-                index_entry = info.index.last
-            end
-
-            sample_index = index_entry[0]
-            seek(index_entry[1][1], index_entry[1][0])
-
-            header = nil
-            each_data_block(stream_idx, false) do
-                break if data_header.lg > pos
-                sample_index += 1
-                header = data_header.dup
-            end
-            read_one_block(header)
-            return sample_index - 1
-        end
-
-        # Finds the entry in the index just before the position specified by
-        # +pos+ in the given stream.
-        #
-        # +stream_idx+ is the stream index. +pos+ is either an integer or a
-        # Time.
-        #
-        # If +pos+ is an integer, it is interpreted as a sample index in the
-        # stream. #seek_stream will then return the sample index of the block
-        # found (i.e. will return +pos+ itself). If no block has such a position
-        # (i.e. past end-of-file), an ArgumentError exception is raised.
-        #
-        # If +pos+ is a time, it is interpreted as a sample time. #seek_stream
-        # will then return the sample index of the corresponding block found in
-        # the stream. ArgumentError is raised if the given position is out of
-        # bounds.
-        def seek_stream(stream_idx, pos)
-            info = streams[stream_idx].info
-            if info.empty?
-                raise ArgumentError, "#{pos} out of bounds"
-            end
-
-            if pos.kind_of?(Integer)
-                seek_to_pos(stream_idx, info, pos)
-            else
-                seek_to_time(stream_idx, info, pos)
-            end
-        end
-
         # Reads one block at the specified position and returns the block type
         # (equal to block_info.type). If the block is a control or stream block,
         # also call the relevant parsing methods.
@@ -488,7 +403,7 @@ module Pocolog
         #
         # The with_prologue parameter is a backward compatibility feature that
         # allowed to read old files that did not have a prologue.
-	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
+ 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
 	    each_block(rewind) do |block_info|
                 if handle_block(block_info) == DATA_BLOCK
                     if !stream_index || stream_index == block_info.index
@@ -508,8 +423,11 @@ module Pocolog
 
         # Basic information about a stream, as saved in the index files
         class StreamInfo
-            INDEX_STEP = 500
-
+	    STREAM_INFO_VERSION = "1.2"
+	    
+	    #the version of the StreamInfo class. This is only used to detect
+	    #if an old index file is on the disk compared to the code 
+            attr_accessor :version
             # Position of the declaration block as [raw_pos, io_index]. This
             # information can directly be given to Logfiles#seek
             attr_accessor :declaration_block
@@ -525,21 +443,21 @@ module Pocolog
             attr_accessor :interval_rt
             # The number of samples in this stream
             attr_accessor :size
-            # The index data itself. It is an ordered set of 4-tuples:
-            #     [sample_index, [raw_pos, io_index], real_time, logical_time]
-            #
-            # Seeking using this index is done by Logfiles#seek_stream
+
+	    # The index data itself. 
+	    # This is a instance of StreamIndex
             attr_accessor :index
 
             # True if this stream is empty
             def empty?; size == 0 end
 
             def initialize
+		@version = STREAM_INFO_VERSION
                 @interval_io = []
                 @interval_lg = []
                 @interval_rt = []
                 @size        = 0
-                @index       = []
+                @index       = StreamIndex.new()
             end
         end
 
@@ -567,9 +485,9 @@ module Pocolog
             end
 
             stream_info.each_with_index do |info, idx|
-                if !info.declaration_block
-                    raise InvalidIndex, "old index file found"
-                end
+		if(!info.respond_to?("version") || info.version != StreamInfo::STREAM_INFO_VERSION || !info.declaration_block)
+		    raise InvalidIndex, "old index file found"
+		end
 
                 @rio, pos = info.declaration_block
                 if read_one_block(pos, @rio) != STREAM_BLOCK
@@ -612,7 +530,7 @@ module Pocolog
             if streams = load_index_file(index_filename)
                 return streams
             end
-
+	    
             # No index file. Compute it.
             STDERR.print "building index ..."
 	    each_data_block(nil, true) do |stream_index|
@@ -624,11 +542,9 @@ module Pocolog
                 else
                     info = s.info
                     info.interval_io[1] = [@rio, block_info.pos]
-                    info.interval_io[0] ||= info.interval_io[1]
+		    info.interval_io[0] ||= info.interval_io[1]
 
-                    if info.size % StreamInfo::INDEX_STEP == 0
-                        info.index << [info.size, info.interval_io[1].dup, read_time, read_time]
-                    end
+		    info.index.add_sample_to_index(data_header)		    
                     info.size += 1
                 end
 	    end
@@ -641,6 +557,7 @@ module Pocolog
 	    @streams.each do |s|
 		next unless s
 
+		#set correct time interval
                 stream_info = s.info
 		if !stream_info.empty?
 		    @rio, pos = stream_info.interval_io[0]
@@ -650,7 +567,13 @@ module Pocolog
 		    @rio, pos = stream_info.interval_io[1] || stream_info.interval_io[0]
 		    rio.seek(pos + BLOCK_HEADER_SIZE)
                     stream_info.interval_rt[1] = read_time
-                    stream_info.interval_lg[1] = read_time
+                    stream_info.interval_lg[1] = read_time	    
+# 		    s.seek(0)
+#                     stream_info.interval_rt[0] = s.data_header.rt
+#                     stream_info.interval_lg[0] = s.data_header.lg
+# 		    s.seek(s.info.size)
+#                     stream_info.interval_rt[1] = s.data_header.rt
+#                     stream_info.interval_lg[1] = s.data_header.lg
 		end
 	    end
 
@@ -768,7 +691,7 @@ module Pocolog
 
 	# Reads the header of a data block. This sets the @data_header
 	# instance variable to a new DataHeader object describing the
-	# current block. If you want to keep a reference on a data block,
+	# last read block. If you want to keep a reference on a data block,
 	# and read it later, do the following
 	#
 	#   block = file.data_header.dup
