@@ -1,6 +1,6 @@
-module Pocolog
-    require 'priority_queue'
+require 'pqueue'
     
+module Pocolog
     class StreamAligner
 	INDEX_DENSITY = 200
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
