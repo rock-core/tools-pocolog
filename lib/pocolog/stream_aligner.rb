@@ -72,26 +72,63 @@ module Pocolog
 	    #position of the stream in the streams array in the Stream Aligner
 	    attr_accessor :array_pos
 	    
-	    def initialize(array_pos, stream)
+	    #HACK if this is set to true, we will decode every sample
+	    #and use the time field of the sample as time
+	    attr_reader :use_sample_time
+	    
+	    #this needs to be calculated here, as it changes depending
+	    #on weather sample or stream time is used
+	    attr_reader :time_range
+
+	    def initialize(array_pos, stream, use_sample_time = nil)
 		@stream = stream
 		@array_pos = array_pos
 		@position = 0
-		@time = @stream.info.index.get_time_by_sample_number(0)
+		@use_sample_time = use_sample_time
+		@time_range = []
+		#order is important here as this MAY seek to the end of stream
+		last_time = getTime(@stream.size() - 1)
+		@time_range[1] = last_time
+
+		#and this MAY seeks back to the beginning
+		@time = getTime(0)
+		@time_range[0] = @time
 	    end
 
+	    def getTime(sampleNr)
+		time = nil
+		if(@use_sample_time)
+		    #move stream to sample
+		    @stream.seek(sampleNr)
+		    data = @stream.data
+		    if(data.respond_to?("time"))
+			time = data.time
+		    else
+			#puts("Stream #{@stream.name} has no time field falling back to stream time")
+			#sample does not have sample time, disable this
+			#and fall back to stream time_interval
+			@use_sample_time = false
+			time = getTime(sampleNr)
+		    end
+		else
+		    time = @stream.info.index.get_time_by_sample_number(sampleNr)
+		end
+		time
+	    end
+	    
 	    #move stream to given position
     	    #Note that call does not do disc access
 	    def set_position(pos)
 		case pos
                 when :before
 		    @position = 0
-		    @time = @stream.info.index.get_time_by_sample_number(0)
+		    @time = getTime(0)
 		when :after
 		    @position = stream.size() - 1
-		    @stream.info.index.get_time_by_sample_number(@position)
+		    @time = getTime(@position)
 		else
 		    @position = pos
-		    @time = @stream.info.index.get_time_by_sample_number(pos)
+		    @time = getTime(pos)
 		end
 	    end
 
@@ -100,7 +137,6 @@ module Pocolog
 	    #the time range of the managed stream, or :after or :before
 	    #Note the :after :before code can be removed
 	    def build_index_entry(index_time)
-		time_range = @stream.time_interval()
 		if index_time < time_range[0]
 		    :before
 		elsif index_time > time_range[1]
@@ -117,7 +153,7 @@ module Pocolog
 		    nil
 		else
 		    @position = @position + 1
-		    @time = @stream.info.index.get_time_by_sample_number(@position)
+		    @time = getTime(@position)
 		end
 	    end
 	    
@@ -143,7 +179,7 @@ module Pocolog
 		    @stream_has_sample[i] = true
 		end
 		
-		stream_index_to_index_helpers[i] = index_helpers[i] = IndexHelper.new(i, @streams[i])
+		stream_index_to_index_helpers[i] = index_helpers[i] = IndexHelper.new(i, @streams[i], @use_sample_time)
 		if(stream_indexes[i] == :after)
 		    #remove streams that have allready been played back
 		    index_helpers[i] = nil;
@@ -200,7 +236,7 @@ module Pocolog
 	    @streams.each_index do |s| 
 		stream_positions[s] = 0
 		max_pos += @streams[s].size
- 		replay_streams[s] = IndexHelper.new(s, @streams[s])
+ 		replay_streams[s] = IndexHelper.new(s, @streams[s], @use_sample_time)
 		indexes[s] = :before
 	    end
 
