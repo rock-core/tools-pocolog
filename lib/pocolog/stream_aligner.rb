@@ -99,11 +99,9 @@ module Pocolog
 		time = nil
 		if(@use_sample_time)
 		    #move stream to sample
-		    @stream.seek(sampleNr)
-		    data = @stream.data
-		    if(data.respond_to?("time"))
-			time = data.time
-		    else
+		    @stream.seek(sampleNr, false)
+		    time = @stream.sub_field('time')
+		    if(!time)
 			#puts("Stream #{@stream.name} has no time field falling back to stream time")
 			#sample does not have sample time, disable this
 			#and fall back to stream time_interval
