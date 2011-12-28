@@ -332,7 +332,7 @@ module Pocolog
 	    #load and return data
 	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
 	    
-	    [cur_index_helper.array_pos, lg, data]
+	    [cur_index_helper.array_pos, cur_index_helper.time, data]
         end
             
         
@@ -381,7 +381,7 @@ module Pocolog
 	    #load and return data
 	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
 	    
-	    [cur_index_helper.array_pos, lg, data]
+	    [cur_index_helper.array_pos, cur_index_helper.time, data]
         end
 
         # call-seq:
