@@ -211,7 +211,7 @@ module Pocolog
         #
         # Returns [rt, lg, data] for the current sample (if there is one), and
         # nil otherwise
-	def seek(pos)
+	def seek(pos, decode_data = true)
 	    if pos.kind_of?(Time)
 		@sample_index = info.index.sample_number_by_time(pos)
 	    else
@@ -223,8 +223,12 @@ module Pocolog
             if header = self.data_header
                 header = header.dup
 
-                data = self.data(header)
-                return [header.rt, Time.at(header.lg - logfile.time_base), data]
+		if(decode_data)
+		    data = self.data(header)
+		    return [header.rt, Time.at(header.lg - logfile.time_base), data]
+		else
+		    nil
+		end
             end
 	end
 
