@@ -723,6 +723,16 @@ module Pocolog
 	    end
 	end
 
+	def sub_field(offset, size, data_header = nil)
+	    data_header ||= self.data_header
+	    if data_header.compressed
+		raise "field access on compressed files is unsupported"
+	    end
+	    data_header.io.seek(data_header.payload_pos + offset)
+	    data = data_header.io.read(size)
+	    data
+	end
+	
 	# Returns the raw data payload of the current block
 	def data(data_header = nil)
 	    if @data && !data_header then @data

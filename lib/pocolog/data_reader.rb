@@ -132,6 +132,22 @@ module Pocolog
 	# Get a Typelib object describing the type of this data stream
 	def type; @type ||= registry.get(typename) end
 
+	#Returns the decoded subfield specified by 'fieldname'
+	#for the given data header. If no header is given, the
+	#current last read data header is used
+	def sub_field(fieldname, data_header = nil)
+	    if(type.is_a?(Typelib::CompoundType))
+		if(type.has_field?(fieldname))
+		    offset = type.offset_of(fieldname)
+		    subtype = type[fieldname]
+		    rawData = logfile.sub_field(offset, subtype.size, data_header)
+		    wrappedType = subtype.wrap(rawData)
+		    rubyType = Typelib.to_ruby(wrappedType)
+		    rubyType
+		end
+	    end
+	end
+	    
 	# Returns the decoded data sample associated with the given block
         # header.
         #
