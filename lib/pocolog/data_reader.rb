@@ -136,15 +136,18 @@ module Pocolog
 	#for the given data header. If no header is given, the
 	#current last read data header is used
 	def sub_field(fieldname, data_header = nil)
-	    if(type.is_a?(Typelib::CompoundType))
-		if(type.has_field?(fieldname))
-		    offset = type.offset_of(fieldname)
-		    subtype = type[fieldname]
-		    rawData = logfile.sub_field(offset, subtype.size, data_header)
-		    wrappedType = subtype.wrap(rawData)
-		    rubyType = Typelib.to_ruby(wrappedType)
-		    rubyType
-		end
+	    header = data_header || logfile.data_header
+	    if( header.compressed )
+		data(data_header).instance_eval(fieldname)
+	    elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
+		offset = type.offset_of(fieldname)
+		subtype = type[fieldname]
+		rawData = logfile.sub_field(offset, subtype.size, data_header)
+		wrappedType = subtype.wrap(rawData)
+		rubyType = Typelib.to_ruby(wrappedType)
+		rubyType
+	    else
+		nil
 	    end
 	end
 	    
