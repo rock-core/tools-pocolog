@@ -136,24 +136,24 @@ class TC_StreamAligner < Test::Unit::TestCase
         stream.step
         assert_equal true, stream.eof?
     end
-# 
-#     # Tests seeking on a time position
-#     def test_seek_at_time
-#         #no sample must have a later logical time
-#         #seek returns the last sample possible
-#         sample = stream.seek(Time.at(5))
-#         assert_equal 10, stream.sample_index
-#         assert_equal Time.at(5), stream.time
-#         assert_equal [0, Time.at(5), 5], sample
-# 
-#         # Check that seeking did not break step / step_back
-#         assert_equal [1, Time.at(5,500), 50000], stream.step
-#         assert_equal [0, Time.at(6), 6], stream.step
-#         assert_equal [2, Time.at(6, 500), 600], stream.step
-#         sample = stream.seek(Time.at(50))
-#         assert_equal [1, Time.at(49, 500), 490000], stream.step_back
-#         assert_equal [0, Time.at(49), 49], stream.step_back
-#         assert_equal [2, Time.at(48, 500), 4800], stream.step_back
-#     end
+
+    # Tests seeking on a time position
+    def test_seek_at_time
+        #no sample must have a later logical time
+        #seek returns the last sample possible
+        sample = stream.seek(Time.at(5))
+        assert_equal 10, stream.sample_index
+        assert_equal Time.at(5), stream.time
+        assert_equal [0, Time.at(5), 5], sample
+
+        # Check that seeking did not break step / step_back
+        assert_equal [1, Time.at(5,500), 50000], stream.step
+        assert_equal [0, Time.at(6), 6], stream.step
+        assert_equal [2, Time.at(6, 500), 600], stream.step
+        sample = stream.seek(Time.at(50))
+        assert_equal [1, Time.at(49, 500), 490000], stream.step_back
+        assert_equal [0, Time.at(49), 49], stream.step_back
+        assert_equal [2, Time.at(48, 500), 4800], stream.step_back
+    end
 end
 

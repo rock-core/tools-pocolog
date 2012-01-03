@@ -2,6 +2,19 @@ module Pocolog
     require 'priority_queue'
     
     class StreamAligner
+	
+	class MultiStreamIndex
+	    attr_reader :stream_positions
+	    attr_reader :index_time
+	    attr_reader :position
+	    
+	    def initialize(pos, time, nr_streams)
+		@position = pos
+		@index_time = time
+		@stream_positions = Array.new(nr_streams)
+	    end
+	end
+	
 	INDEX_DENSITY = 200
 	StreamSample = Struct.new :time, :header, :stream, :stream_index
 
@@ -167,7 +180,7 @@ module Pocolog
 
 	#this function sets up the index helpers to
 	#be in the state of the given stream indexes
-	def setup_index_helpers(stream_indexes)
+	def setup_index_helpers(stream_indexes)	    
 	    index_helpers = Array.new(stream_indexes.size)
 	    stream_indexes.each_index do |i|
 		#mark is sample has stream or not
@@ -271,14 +284,15 @@ module Pocolog
 
 		#generate a full index every INDEX_DENSITY samples
 		if(pos % INDEX_DENSITY == 0)
+		    index_sample = MultiStreamIndex.new(pos, cur_index_helper.time, stream_positions.size)
 		    stream_positions.each_index do |i|
-			stream_positions[i] = :after
+			index_sample.stream_positions[i] = :after
 		    end
 		    cur_time = cur_index_helper.time
 		    replay_streams.to_a.each do |rh|
-			stream_positions[rh[0].array_pos] = rh[0].build_index_entry(cur_time)
+			index_sample.stream_positions[rh[0].array_pos] = rh[0].build_index_entry(cur_time)
 		    end
-		    @index << [pos, stream_positions.dup]
+		    @index << index_sample
 		end
 
 		#increase global index
@@ -295,10 +309,44 @@ module Pocolog
 	
 	def seek(pos)
 	    if pos.kind_of?(Time)
-		raise "Error, seeking to time is not implemented"
+		seek_to_time(pos)
 	    else
 		seek_to_pos(pos)
 	    end
+	end
+	
+	def seek_to_time(time)
+	   if(time < time_interval[0] || time > time_interval[1]) 
+                raise OutOfBounds, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
+            end
+	    
+	    searched_index = @index[0]
+	    #stupid and slow implementation for now
+	    @index.each do |index_sample|
+		if(index_sample.index_time > time)
+		    break;
+		end
+		searched_index_index = index_sample
+	    end
+	    
+	    #searched_index points now to the index before the time
+	    #now look for the sample position	    
+	    @sample_index = searched_index.position
+
+	    #genereate a valid set of index helpers from index
+	    @index_helpers = setup_index_helpers(searched_index.stream_positions)
+
+	    #advance index to the sample BEFORE 'time'
+	    while(@index_helpers.min_key().time < time)
+		advance_indexes(@index_helpers)
+	    end
+
+	    cur_index_helper = @index_helpers.min_key()
+
+	    #load and return data
+	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
+	    
+	    [cur_index_helper.array_pos, cur_index_helper.time, data]	    
 	end
 
 	#seeks to the given position
@@ -312,14 +360,14 @@ module Pocolog
 	    #position of index before pos
 	    index_pos = Integer(pos / INDEX_DENSITY)
 	    
-	    index_position, stream_positions = @index[index_pos]
-	    @sample_index = index_position
+	    index_sample = @index[index_pos]
+	    @sample_index = index_sample.position
 
 	    #direrence from wanted position to current position
-	    diff_to_step = pos - index_position
+	    diff_to_step = pos - index_sample.position
 
 	    #genereate a valid set of index helpers from index
-	    @index_helpers = setup_index_helpers(stream_positions)
+	    @index_helpers = setup_index_helpers(index_sample.stream_positions)
 	    
 	    #advance from the index position to the seeked position 
 	    while(diff_to_step > 0)
