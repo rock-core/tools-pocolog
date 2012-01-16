@@ -471,7 +471,11 @@ module Pocolog
             file_info, stream_info =
                 begin Marshal.load(io)
                 rescue Exception => e
-                    raise InvalidIndex, "cannot unmarshal index data"
+                    if e.kind_of?(Interrupt)
+                        raise
+                    else
+                        raise InvalidIndex, "cannot unmarshal index data"
+                    end
                 end
 
             if file_info.size != @io.size
