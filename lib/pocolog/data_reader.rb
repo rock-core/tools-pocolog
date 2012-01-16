@@ -89,6 +89,14 @@ module Pocolog
 	# True if this data stream has a Typelib::Registry object associated
 	def has_type?; !marshalled_registry.empty? end
 
+        # Reload the registry. Can be useful if new convertions have been added
+        # to the Typelib system
+        def reload_registry
+            @registry = nil
+            @type = nil
+            registry
+        end
+
 	# Get the Typelib::Registry object for this stream
 	def registry
 	    if !@registry

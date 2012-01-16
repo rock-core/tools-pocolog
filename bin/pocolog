@@ -247,6 +247,7 @@ module Pocolog
 
         def eval_expr(string)
             Typelib.load_typelib_plugins
+            samples.stream.reload_registry
             eval "self.expr = Proc.new { |sample| #{string} }"
         end
 
