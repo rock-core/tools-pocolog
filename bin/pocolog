@@ -318,7 +318,7 @@ module Pocolog
 		end
 
                 if expr
-                    expr.call(data)
+                    puts expr.call(data)
 		elsif fields
                     values = field_operations.map do |_, field_ops|
                         display_fields(data, field_ops)
