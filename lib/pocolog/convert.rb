@@ -108,6 +108,24 @@ module Pocolog
 		end
 	    end
 	end
+
+        def self.rename_streams(from_io, to_io, mappings)
+            from = Logfiles.new(from_io)
+            from.read_prologue
+	    write_prologue(to_io, from.endian_swap ^ Pocolog.big_endian?)
+
+            buffer = ""
+	    from.each_block(true) do |block_info|
+		if block_info.type == STREAM_BLOCK
+		    stream = from.read_stream_declaration
+                    write_stream_declaration(to_io, stream.index,
+                            mappings[stream.name] || stream.name,
+                            stream.type, nil, stream.metadata)
+                else
+		    copy_block(block_info, from_io, to_io, buffer)
+                end
+            end
+        end
     end
 end
 

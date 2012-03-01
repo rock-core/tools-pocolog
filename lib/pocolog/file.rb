@@ -160,7 +160,7 @@ module Pocolog
 	    Logfiles.write_prologue(io)
 	    @io << io
 	    streams.each_with_index do |s, i|
-		write_stream_declaration(i, s.name, s.type.name,registry.to_xml)
+		write_stream_declaration(i, s.name, s.type.name, registry.to_xml)
 	    end
 	end
 
@@ -772,6 +772,12 @@ module Pocolog
 
         # Encodes and writes a stream declaration block to +wio+
         def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil, metadata = Hash.new)
+
+            if type_name.respond_to?(:name)
+                type_registry ||= type_name.registry.minimal(type_name.name).to_xml
+                type_name  = type_name.name
+            end
+
             metadata = YAML.dump(metadata)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,
