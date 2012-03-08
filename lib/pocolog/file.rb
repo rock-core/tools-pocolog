@@ -884,6 +884,13 @@ module Pocolog
         # Formatting string for Array.pack to create a data block
 	DATA_BLOCK_HEADER_FORMAT = "VVx#{TIME_PADDING}VVx#{TIME_PADDING}VC"
 
+        def self.write_data_block(io, stream_index, rt, lg, compress, data)
+            payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
+                data.length, compress, data
+            ].pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
+            write_block(io, DATA_BLOCK, stream_index, payload)
+        end
+
         # Write a data block for stream index +stream+, with the provided times
         # and the given data. +data+ must already be marshalled (i.e. it is
         # meant to be a String that represents a byte array).
@@ -895,10 +902,7 @@ module Pocolog
 	    end
 
             do_write do
-		payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
-		    data.length, compress, data
-		].pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
-                write_block(DATA_BLOCK, stream.index, payload)
+                Logfiles.write_data_block(wio, stream.index, rt, lg, compress, data)
             end
 	end
     end
