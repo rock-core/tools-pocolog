@@ -146,7 +146,7 @@ module Pocolog
 	def sub_field(fieldname, data_header = nil)
 	    header = data_header || logfile.data_header
 	    if( header.compressed )
-		data(data_header).instance_eval(fieldname)
+		data(data_header).send(fieldname)
 	    elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
 		offset = type.offset_of(fieldname)
 		subtype = type[fieldname]
