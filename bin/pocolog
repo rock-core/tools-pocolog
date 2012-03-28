@@ -259,7 +259,9 @@ module Pocolog
                     ops = []
                     name.split('.').each do |subname|
                         if match = /(.*)((?:\[[^\]]*\])+)$/.match(subname)
-                            ops << [:[], match[1]]
+                            if !match[1].empty?
+                                ops << [:[], match[1]]
+                            end
                             do_deference = match[2]
                             while !do_deference.empty?
                                 match = /^\[([^\]]*)\]/.match(do_deference)
