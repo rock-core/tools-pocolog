@@ -109,7 +109,15 @@ module Pocolog
 	    @block_info  = BlockInfo.new
 	    @compress    = true
 	    rewind
-            read_prologue if !io.empty?
+            if io.empty?
+                # When opening existing files, @streams is going to be
+                # initialized in #streams. However, if we are creating a new set
+                # (i.e. io.empty? == true), we also need to tell the system that
+                # there currently are no streams available.
+                @streams = Array.new
+            else
+                read_prologue
+            end
 	end
 
         # Close the underlying IO objects
@@ -188,7 +196,6 @@ module Pocolog
             end
 	    file = Logfiles.new(registry)
 	    file.basename = basename
-	    file.instance_variable_set("@streams", Array.new)
 	    file.new_file
 
 	    file
