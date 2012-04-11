@@ -162,8 +162,8 @@ module Pocolog
 
 	# Continue writing logs in a new file. See #basename to know how
 	# files are named
-	def new_file
-	    name = "#{basename}.#{@io.size}.log"
+	def new_file(filename = nil)
+	    name = filename || "#{basename}.#{@io.size}.log"
 	    io = File.new(name, 'w')
 	    Logfiles.write_prologue(io)
 	    @io << io
