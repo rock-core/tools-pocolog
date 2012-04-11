@@ -1,7 +1,7 @@
 require 'pocolog'
 require 'test/unit'
 
-class TC_DataStream < Test::Unit::TestCase
+class TC_StreamAligner2 < Test::Unit::TestCase
     attr_reader :logfile
     attr_reader :stream
     attr_reader :expected_data

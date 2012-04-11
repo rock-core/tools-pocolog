@@ -1,8 +1,6 @@
 require 'pocolog'
 require 'test/unit'
 
-Pocolog::Logfiles::StreamInfo::INDEX_STEP = 2 
-
 class TC_StreamAligner < Test::Unit::TestCase
     attr_reader :logfile
     attr_reader :stream
