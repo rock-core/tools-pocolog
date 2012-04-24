@@ -163,16 +163,20 @@ module Pocolog
         # header.
         #
         # Block headers are returned by #rewind 
-	def data(data_header = nil)
+	def raw_data(data_header = nil)
 	    if(@data && !data_header) then @data
 	    else
 		data = type.wrap(logfile.data(data_header))
 		if logfile.endian_swap
 		    data = data.endian_swap
 		end
-		Typelib.to_ruby(data)
+                data
 	    end
 	end
+
+        def data(data_header = nil)
+            Typelib.to_ruby(raw_data(data_header))
+        end
 
         # call-seq:
         #   rewind => data_header
@@ -348,7 +352,13 @@ module Pocolog
 	attr_accessor :next_sample
 	attr_accessor :sample_count
 
-	def each(&block)
+        def each(&block)
+            raw_each do |rt, lg, raw_data|
+                yield(rt, lg, Typelib.to_ruby(raw_data))
+            end
+        end
+
+	def raw_each(&block)
 	    self.sample_count = 0
 	    self.next_sample = nil
 
@@ -412,7 +422,7 @@ module Pocolog
 
 	    if do_display
 		self.sample_count += 1
-		yield(data_block.rt, data_block.lg, (stream.data(data_block) if read_data))
+		yield(data_block.rt, data_block.lg, (stream.raw_data(data_block) if read_data))
 		last_data_block = nil
 	    end
 	end

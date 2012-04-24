@@ -228,11 +228,16 @@ module Pocolog
                 op = ops.shift
 
                 if op == [:deference]
-                    return v.map { |el| display_fields(el, ops) }
+                    result = []
+                    v.size.times do |i|
+                        result << display_fields(v.raw_get(i), ops)
+                    end
+                    return result
+
                 elsif op[0] == :deference
-                    v = v[op[1]]
+                    v = v.raw_get(op[1])
                 else
-                    v = v.send(*op)
+                    v = v.raw_get(op[1])
                 end
             end
 
@@ -260,7 +265,7 @@ module Pocolog
                     name.split('.').each do |subname|
                         if match = /(.*)((?:\[[^\]]*\])+)$/.match(subname)
                             if !match[1].empty?
-                                ops << [:[], match[1]]
+                                ops << [:raw_get, match[1]]
                             end
                             do_deference = match[2]
                             while !do_deference.empty?
@@ -273,7 +278,7 @@ module Pocolog
                                 do_deference = match.post_match
                             end
                         else
-                            ops << [:[], subname]
+                            ops << [:raw_get, subname]
                         end
                     end
                     [name, ops]
@@ -284,7 +289,11 @@ module Pocolog
                         if op[0] == :deference
                             type.deference
                         else
-                            type.send(*op)
+                            if op.first == :raw_get
+                                type[*op[1..-1]]
+                            else
+                                type.send(*op)
+                            end
                         end
                     end
 		    subnames = type.to_csv
@@ -311,7 +320,7 @@ module Pocolog
 		end
 	    end
 
-	    samples.each do |rt, lg, data|
+	    samples.raw_each do |rt, lg, data|
 		if time
 		    if samples.use_rt
 			print "%i.%06i " % [rt.tv_sec, rt.tv_usec]
@@ -321,16 +330,14 @@ module Pocolog
 		end
 
                 if expr
-                    puts expr.call(data)
+                    puts expr.call(Typelib.to_ruby(data))
 		elsif fields
                     values = field_operations.map do |_, field_ops|
                         display_fields(data, field_ops)
 		    end
 		    puts values.join(" ")
 		else
-		    data = if data.respond_to?(:to_csv) then data.to_csv
-                           else data.to_s
-                           end
+		    data = display_fields(data, [])
 
 		    if field_indexes
 			puts data.split(' ').values_at(*field_indexes).join(' ')
