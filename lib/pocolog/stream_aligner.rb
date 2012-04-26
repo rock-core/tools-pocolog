@@ -44,7 +44,8 @@ module Pocolog
 	def initialize(use_rt = false, *streams)
 	    @use_sample_time = use_rt == :use_sample_time
 	    @use_rt  = use_rt
-            @streams = streams 
+            #remove empty streams 
+            @streams = streams.find_all{|stream| !stream.empty?}
 	    @stream_has_sample = Array.new
 	    @stream_index_to_index_helpers = Array.new
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
