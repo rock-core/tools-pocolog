@@ -48,40 +48,53 @@ class TC_StreamAligner2 < Test::Unit::TestCase
 	index, time, data = stream.step()
 	assert_equal index, 0
 	assert_equal data, expected_data[0]
-	assert_equal time, Time.at(expected_data[0])
+	assert_equal time, Time.at(expected_data[0] * 100)
     end
 
     def test_full_replay
 	cnt = 0
 	while(!stream.eof?)
-	    index, time, data = stream.step()
-	    assert_equal index, cnt
+	    stream_index, time, data = stream.step()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
 	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt])
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
 	    cnt = cnt + 1
 	end
 	
-	assert cnt, 200
+	assert_equal cnt, 200
     end
 
     def test_forward_backward
 	cnt = 0
 	while(!stream.eof?)
-	    index, time, data = stream.step()
-	    assert_equal index, cnt
+	    stream_index, time, data = stream.step()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
 	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt])
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
 	    cnt = cnt + 1
 	end
 	
-	assert cnt, 200
+	assert_equal cnt, 200
+	cnt = cnt - 1
 	
 	while(cnt > 1)
 	    cnt = cnt - 1
-	    index, time, data = stream.step_back()
-	    assert_equal index, cnt
+	    stream_index, time, data = stream.step_back()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
 	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt])
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
 	end	    
 	
     end
