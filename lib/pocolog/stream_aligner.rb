@@ -193,11 +193,12 @@ module Pocolog
 		end
 		
 		stream_index_to_index_helpers[i] = index_helpers[i] = IndexHelper.new(i, @streams[i], @use_sample_time)
+		#set index helper correct position in stream
+		index_helpers[i].set_position(stream_indexes[i])
 		if(stream_indexes[i] == :after)
 		    #remove streams that have allready been played back
+		    #from playback list
 		    index_helpers[i] = nil;
-		else
-		    index_helpers[i].set_position(stream_indexes[i])
 		end
 	    end
 	   
