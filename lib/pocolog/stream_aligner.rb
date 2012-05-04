@@ -319,7 +319,7 @@ module Pocolog
 	
 	def seek_to_time(time)
 	   if(time < time_interval[0] || time > time_interval[1]) 
-                raise OutOfBounds, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
+                raise RangeError, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
             end
 	    
 	    searched_index = @index[0]
