@@ -22,6 +22,10 @@ module Pocolog
 	attr_reader :use_sample_time
 	attr_reader :streams
 
+        #global index for the first and last sample of the streams
+        attr_reader :global_pos_last_sample
+        attr_reader :global_pos_first_sample
+
 	#sample_index contains the global index in respect to
 	#the field @index
         attr_reader :sample_index
@@ -46,6 +50,8 @@ module Pocolog
 	    @use_rt  = use_rt
             #remove empty streams 
             raise ArgumentError.new("Empty streams are not supported") if streams.find{|stream| stream.empty?}
+            @global_pos_first_sample = Hash.new
+            @global_pos_last_sample = Hash.new
             @streams = streams
 	    @stream_has_sample = Array.new
 	    @stream_index_to_index_helpers = Array.new
@@ -169,6 +175,12 @@ module Pocolog
 		    @time = getTime(@position)
 		end
 	    end
+
+            #returns true if the current position is
+            #the first sample
+            def first?
+                position == 0
+            end
 	    
 	    #checks weather the end of stream was reached
 	    def eof?
@@ -284,6 +296,13 @@ module Pocolog
 		if(!cur_index_helper)
 		    raise("Internal error, no stream available for playback, but not all samples were played back")
 		end
+
+                #save the global pos for the first and last sample of each stream
+                if cur_index_helper.first?
+                    @global_pos_first_sample[cur_index_helper.stream] = pos
+                elsif cur_index_helper.eof?
+                    @global_pos_last_sample[cur_index_helper.stream] = pos
+                end
 
 		#generate a full index every INDEX_DENSITY samples
 		if(pos % INDEX_DENSITY == 0)
@@ -533,6 +552,18 @@ module Pocolog
         # This is the sum of samples available on each of the underlying streams
         def size
 	    @size
+        end
+
+        #returns the global sample position of the first sample
+        #of the given stream
+        def first_sample_pos(stream)
+            @global_pos_first_sample[stream] 
+        end
+
+        #returns the global sample position of the last sample
+        #of the given stream
+        def last_sample_pos(stream)
+            @global_pos_last_sample[stream]
         end
 
         # Returns the current data sample for the given stream index
