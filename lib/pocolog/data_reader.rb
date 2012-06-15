@@ -293,6 +293,31 @@ module Pocolog
                 seek(sample_index - 1)
             end
         end
+
+	# call-seq:
+        #   copy_to(index1,index2,stream) => true 
+        #
+        # copies all blocks from start_index to end_index to the given stream
+        # for each block the given code block is called. If the code block returns 1
+        # the copy process is canceled 
+        def copy_to(start_index,end_index,stream,&block)
+            if start_index < 0 || start_index >= size || end_index < start_index || end_index >= size
+                raise "Index is out of bound!"
+            end
+
+            seek(start_index,false)
+            counter = 0
+            max = end_index-start_index
+            begin
+                if block
+                    return false if block.call(counter)
+                end
+                data = logfile.data(data_header)
+                stream.write_raw(data_header.rt,data_header.lg,data)
+                counter += 1
+            end while advance && counter <= max
+            true
+        end
     end
 
     # Sample enumerators are nicer interfaces for data reading built on top of a DataStream
