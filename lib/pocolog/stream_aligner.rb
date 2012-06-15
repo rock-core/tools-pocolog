@@ -555,6 +555,57 @@ module Pocolog
 	    @size
         end
 
+        # exports all streams to a new log file 
+        # if no start and end index is given all data are exported
+        # otherwise the data are truncated according to the given global indexes 
+        # 
+        # the block is called for each sample to update a custom progress bar if the block
+        # returns 1 the export is canceled
+        def export_to_file(file,start_index=0,end_index=nil,&block)
+            #save current pos 
+            index = 0
+            old_index = @sample_index 
+            end_index = size-1 if !end_index
+            seek_to_pos(end_index)
+
+            #save all end positions
+            end_positions = Hash.new
+            @index_helpers.each do |helper,_|
+                end_positions[helper.stream.name] = helper.position
+            end
+
+            seek_to_pos(start_index)
+            number_of_samples = end_index-start_index+1
+
+            #we have to create the log file manually because we do not want to 
+            #use the automatically applied file name logic
+            output = Pocolog::Logfiles.new(Typelib::Registry.new)
+            output.new_file(file)
+        
+            #copy all streams which have samples inside the given interval
+            @index_helpers.each do |helper,_|
+                next if first_sample_pos(helper.stream) > end_index
+                end_pos = end_positions[helper.stream.name]
+                end_pos = helper.stream.size-1 if !end_pos
+                stream_output = output.stream(helper.stream.name,helper.stream.type,true)
+                result = helper.stream.copy_to(helper.position,end_pos,stream_output) do |i|
+                    if block
+                        index +=1
+                        block.call(index,number_of_samples) 
+                    end
+                end
+                break if !result
+            end
+            output.close
+
+            #return to old pos
+            if old_index < 0
+                rewind
+            else
+                seek_to_pos(old_index)
+            end
+        end
+
         #returns the global sample position of the first sample
         #of the given stream
         def first_sample_pos(stream)

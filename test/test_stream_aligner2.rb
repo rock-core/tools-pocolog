@@ -99,4 +99,42 @@ class TC_StreamAligner2 < Test::Unit::TestCase
 	
     end
 
+    def test_export_to_file
+        @stream.export_to_file("export1.log")
+        @stream.export_to_file("export2.log",30)
+        @stream.export_to_file("export3.log",90,109)
+
+        logfile2 = Pocolog::Logfiles.open('export1.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 200, stream2.size
+        logfile2.close
+
+        logfile2 = Pocolog::Logfiles.open('export2.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 170, stream2.size
+        logfile2.close
+
+        logfile2 = Pocolog::Logfiles.open('export3.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 20, stream2.size
+
+        cnt = 0
+	while(!stream2.eof?)
+	    stream_index, time, data = stream2.step()
+	    if(cnt < 10)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
+	    assert_equal data, expected_data[cnt+90]
+	    assert_equal time, Time.at(expected_data[cnt+90] * 100)
+	    cnt = cnt + 1
+	end
+        logfile2.close
+
+        1.upto(3) do |i|
+            FileUtils.rm_f "export#{i}.log"
+            FileUtils.rm_f "export#{i}.idx"
+        end
+    end
 end
