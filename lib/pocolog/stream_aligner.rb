@@ -1,6 +1,7 @@
 module Pocolog
     require 'priority_queue'
-    
+
+    class OutOfBounds < Exception;end
     class StreamAligner
 	
 	class MultiStreamIndex
