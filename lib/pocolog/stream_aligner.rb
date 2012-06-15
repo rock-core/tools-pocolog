@@ -50,7 +50,7 @@ module Pocolog
 	    @use_sample_time = use_rt == :use_sample_time
 	    @use_rt  = use_rt
             #remove empty streams 
-            raise ArgumentError.new("Empty streams are not supported") if streams.find{|stream| stream.empty?}
+            raise ArgumentError.new("Empty streams are not supported [" + streams.find{|stream| stream.empty?}.name + "].") if streams.find{|stream| stream.empty?}
             @global_pos_first_sample = Hash.new
             @global_pos_last_sample = Hash.new
             @streams = streams
