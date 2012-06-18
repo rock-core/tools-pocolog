@@ -176,6 +176,18 @@ class TC_DataStream < Test::Unit::TestCase
         stream.last
         assert_not_equal @logfile.rio.tell, stream.logfile.rio.tell
     end
+
+    def test_samples?
+        assert_equal(true,stream.samples?(0,100))
+        assert_equal(false,stream.samples?(-10,-1))
+        assert_equal(true,stream.samples?(-10,0))
+        assert_equal(true,stream.samples?(10,90))
+        assert_equal(true,stream.samples?(99,120))
+        assert_equal(true,stream.samples?(Time.at(0),Time.at(99*100)))
+        assert_equal(true,stream.samples?(Time.at(0),Time.at(200*100)))
+        assert_equal(true,stream.samples?(Time.at(99*100),Time.at(200*100)))
+        assert_equal(false,stream.samples?(Time.at(100*100),Time.at(200*100)))
+    end
 end
 
 

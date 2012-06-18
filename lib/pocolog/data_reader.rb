@@ -318,6 +318,29 @@ module Pocolog
             end while advance && counter <= max
             true
         end
+
+	# call-seq:
+        #   samples?(pos1,pos2) => true 
+        #   samples?(time1,time2) => true 
+        #
+        # returns true if stream samples lies insight the given time or position interval
+        def samples?(start_index,end_index)
+            if start_index.is_a? Time
+                interval = time_interval
+                return unless interval.first
+                if start_index <= interval.last && start_index <= end_index && end_index >= interval.first
+                    true
+                else
+                    false
+                end
+            else
+                if start_index < size && start_index <= end_index && end_index >= 0
+                    true
+                else
+                    false
+                end
+            end
+        end
     end
 
     # Sample enumerators are nicer interfaces for data reading built on top of a DataStream
