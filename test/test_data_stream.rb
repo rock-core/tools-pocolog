@@ -188,6 +188,33 @@ class TC_DataStream < Test::Unit::TestCase
         assert_equal(true,stream.samples?(Time.at(99*100),Time.at(200*100)))
         assert_equal(false,stream.samples?(Time.at(100*100),Time.at(200*100)))
     end
+
+    def test_copy_to
+        output = Pocolog::Logfiles.new(Typelib::Registry.new)
+        output.new_file("copy_test.log")
+        stream_output1 = output.stream("test1",stream.type,true)
+        stream_output2 = output.stream("test2",stream.type,true)
+        stream_output3 = output.stream("test3",stream.type,true)
+
+        #copy samples according to the given intervals 
+        stream.copy_to(0,120,stream_output1)
+        stream.copy_to(20,29,stream_output2)
+        stream.copy_to(Time.at(10*100),Time.at(29*100),stream_output3)
+        output.close
+
+        logfile = Pocolog::Logfiles.open('copy_test.log')
+        assert_equal(3,logfile.streams.size)
+        assert_equal(100,logfile.stream("test1").size)
+        assert_equal(10,logfile.stream("test2").size)
+        assert_equal(20,logfile.stream("test3").size)
+        
+        test3_stream = logfile.stream("test3")
+        while(data = test3_stream.next)
+            assert_equal expected_data[test3_stream.sample_index+10], data[2]
+        end
+        logfile.close
+        FileUtils.rm_f "copy_test.log"
+    end
 end
 
 

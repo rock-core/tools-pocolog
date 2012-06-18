@@ -296,15 +296,46 @@ module Pocolog
 
 	# call-seq:
         #   copy_to(index1,index2,stream) => true 
+        #   copy_to(time1,time2,stream) => true 
         #
-        # copies all blocks from start_index to end_index to the given stream
+        # copies all blocks from start_index/time to end_index/time to the given stream
         # for each block the given code block is called. If the code block returns 1
-        # the copy process is canceled 
+        # the copy process will be canceled and the method returns false 
+        #
+        # The given interval is automatically truncated if it is too big
         def copy_to(start_index,end_index,stream,&block)
-            if start_index < 0 || start_index >= size || end_index < start_index || end_index >= size
-                raise "Index is out of bound!"
+            if !samples?(start_index,end_index)
+                raise "no samples for the given interval!"
             end
-
+            interval = time_interval
+            return unless interval.first
+            start_index = if start_index.is_a? Time
+                              if interval.first > start_index
+                                  0
+                              else
+                                  info.index.sample_number_by_time(start_index)
+                              end
+                          else
+                              if start_index < 0
+                                  0
+                              else
+                                  start_index
+                              end
+                          end
+            end_index = if end_index.is_a? Time
+                            if interval.last < end_index
+                                size-1
+                            else
+                                info.index.sample_number_by_time(end_index)
+                            end
+                        else
+                            if end_index >= size
+                                size-1
+                            else
+                                end_index
+                            end
+                        end
+            
             seek(start_index,false)
             counter = 0
             max = end_index-start_index
