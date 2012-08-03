@@ -349,7 +349,7 @@ module Pocolog
 		if(index_sample.index_time > time)
 		    break;
 		end
-		searched_index_index = index_sample
+		searched_index = index_sample
 	    end
 	    
 	    #searched_index points now to the index before the time
