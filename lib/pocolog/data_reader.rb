@@ -231,6 +231,7 @@ module Pocolog
         # nil otherwise
 	def seek(pos, decode_data = true)
 	    if pos.kind_of?(Time)
+                return nil if(time_interval.empty? || time_interval[0] > pos || time_interval[1] < pos)
 		@sample_index = info.index.sample_number_by_time(pos)
 	    else
 		@sample_index = pos
