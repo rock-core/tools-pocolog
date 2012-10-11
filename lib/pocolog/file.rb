@@ -253,8 +253,11 @@ module Pocolog
 	    io.seek(0)
 	    magic	   = io.read(MAGIC.size)
 	    if magic != MAGIC
-		# Not a valid file. Make the user try --export
-		raise MissingPrologue, "invalid prologue in #{io.path}. Try the --to-new-format of pocolog if it is an old file"
+                if !magic
+                    raise MissingPrologue, "#{io.path} is empty"
+                else
+                    raise MissingPrologue, "#{io.path} is not a pocolog log file"
+                end
 	    end
 
 	    @format_version, big_endian = io.read(9).unpack('xVV')
