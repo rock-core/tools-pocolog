@@ -152,9 +152,8 @@ module Pocolog
                 @rio = io_index
                 @next_block_pos = pos.block_pos
             else
-                if rio
-                    @rio = rio
-                end
+		raise ArgumentError, "need rio argument, if pos is not a DataHeader" unless rio
+		@rio = rio
                 @next_block_pos = pos
             end
             nil
@@ -520,6 +519,11 @@ module Pocolog
                     if block_info.index != idx
                         raise InvalidIndex, "invalid interval_io: stream index mismatch for #{@streams[idx].name}. Expected #{idx}, got #{data_block_index}."
                     end
+
+		    if !info.index.sane?
+                        raise InvalidIndex, "index failed internal sanity check"
+		    end
+
                     @streams[idx].instance_variable_set(:@info, info)
                 end
             end
@@ -559,7 +563,7 @@ module Pocolog
                     info.interval_io[1] = [@rio, block_info.pos]
 		    info.interval_io[0] ||= info.interval_io[1]
 
-		    info.index.add_sample_to_index(data_header)		    
+		    info.index.add_sample_to_index(@rio, data_header.block_pos, data_header.lg)		    
                     info.size += 1
                 end
 	    end
@@ -583,12 +587,6 @@ module Pocolog
 		    rio.seek(pos + BLOCK_HEADER_SIZE)
                     stream_info.interval_rt[1] = read_time
                     stream_info.interval_lg[1] = read_time	    
-# 		    s.seek(0)
-#                     stream_info.interval_rt[0] = s.data_header.rt
-#                     stream_info.interval_lg[0] = s.data_header.lg
-# 		    s.seek(s.info.size)
-#                     stream_info.interval_rt[1] = s.data_header.rt
-#                     stream_info.interval_lg[1] = s.data_header.lg
 		end
 	    end
 

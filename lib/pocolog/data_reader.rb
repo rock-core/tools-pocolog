@@ -237,8 +237,8 @@ module Pocolog
 		@sample_index = pos
 	    end
 
-	    file_pos = info.index.file_position_by_sample_number(@sample_index)
-	    block_info = logfile.read_one_block(file_pos)
+	    rio, file_pos = info.index.file_position_by_sample_number(@sample_index)
+	    block_info = logfile.read_one_block(file_pos, rio)
             if block_info.index != self.index
                 raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.index).name} while we were expecting #{name}"
             end
@@ -260,8 +260,8 @@ module Pocolog
 	def advance
             if sample_index < size-1
                 @sample_index += 1
-		file_pos = info.index.file_position_by_sample_number(@sample_index)
-		logfile.read_one_block(file_pos)
+		rio, file_pos = info.index.file_position_by_sample_number(@sample_index)
+		logfile.read_one_block(file_pos, rio)
 		return logfile.data_header
             else
                 @sample_index = size
