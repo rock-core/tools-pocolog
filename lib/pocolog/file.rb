@@ -334,7 +334,8 @@ module Pocolog
                 seek(pos, rio)
             end
             each_block(false) do |block_info|
-                return handle_block(block_info)
+                handle_block(block_info)
+                return block_info
             end
             nil
         end
@@ -504,7 +505,7 @@ module Pocolog
 		end
 
                 @rio, pos = info.declaration_block
-                if read_one_block(pos, @rio) != STREAM_BLOCK
+                if read_one_block(pos, @rio).type != STREAM_BLOCK
                     raise InvalidIndex, "invalid declaration_block reference in index"
                 end
 
@@ -512,7 +513,7 @@ module Pocolog
                 # info attribute of the stream object
                 if !info.empty?
                     @rio, pos = info.interval_io[0]
-                    if read_one_block(pos, @rio) != DATA_BLOCK
+                    if read_one_block(pos, @rio).type != DATA_BLOCK
                         raise InvalidIndex, "invalid start IO reference in index"
                     end
 
