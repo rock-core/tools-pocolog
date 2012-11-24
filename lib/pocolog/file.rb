@@ -359,7 +359,7 @@ module Pocolog
                 read_control_block
             elsif block_info.type == DATA_BLOCK
                 if !declared_stream?(block_info.index)
-                    STDERR.puts "found data block for stream #{block_info.index} but this stream has never been declared, seems Logfile is Corrupted. Skipping..."
+                    Pocolog.warn "found data block for stream #{block_info.index} but this stream has never been declared, seems Logfile is Corrupted. Skipping..."
                 end
             elsif block_info.type == STREAM_BLOCK
                 read_stream_declaration
@@ -476,7 +476,7 @@ module Pocolog
         def load_index_file(index_filename)
             # Look for an index. If it is found, load it and use it.
             return unless File.readable?(index_filename)
-            STDERR.print "loading file info from #{index_filename}... "
+            Pocolog.info "loading file info from #{index_filename}... "
             io = File.open(index_filename)
             file_info, stream_info =
                 begin Marshal.load(io)
@@ -527,11 +527,10 @@ module Pocolog
                     @streams[idx].instance_variable_set(:@info, info)
                 end
             end
-            STDERR.puts "done"
             return @streams.compact
 
         rescue InvalidIndex => e
-            STDERR.puts "invalid index file"
+            Pocolog.warn "invalid index file #{index_filename}"
         end
 
         # Returns a stream from its index
@@ -551,13 +550,13 @@ module Pocolog
             end
 	    
             # No index file. Compute it.
-            STDERR.print "building index ..."
+            Pocolog.info "building index ..."
 	    each_data_block(nil, true) do |stream_index|
                 # The stream object itself is built when the declaration block
                 # has been found
                 s    = @streams[stream_index]
                 if s.nil? 
-                    STDERR.puts "Got empty Streamline. Seems file is corrupted, skipping this" 
+                    Pocolog.warn "Got empty Streamline. Seems file is corrupted, skipping this" 
                 else
                     info = s.info
                     info.interval_io[1] = [@rio, block_info.pos]
@@ -569,7 +568,7 @@ module Pocolog
 	    end
 
             if !@streams
-                STDERR.puts "done"
+                Pocolog.info "done"
                 return []
             end
 
@@ -601,7 +600,7 @@ module Pocolog
                 FileUtils.rm_f index_filename
                 raise
             end
-            STDERR.puts "done"
+            Pocolog.info "done"
 	    @streams.compact
 	end
 

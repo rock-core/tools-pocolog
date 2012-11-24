@@ -13,8 +13,12 @@ require 'pocolog/file'
 require 'pocolog/version'
 require 'pocolog/stream_index'
 require 'utilrb/pkgconfig'
+require 'utilrb/logger'
 
 module Pocolog
+    # setup logger for Pocolog module
+    extend Logger::Root('pocolog.rb', Logger::INFO)
+
     # true if this machine is big endian
     def self.big_endian?
 	"LAAS".unpack('L').pack('N') == "LAAS"

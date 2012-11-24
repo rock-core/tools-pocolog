@@ -269,7 +269,7 @@ module Pocolog
 
 	    @size = max_pos
 	    
-	    puts("Got #{@streams.size} streams with #{size} samples")
+	    Pocolog.info("Got #{@streams.size} streams with #{size} samples")
 	    
 	    pos = 0
 
@@ -324,7 +324,7 @@ module Pocolog
 		advance_indexes(replay_streams);
 
 	    end
-	    puts("Stream Aligner index created")
+	    Pocolog.info("Stream Aligner index created")
 
 	    STDOUT.sync = old_sync_val
 
@@ -544,7 +544,7 @@ module Pocolog
 
         # Provided for backward compatibility only
         def count_samples
-            STDERR.puts "WARN: StreamAligner#count_samples is deprecated. Use #size instead"
+            Pocolog.warn "StreamAligner#count_samples is deprecated. Use #size instead"
             size
         end
 
