@@ -531,6 +531,7 @@ module Pocolog
 
         rescue InvalidIndex => e
             Pocolog.warn "invalid index file #{index_filename}"
+	    nil
         end
 
         # Returns a stream from its index
