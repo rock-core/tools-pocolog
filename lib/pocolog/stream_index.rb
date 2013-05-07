@@ -13,9 +13,7 @@ module Pocolog
     # Time base access has a complexity of O(log N)
     #
     class StreamIndex
-
-	def initialize()
-	    #
+	def initialize
 	    # The index holds three arrays, which associate
 	    # the position number of a sample in a stream
 	    # with the file, file position and time of the sample
@@ -91,7 +89,17 @@ module Pocolog
 	    end
 	    @time_to_position_map[sample_nr]
 	end
-	
+
+        def marshal_dump
+            [@nr_to_rio, @nr_to_position_map,
+             @time_to_position_map.map { |t| [t.tv_sec, t.tv_usec] }]
+        end
+
+        def marshal_load(info)
+            @nr_to_rio, @nr_to_position_map, time_to_position_map = *info
+            @time_to_position_map = time_to_position_map.map do |tv_sec, tv_usec|
+                Time.at(tv_sec, tv_usec)
+            end
+        end
     end
-    
 end
