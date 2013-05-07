@@ -388,7 +388,10 @@ module Pocolog
             end
 
             if !BLOCK_TYPES.include?(type)
-                raise "invalid block type found #{type}, expected one of #{BLOCK_TYPES.join(", ")}"
+                file = if rio.respond_to?(:path) then " in file #{rio.path}"
+                       end
+                Pocolog.warn "invalid block type '#{type}' found#{file} at position #{rio.tell}, expected one of #{BLOCK_TYPES.join(", ")}. The file is probably corrupted. The rest of the file will be ignored."
+                return
             end
 
             @block_info.io           = @rio
