@@ -1,6 +1,7 @@
-module Pocolog
-    require 'priority_queue'
+require 'priority_queue'
+require 'rbtree'
 
+module Pocolog
     class OutOfBounds < Exception;end
     class StreamAligner
 	
@@ -42,7 +43,7 @@ module Pocolog
 	attr_reader :index_helpers
 	#map for mapping from stream_index to index helpers
 	attr_reader :stream_index_to_index_helpers
-	#contains weather a stream has allready replayed a sample 
+	#contains whether a stream has allready replayed a sample 
 	#in respect to the sample_index 
 	attr_reader :stream_has_sample
 	
@@ -65,7 +66,7 @@ module Pocolog
 	#returns the time of the last played back sample
         def time
             if !index_helpers.empty?
-                index_helpers.min_key().time
+                index_helpers.first[0].time
             end
         end
 
@@ -85,11 +86,11 @@ module Pocolog
 	#helper class that is used to manipulate
 	#the index of an stream in an efficent way
 	class IndexHelper
-	    #current position of the stream that is handeled
+	    # Current position of the stream that is handled
 	    attr_accessor :position
-	    #current time of the stream that is handeled
+	    #current time of the stream that is handled
 	    attr_accessor :time
-	    #the stream that if handeled by this class
+	    #the stream that if handled by this class
 	    attr_accessor :stream
 	    #position of the stream in the streams array in the Stream Aligner
 	    attr_accessor :array_pos
@@ -99,7 +100,7 @@ module Pocolog
 	    attr_reader :use_sample_time
 	    
 	    #this needs to be calculated here, as it changes depending
-	    #on weather sample or stream time is used
+	    #on whether sample or stream time is used
 	    attr_reader :time_range
 
 	    def initialize(array_pos, stream, use_sample_time = nil)
@@ -183,7 +184,7 @@ module Pocolog
                 position == 0
             end
 	    
-	    #checks weather the end of stream was reached
+	    #checks whether the end of stream was reached
 	    def eof?
 		if(@position < @stream.size() - 1)
 		    false
@@ -191,6 +192,11 @@ module Pocolog
 		    true
 		end
 	    end
+
+            # Compares self with other on the basis of their current time
+            def <=>(other)
+                time <=> other.time
+            end
 	end
 
 	#this function sets up the index helpers to
@@ -218,30 +224,26 @@ module Pocolog
 	    #remove nil helpers
 	    index_helpers.compact!
 	    
-	    pq = PriorityQueue.new()
-	    
+	    pq = RBTree.new
 	    index_helpers.each do |helper|
-		pq.push(helper, helper.time)
+                pq[helper] = helper
 	    end
-	    
 	    pq
 	end	
 	
 	def advance_indexes(index_helpers)
 	    @sample_index = @sample_index + 1
 
-	    #cur_index_helper represents the last played back sample
-	    cur_index_helper = index_helpers.min_key()
+	    # Cur_index_helper represents the last played back sample
+	    _, cur_index_helper = index_helpers.shift
 
-	    #mark stream as played back
+	    # Mark stream as played back
 	    @stream_has_sample[cur_index_helper.stream.index] = true
 
-	    #check if we can advance current stream
-	    if(cur_index_helper.next())
+	    # Check if we can advance current stream
+	    if cur_index_helper.next
 		#time advance, change priority of stream
-		index_helpers.change_priority(cur_index_helper, cur_index_helper.time)
-	    else
-		index_helpers.delete_min()
+		index_helpers[cur_index_helper] = cur_index_helper
 	    end
 	end
 	
@@ -251,19 +253,21 @@ module Pocolog
 	# These samples are stored in @index
 	# The Layout is [global_pos, [stream1 pos, stream2_pos...]]
         def build_index
+	    old_sync_val, STDOUT.sync = STDOUT.sync, true
+
 	    @index = Array.new
 	    @sample_index = 0
 	    
 	    max_pos = 0
-	    replay_streams = Array.new
 	    indexes = Array.new
 	    
 	    #all streams start at 0
 	    stream_positions = Array.new
+	    index_helpers = Array.new
 	    @streams.each_index do |s| 
 		stream_positions[s] = 0
 		max_pos += @streams[s].size
- 		replay_streams[s] = IndexHelper.new(s, @streams[s], @use_sample_time)
+ 		index_helpers[s] = IndexHelper.new(s, @streams[s], @use_sample_time)
 		indexes[s] = :before
 	    end
 
@@ -271,29 +275,20 @@ module Pocolog
 	    
 	    Pocolog.info("Got #{@streams.size} streams with #{size} samples")
 	    
-	    pos = 0
-
-	    pq = PriorityQueue.new()
-	    
-	    replay_streams.each do |helper|
-		pq.push(helper, helper.time)
+	    replay_streams = RBTree.new
+	    index_helpers.each do |helper|
+		replay_streams[helper] = helper
 	    end
 	    
-	    replay_streams = pq
-	    
-	    percentage = nil
-	    old_sync_val = STDOUT.sync
-	    STDOUT.sync = true
-	    
-	    #iterate over all streams and generate the index
-	    while(pos < max_pos)
-		new_percentage = pos * 100 / max_pos
-		if(new_percentage != percentage)
-		   percentage = new_percentage
-		   print("\r#{percentage}% indexed")
+	    # Iterate over all streams and generate the index
+            # 'pos' is the global sample index
+            index_display_period = max_pos / 100
+            max_pos.times do |pos|
+		if (pos % index_display_period) == 0
+                    print "\r#{pos / index_display_period}% indexed"
 		end
 		
-		cur_index_helper = replay_streams.min_key
+		_, cur_index_helper = replay_streams.first
 		if(!cur_index_helper)
 		    raise("Internal error, no stream available for playback, but not all samples were played back")
 		end
@@ -312,22 +307,21 @@ module Pocolog
 			index_sample.stream_positions[i] = :after
 		    end
 		    cur_time = cur_index_helper.time
-		    replay_streams.to_a.each do |rh|
-			index_sample.stream_positions[rh[0].array_pos] = rh[0].build_index_entry(cur_time)
+		    replay_streams.values.each do |rh|
+			index_sample.stream_positions[rh.array_pos] = rh.build_index_entry(cur_time)
 		    end
 		    @index << index_sample
 		end
 
-		#increase global index
-		pos = pos + 1
-
 		advance_indexes(replay_streams);
-
 	    end
+            # Make sure to remove the progress display the next time we puts
+            # something
+            print "\r"
 	    Pocolog.info("Stream Aligner index created")
 
+        ensure
 	    STDOUT.sync = old_sync_val
-
         end
 	
 	def seek(pos)
@@ -360,11 +354,11 @@ module Pocolog
 	    @index_helpers = setup_index_helpers(searched_index.stream_positions)
 
 	    #advance index to the sample BEFORE 'time'
-	    while(@index_helpers.min_key().time < time)
+	    while(@index_helpers.first[1].time < time)
 		advance_indexes(@index_helpers)
 	    end
 
-	    cur_index_helper = @index_helpers.min_key()
+	    _, cur_index_helper = @index_helpers.first
 
 	    #load and return data
 	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
@@ -398,7 +392,7 @@ module Pocolog
 		diff_to_step = diff_to_step - 1
 	    end
 	    
-	    cur_index_helper = @index_helpers.min_key()
+	    _, cur_index_helper = @index_helpers.first
 	    
 	    #load and return data
 	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
@@ -436,22 +430,19 @@ module Pocolog
         # The associated data sample can also be retrieved by
         # single_data(stream_idx)
         def step
-	    if(eof?)
+	    if eof?
 		@sample_index = size
-		return nil
+		return
 	    end
 	    
-	    if(@sample_index == -1)
+	    if @sample_index == -1
 		@sample_index = 0
 	    else
 		advance_indexes(@index_helpers)
 	    end
 	    
-	    cur_index_helper = @index_helpers.min_key()
-	    
-	    #load and return data
+	    _, cur_index_helper = @index_helpers.first
 	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
-	    
 	    [cur_index_helper.array_pos, cur_index_helper.time, data]
         end
 
@@ -475,8 +466,7 @@ module Pocolog
 		advance_indexes(@index_helpers)
 	    end
 	    
-	    cur_index_helper = @index_helpers.min_key()
-	    
+	    _, cur_index_helper = @index_helpers.first
             [cur_index_helper.array_pos, cur_index_helper.time]
          end
 
@@ -570,7 +560,7 @@ module Pocolog
 
             #save all end positions
             end_positions = Hash.new
-            @index_helpers.each do |helper,_|
+            @index_helpers.each_value do |helper|
                 end_positions[helper.stream.name] = helper.position
             end
 
@@ -583,7 +573,7 @@ module Pocolog
             output.new_file(file)
         
             #copy all streams which have samples inside the given interval
-            @index_helpers.each do |helper,_|
+            @index_helpers.each_value do |helper|
                 next if first_sample_pos(helper.stream) > end_index
                 end_pos = end_positions[helper.stream.name]
                 end_pos = helper.stream.size-1 if !end_pos
