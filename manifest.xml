@@ -15,5 +15,6 @@
     <depend package="typelib" />
     <depend package="utilrb" />
     <depend package="PriorityQueue" />	
+    <depend package="rbtree" />
 </package>
 
