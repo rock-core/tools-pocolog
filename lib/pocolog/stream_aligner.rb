@@ -223,7 +223,7 @@ module Pocolog
 	    #remove nil helpers
 	    index_helpers.compact!
 	    
-	    pq = RBTree.new
+	    pq = MultiRBTree.new
 	    index_helpers.each do |helper|
                 pq[helper] = helper
 	    end
