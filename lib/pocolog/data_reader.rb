@@ -172,6 +172,8 @@ module Pocolog
 		end
                 data
 	    end
+        rescue Exception => e
+            raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
 	end
 
         def data(data_header = nil)
