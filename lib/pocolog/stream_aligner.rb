@@ -274,7 +274,7 @@ module Pocolog
 	    
 	    Pocolog.info("Got #{@streams.size} streams with #{size} samples")
 	    
-	    replay_streams = RBTree.new
+	    replay_streams = MultiRBTree.new
 	    index_helpers.each do |helper|
 		replay_streams[helper] = helper
 	    end
