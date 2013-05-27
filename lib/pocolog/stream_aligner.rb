@@ -281,7 +281,7 @@ module Pocolog
 	    
 	    # Iterate over all streams and generate the index
             # 'pos' is the global sample index
-            index_display_period = max_pos / 100
+            index_display_period = [max_pos/100,1].max
             max_pos.times do |pos|
 		if (pos % index_display_period) == 0
                     print "\r#{pos / index_display_period}% indexed"
@@ -370,7 +370,7 @@ module Pocolog
 	#when loading the sample at pos
         def seek_to_pos(pos)
             if pos < 0 || pos > size
-                raise OutOfBounds, "#{pos} is out of bounds"
+                raise OutOfBounds, "#{pos} is out of bounds [0..#{size}]."
             end
 
 	    #position of index before pos
