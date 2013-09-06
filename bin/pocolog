@@ -156,6 +156,7 @@ module Pocolog
                 next_index = 0
                 enabled = Hash.new
                 sample_count = Array.new
+                start_sample = Array.new
 
                 from.each do |file_io|
                     from    = Logfiles.new(file_io)
@@ -169,12 +170,20 @@ module Pocolog
                                     next_index += 1
                                 end
                                 index_mapping[info.index] = [enabled[[stream.name, stream.typename]]].pack("v")
-                                sample_count[info.index] = streams[stream.name]
+                                start_sample[info.index], sample_count[info.index] = *streams[stream.name]
                             end
                         end
 
                         stream_index = index_mapping[info.index]
                         if stream_index
+                            if (skip = start_sample[info.index]) && info.type == DATA_BLOCK
+                                start_sample[info.index] =
+                                    if skip > 1 then skip - 1
+                                    else nil
+                                    end
+                                next
+                            end
+
                             Logfiles.copy_block(info, from.rio, to, buffer) do |buffer|
                                 buffer[2, 2] = stream_index
                                 buffer
@@ -635,13 +644,12 @@ parser = OptionParser.new do |opts|
     opts.on('--extract [OUTPUT]', "creates a new log file with only the streams specified", "by the following --stream options") do |output|
 	config.extract(output || config.io.first.path)
     end
-    opts.on("--streams NAME", Array, 'specifies the stream names for --extract') do |names|
+    opts.on("--streams NAME[:start_index[:end_index]]", Array, 'specifies the stream names for --extract') do |names|
         names.each do |n|
-            if n =~ /(.*):(\d+)$/
-                config.streams[$1] = Integer($2)
-            else
-                config.streams[n] = nil
-            end
+            name, start, finish = n.split(':')
+            start = Integer(start) if start
+            finish = Integer(finish) if finish
+            config.streams[name] = [start, finish - (start || 0)]
         end
     end
     opts.on('--little-endian', 'the source file of --to-new-format is little-endian', 'Needed by --to-new-format to convert v1 files') do
