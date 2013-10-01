@@ -19,6 +19,9 @@ begin
             ['hoe-yard', '>= 0.1.2']
     end
 
+    Rake.clear_tasks(/^default$/)
+    task :default => []
+
     task :docs => :yard
     task :redocs => :yard
 
