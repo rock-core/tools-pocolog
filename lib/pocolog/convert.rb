@@ -80,7 +80,7 @@ module Pocolog
 	    write_prologue(to_io, from.endian_swap ^ Pocolog.big_endian?)
 
 	    compressed = [1].pack('C')
-	    buffer = ""
+	    buffer = "".encode('BINARY')
 	    from.each_block(true) do |block_info|
 		if block_info.type != DATA_BLOCK || block_info.payload_size < COMPRESSION_MIN_SIZE
 		    copy_block(block_info, from_io, to_io, buffer)

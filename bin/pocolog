@@ -60,7 +60,7 @@ module Pocolog
 		end
 	    end
 
-	    File.open(output, 'w') do |to|
+	    File.open(output, 'w', :encoding => 'BINARY') do |to|
 		if self.class.single_io?
 		    yield(io.first, to)
 		else
@@ -482,7 +482,7 @@ module Pocolog
 	end
 
 	def io
-	    files.map { |p| File.open(p) }
+	    files.map { |p| File.open(p, :encoding => 'BINARY') }
 	end
 
 	def mode=(mode)
