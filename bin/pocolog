@@ -570,6 +570,7 @@ module Pocolog
 
 end
 
+csv_mode = false
 config = Pocolog::Config.new
 parser = OptionParser.new do |opts|
     opts.separator ""
@@ -582,6 +583,9 @@ parser = OptionParser.new do |opts|
     opts.separator ""
     opts.separator "Displays samples with"
     opts.separator "  pocolog FILE FILE --show STREAM [options]"
+    opts.on('--csv', String, "display stream data in a CSV-compatible format") do |name| 
+	csv_mode = true
+    end
     opts.on('-s', '--show NAME', String, "display info/samples from the specified streams") do |name| 
 	config.show(name)
     end
@@ -671,6 +675,10 @@ end
 if ARGV.empty?
     STDERR.puts parser
     exit
+end
+
+if csv_mode
+    Pocolog.logger.level = Logger::FATAL
 end
 
 parser.order(ARGV) do |file|
