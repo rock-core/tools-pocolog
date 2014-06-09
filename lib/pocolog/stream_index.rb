@@ -91,14 +91,28 @@ module Pocolog
 	end
 
         def marshal_dump
-            [@nr_to_rio, @nr_to_position_map,
-             @time_to_position_map.map { |t| [t.tv_sec, t.tv_usec] }]
+            time_to_position_map = @time_to_position_map.inject(Array.new) { |ary, t| ary << t.tv_sec << t.tv_usec }
+            [@nr_to_rio.pack("n*"),
+             @nr_to_position_map.pack("Q>*"),
+             time_to_position_map.pack("Q>*")]
         end
 
         def marshal_load(info)
-            @nr_to_rio, @nr_to_position_map, time_to_position_map = *info
-            @time_to_position_map = time_to_position_map.map do |tv_sec, tv_usec|
-                Time.at(tv_sec, tv_usec)
+            nr_to_rio, nr_to_position_map, time_to_position_map = *info
+            if nr_to_rio.respond_to?(:to_str)
+                @nr_to_rio = nr_to_rio.unpack("n*")
+                @nr_to_position_map = nr_to_position_map.unpack("Q>*")
+                time_to_position_map = time_to_position_map.unpack("Q>*")
+                @time_to_position_map = time_to_position_map.each_slice(2).map do |tv_sec, tv_usec|
+                    Time.at(tv_sec, tv_usec)
+                end
+            else
+                Pocolog.warn "found an old-format index. Consider deleting all your index files to upgrade to a newer format"
+                @nr_to_rio = nr_to_rio
+                @nr_to_position_map = nr_to_position_map
+                @time_to_position_map = time_to_position_map.map do |tv_sec, tv_usec|
+                    Time.at(tv_sec, tv_usec)
+                end
             end
         end
     end
