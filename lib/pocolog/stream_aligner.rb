@@ -611,12 +611,16 @@ module Pocolog
 	# note stream index is the index of the data stream, not the 
 	# search index !
         def single_data(index)
-	    if(@stream_has_sample[index])
+            if raw = single_raw_data(index)
+                return Typelib.to_ruby(raw)
+            end
+        end
+
+        def single_raw_data(index)
+	    if @stream_has_sample[index]
 		helper = @stream_index_to_index_helpers[index]
-		rt, lg, data = helper.stream.seek(helper.position)
-		data
-	    else
-		nil
+                helper.stream.seek(helper.position, false)
+                helper.stream.raw_data
 	    end
         end
 
