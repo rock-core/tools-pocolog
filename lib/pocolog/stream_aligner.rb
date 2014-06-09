@@ -273,6 +273,7 @@ module Pocolog
 	    @size = max_pos
 	    
 	    Pocolog.info("Got #{@streams.size} streams with #{size} samples")
+            tic = Time.now
 	    
 	    replay_streams = MultiRBTree.new
 	    index_helpers.each do |helper|
@@ -317,7 +318,7 @@ module Pocolog
             # Make sure to remove the progress display the next time we puts
             # something
             print "\r"
-	    Pocolog.info("Stream Aligner index created")
+	    Pocolog.info "Stream Aligner index created in #{"%.1f" % (Time.now - tic)}s"
 
         ensure
 	    STDOUT.sync = old_sync_val
