@@ -25,6 +25,7 @@ module Pocolog
 	    
             @registry = nil
             @sample_index = -1
+            @raw_data_buffer = ""
         end
 
 	# Returns a SampleEnumerator object for this stream
@@ -166,7 +167,8 @@ module Pocolog
 	def raw_data(data_header = nil)
 	    if(@data && !data_header) then @data
 	    else
-		data = type.wrap(logfile.data(data_header))
+                unmarshalled_data = logfile.data(data_header, @raw_data_buffer)
+                data = type.wrap(unmarshalled_data)
 		if logfile.endian_swap
 		    data = data.endian_swap
 		end
