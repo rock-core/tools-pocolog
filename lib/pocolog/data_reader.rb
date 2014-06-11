@@ -164,11 +164,12 @@ module Pocolog
         # header.
         #
         # Block headers are returned by #rewind 
-	def raw_data(data_header = nil)
+	def raw_data(data_header = nil, sample = nil)
 	    if(@data && !data_header) then @data
 	    else
                 unmarshalled_data = logfile.data(data_header, @raw_data_buffer)
-                data = type.wrap(unmarshalled_data)
+		data = sample || type.new
+                data.from_buffer_direct(unmarshalled_data)
 		if logfile.endian_swap
 		    data = data.endian_swap
 		end
