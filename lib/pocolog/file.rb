@@ -752,12 +752,12 @@ module Pocolog
 	end
 	
 	# Returns the raw data payload of the current block
-	def data(data_header = nil)
+	def data(data_header = nil, buffer = nil)
 	    if @data && !data_header then @data
 	    else
 		data_header ||= self.data_header
 		data_header.io.seek(data_header.payload_pos)
-		data = data_header.io.read(data_header.size)
+		data = data_header.io.read(data_header.size, buffer)
 		if data_header.compressed
 		    # Payload is compressed
 		    data = Zlib::Inflate.inflate(data)
