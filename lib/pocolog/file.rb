@@ -718,10 +718,12 @@ module Pocolog
 		@data_header
 	    else
 		data_block_pos = rio.tell
-		rt, lg = read_time, read_time
-		data_size, compressed = rio.read(5).unpack('VC')
+		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed = rio.read(TIME_SIZE * 2 + 5).unpack('VVVVVC')
+                rt = Time.at(rt_sec, rt_usec)
+                lg = Time.at(lg_sec, lg_usec)
+                payload_pos = data_block_pos + TIME_SIZE * 2 + 5
 
-		size = rio.tell + data_size - data_block_pos
+		size = payload_pos + data_size - data_block_pos
 		expected = block_info.payload_size
 		if size != expected
 		    raise "payload was supposed to be #{expected} bytes, but found #{size}"
@@ -729,7 +731,7 @@ module Pocolog
 
 		@data_header.io  = rio
                 @data_header.block_pos   = @block_info.pos
-		@data_header.payload_pos = rio.tell
+		@data_header.payload_pos = payload_pos
 		@data_header.rt = rt
 		@data_header.lg = lg
 		@data_header.size = data_size
