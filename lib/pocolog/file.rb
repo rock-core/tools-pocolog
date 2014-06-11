@@ -66,7 +66,7 @@ module Pocolog
 
 	# Whether or not data bigger than COMPRESSION_MIN_SIZE should be
 	# compressed using Zlib when written to this log file. Defaults to true
-	attr_predicate :compress?
+	attr_predicate :compress?, true
 
         # Returns true if +file+ is a valid, up-to-date, pocolog file
         def self.valid_file?(file)
@@ -108,6 +108,7 @@ module Pocolog
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
 	    @compress    = true
+            @data_header_buffer = ""
 	    rewind
             if io.empty?
                 # When opening existing files, @streams is going to be
@@ -718,10 +719,14 @@ module Pocolog
 		@data_header
 	    else
 		data_block_pos = rio.tell
-		rt, lg = read_time, read_time
-		data_size, compressed = rio.read(5).unpack('VC')
+		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed = rio.
+                    read(TIME_SIZE * 2 + 5, @data_header_buffer).
+                    unpack('VVVVVC')
+                rt = Time.at(rt_sec, rt_usec)
+                lg = Time.at(lg_sec, lg_usec)
+                payload_pos = data_block_pos + TIME_SIZE * 2 + 5
 
-		size = rio.tell + data_size - data_block_pos
+		size = payload_pos + data_size - data_block_pos
 		expected = block_info.payload_size
 		if size != expected
 		    raise "payload was supposed to be #{expected} bytes, but found #{size}"
@@ -729,7 +734,7 @@ module Pocolog
 
 		@data_header.io  = rio
                 @data_header.block_pos   = @block_info.pos
-		@data_header.payload_pos = rio.tell
+		@data_header.payload_pos = payload_pos
 		@data_header.rt = rt
 		@data_header.lg = lg
 		@data_header.size = data_size
@@ -750,12 +755,12 @@ module Pocolog
 	end
 	
 	# Returns the raw data payload of the current block
-	def data(data_header = nil)
+	def data(data_header = nil, buffer = nil)
 	    if @data && !data_header then @data
 	    else
 		data_header ||= self.data_header
 		data_header.io.seek(data_header.payload_pos)
-		data = data_header.io.read(data_header.size)
+		data = data_header.io.read(data_header.size, buffer)
 		if data_header.compressed
 		    # Payload is compressed
 		    data = Zlib::Inflate.inflate(data)
@@ -766,6 +771,18 @@ module Pocolog
                 data
 	    end
 	end
+
+        def read_one_data_payload(rio, position, buffer = nil)
+            io = @io[rio]
+            io.seek(position + BLOCK_HEADER_SIZE + TIME_SIZE * 2)
+            data_size, compressed = io.read(5).unpack('VC')
+            data = io.read(data_size, buffer)
+            if compressed != 0
+                # Payload is compressed
+                data = Zlib::Inflate.inflate(data)
+            end
+            data
+        end
 
         # Formats a block and writes it to +io+
         def self.write_block(wio, type, index, payload)

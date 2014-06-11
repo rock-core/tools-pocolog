@@ -56,6 +56,7 @@ module Pocolog
             @streams = streams
 	    @stream_has_sample = Array.new
 	    @stream_index_to_index_helpers = Array.new
+            @full_index = Array.new
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
             @time_interval = [time_ranges.min,time_ranges.max]
             build_index
@@ -273,6 +274,7 @@ module Pocolog
 	    @size = max_pos
 	    
 	    Pocolog.info("Got #{@streams.size} streams with #{size} samples")
+            tic = Time.now
 	    
 	    replay_streams = MultiRBTree.new
 	    index_helpers.each do |helper|
@@ -312,12 +314,13 @@ module Pocolog
 		    @index << index_sample
 		end
 
+                @full_index[pos] = [cur_index_helper.array_pos, cur_index_helper.time]
 		advance_indexes(replay_streams);
 	    end
             # Make sure to remove the progress display the next time we puts
             # something
             print "\r"
-	    Pocolog.info("Stream Aligner index created")
+	    Pocolog.info "Stream Aligner index created in #{"%.1f" % (Time.now - tic)}s"
 
         ensure
 	    STDOUT.sync = old_sync_val
@@ -429,20 +432,10 @@ module Pocolog
         # The associated data sample can also be retrieved by
         # single_data(stream_idx)
         def step
-	    if eof?
-		@sample_index = size
-		return
-	    end
-	    
-	    if @sample_index == -1
-		@sample_index = 0
-	    else
-		advance_indexes(@index_helpers)
-	    end
-	    
-	    _, cur_index_helper = @index_helpers.first
-	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
-	    [cur_index_helper.array_pos, cur_index_helper.time, data]
+            stream_idx, time = advance
+            if stream_idx
+                return stream_idx, time, single_data(stream_idx)
+            end
         end
 
         # call-seq:
@@ -455,19 +448,14 @@ module Pocolog
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def advance
-	    if(eof?)
-		return nil
+	    if eof?
+		@sample_index = size
+		return
 	    end
 	    
-	    if(@sample_index == -1)
-		@sample_index = 0
-	    else
-		advance_indexes(@index_helpers)
-	    end
-	    
-	    _, cur_index_helper = @index_helpers.first
-            [cur_index_helper.array_pos, cur_index_helper.time]
-         end
+            @sample_index = @sample_index + 1
+	    return *@full_index[@sample_index]
+        end
 
         # Decrements one step in the joint stream, an returns the index of the
         # updated stream as well as the time.
@@ -610,13 +598,16 @@ module Pocolog
         # Returns the current data sample for the given stream index
 	# note stream index is the index of the data stream, not the 
 	# search index !
-        def single_data(index)
-	    if(@stream_has_sample[index])
+        def single_data(index, sample = nil)
+            if raw = single_raw_data(index, sample)
+                return Typelib.to_ruby(raw)
+            end
+        end
+
+        def single_raw_data(index, sample = nil)
+	    if @stream_has_sample[index]
 		helper = @stream_index_to_index_helpers[index]
-		rt, lg, data = helper.stream.seek(helper.position)
-		data
-	    else
-		nil
+                helper.stream.read_one_raw_data_sample(helper.position)
 	    end
         end
 

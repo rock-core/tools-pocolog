@@ -25,6 +25,7 @@ module Pocolog
 	    
             @registry = nil
             @sample_index = -1
+            @raw_data_buffer = ""
         end
 
 	# Returns a SampleEnumerator object for this stream
@@ -163,10 +164,12 @@ module Pocolog
         # header.
         #
         # Block headers are returned by #rewind 
-	def raw_data(data_header = nil)
+	def raw_data(data_header = nil, sample = nil)
 	    if(@data && !data_header) then @data
 	    else
-		data = type.wrap(logfile.data(data_header))
+                marshalled_data = logfile.data(data_header, @raw_data_buffer)
+		data = sample || type.new
+                data.from_buffer_direct(marshalled_data)
 		if logfile.endian_swap
 		    data = data.endian_swap
 		end
@@ -175,6 +178,19 @@ module Pocolog
         rescue Exception => e
             raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
 	end
+
+        def read_one_raw_data_sample(position, sample = nil)
+	    rio, block_pos = info.index.file_position_by_sample_number(position)
+            marshalled_data = logfile.read_one_data_payload(rio, block_pos, @raw_data_buffer)
+            data = sample || type.new
+            data.from_buffer_direct(marshalled_data)
+            if logfile.endian_swap
+                data = data.endian_swap
+            end
+            data
+        rescue Exception => e
+            raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
+        end
 
         def data(data_header = nil)
             Typelib.to_ruby(raw_data(data_header))
