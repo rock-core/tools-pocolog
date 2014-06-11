@@ -772,6 +772,18 @@ module Pocolog
 	    end
 	end
 
+        def read_one_data_payload(rio, position, buffer = nil)
+            io = @io[rio]
+            io.seek(position + BLOCK_HEADER_SIZE + TIME_SIZE * 2)
+            data_size, compressed = io.read(5).unpack('VC')
+            data = io.read(data_size, buffer)
+            if compressed != 0
+                # Payload is compressed
+                data = Zlib::Inflate.inflate(data)
+            end
+            data
+        end
+
         # Formats a block and writes it to +io+
         def self.write_block(wio, type, index, payload)
 	    wio << [type, index, payload.size].pack('CxvV')
