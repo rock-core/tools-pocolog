@@ -56,6 +56,7 @@ module Pocolog
             @streams = streams
 	    @stream_has_sample = Array.new
 	    @stream_index_to_index_helpers = Array.new
+            @full_index = Array.new
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
             @time_interval = [time_ranges.min,time_ranges.max]
             build_index
@@ -313,6 +314,7 @@ module Pocolog
 		    @index << index_sample
 		end
 
+                @full_index[pos] = [cur_index_helper.array_pos, cur_index_helper.time]
 		advance_indexes(replay_streams);
 	    end
             # Make sure to remove the progress display the next time we puts
@@ -451,14 +453,8 @@ module Pocolog
 		return
 	    end
 	    
-	    if @sample_index == -1
-		@sample_index = 0
-	    else
-		advance_indexes(@index_helpers)
-	    end
-	    
-	    _, cur_index_helper = @index_helpers.first
-            return cur_index_helper.array_pos, cur_index_helper.time
+            @sample_index = @sample_index + 1
+	    return *@full_index[@sample_index]
         end
 
         # Decrements one step in the joint stream, an returns the index of the
