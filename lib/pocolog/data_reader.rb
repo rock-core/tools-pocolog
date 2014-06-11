@@ -167,9 +167,9 @@ module Pocolog
 	def raw_data(data_header = nil, sample = nil)
 	    if(@data && !data_header) then @data
 	    else
-                unmarshalled_data = logfile.data(data_header, @raw_data_buffer)
+                marshalled_data = logfile.data(data_header, @raw_data_buffer)
 		data = sample || type.new
-                data.from_buffer_direct(unmarshalled_data)
+                data.from_buffer_direct(marshalled_data)
 		if logfile.endian_swap
 		    data = data.endian_swap
 		end
