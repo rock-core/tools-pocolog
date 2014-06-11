@@ -66,7 +66,7 @@ module Pocolog
 
 	# Whether or not data bigger than COMPRESSION_MIN_SIZE should be
 	# compressed using Zlib when written to this log file. Defaults to true
-	attr_predicate :compress?
+	attr_predicate :compress?, true
 
         # Returns true if +file+ is a valid, up-to-date, pocolog file
         def self.valid_file?(file)
