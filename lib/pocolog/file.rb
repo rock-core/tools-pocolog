@@ -108,6 +108,7 @@ module Pocolog
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
 	    @compress    = true
+            @data_header_buffer = ""
 	    rewind
             if io.empty?
                 # When opening existing files, @streams is going to be
@@ -718,7 +719,9 @@ module Pocolog
 		@data_header
 	    else
 		data_block_pos = rio.tell
-		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed = rio.read(TIME_SIZE * 2 + 5).unpack('VVVVVC')
+		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed = rio.
+                    read(TIME_SIZE * 2 + 5, @data_header_buffer).
+                    unpack('VVVVVC')
                 rt = Time.at(rt_sec, rt_usec)
                 lg = Time.at(lg_sec, lg_usec)
                 payload_pos = data_block_pos + TIME_SIZE * 2 + 5
