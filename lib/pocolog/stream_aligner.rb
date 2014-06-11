@@ -611,8 +611,7 @@ module Pocolog
         def single_raw_data(index, sample = nil)
 	    if @stream_has_sample[index]
 		helper = @stream_index_to_index_helpers[index]
-                helper.stream.seek(helper.position, false)
-                helper.stream.raw_data(nil, sample)
+                helper.stream.read_one_raw_data_sample(helper.position)
 	    end
         end
 
