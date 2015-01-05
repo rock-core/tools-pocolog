@@ -430,20 +430,10 @@ module Pocolog
         # The associated data sample can also be retrieved by
         # single_data(stream_idx)
         def step
-	    if eof?
-		@sample_index = size
-		return
-	    end
-	    
-	    if @sample_index == -1
-		@sample_index = 0
-	    else
-		advance_indexes(@index_helpers)
-	    end
-	    
-	    _, cur_index_helper = @index_helpers.first
-	    rt, lg, data = cur_index_helper.stream.seek(cur_index_helper.position)
-	    [cur_index_helper.array_pos, cur_index_helper.time, data]
+            stream_idx, time = advance
+            if stream_idx
+                return stream_idx, time, single_data(stream_idx)
+            end
         end
 
         # call-seq:
@@ -456,19 +446,21 @@ module Pocolog
         # The associated data sample can then be retrieved by
         # single_data(stream_idx)
         def advance
-	    if(eof?)
-		return nil
+	    if eof?
+		@sample_index = size
+		return
 	    end
 	    
-	    if(@sample_index == -1)
+	    if @sample_index == -1
 		@sample_index = 0
 	    else
 		advance_indexes(@index_helpers)
 	    end
 	    
 	    _, cur_index_helper = @index_helpers.first
-            [cur_index_helper.array_pos, cur_index_helper.time]
-         end
+            @stream_has_sample[cur_index_helper.array_pos] = true
+            return cur_index_helper.array_pos, cur_index_helper.time
+        end
 
         # Decrements one step in the joint stream, an returns the index of the
         # updated stream as well as the time.
