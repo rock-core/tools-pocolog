@@ -56,6 +56,7 @@ module Pocolog
             @streams = streams
 	    @stream_has_sample = Array.new
 	    @stream_index_to_index_helpers = Array.new
+            @full_index = Array.new
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
             @time_interval = [time_ranges.min,time_ranges.max]
             build_index
@@ -313,12 +314,15 @@ module Pocolog
 		    @index << index_sample
 		end
 
+                @full_index[pos] = [cur_index_helper.array_pos, cur_index_helper.time, cur_index_helper.position]
 		advance_indexes(replay_streams);
 	    end
             # Make sure to remove the progress display the next time we puts
             # something
             print "\r"
 	    Pocolog.info "Stream Aligner index created in #{"%.1f" % (Time.now - tic)}s"
+
+            rewind
 
         ensure
 	    STDOUT.sync = old_sync_val
@@ -451,15 +455,14 @@ module Pocolog
 		return
 	    end
 	    
-	    if @sample_index == -1
-		@sample_index = 0
-	    else
-		advance_indexes(@index_helpers)
-	    end
-	    
-	    _, cur_index_helper = @index_helpers.first
-            @stream_has_sample[cur_index_helper.array_pos] = true
-            return cur_index_helper.array_pos, cur_index_helper.time
+            @sample_index = @sample_index + 1
+            stream_idx, time, position = *@full_index[@sample_index]
+            @stream_has_sample[stream_idx] = true
+            # Update the helper
+            helper = @stream_index_to_index_helpers[stream_idx]
+            helper.time = time
+            helper.position = position
+	    return stream_idx, time
         end
 
         # Decrements one step in the joint stream, an returns the index of the
