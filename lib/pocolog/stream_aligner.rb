@@ -603,6 +603,29 @@ module Pocolog
             @global_pos_last_sample[stream]
         end
 
+        # Returns the information necessary to read a stream's sample later
+        #
+        # @param [Integer] stream_idx the index of the stream
+        # @return [(DataStream,Integer),nil] if there is a current sample on
+        #   this stream, this is the stream and the position on the stream,
+        #   suitable to be passed to {DataStream#read_one_raw_data_sample}.
+        #   Otherwise, returns nil.
+        #
+        # @example
+        #    stream_idx, time = aligner.advance
+        #    @read_later = aligner.stream_info(stream_idx)
+        #    ...
+        #    if @read_later
+        #       stream, position = *@read_later
+        #       stream.read_one_raw_data_sample(position)
+        #    end
+        def sample_info(stream_idx)
+	    if @stream_has_sample[stream_idx]
+		helper = @stream_index_to_index_helpers[stream_idx]
+                return helper.stream, helper.position
+	    end
+        end
+
         # Returns the current data sample for the given stream index
 	# note stream index is the index of the data stream, not the 
 	# search index !
@@ -613,9 +636,9 @@ module Pocolog
         end
 
         def single_raw_data(index, sample = nil)
-	    if @stream_has_sample[index]
-		helper = @stream_index_to_index_helpers[index]
-                helper.stream.read_one_raw_data_sample(helper.position)
+            stream, position = sample_info(index)
+            if stream
+                stream.read_one_raw_data_sample(position)
 	    end
         end
 
