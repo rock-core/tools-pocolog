@@ -4,6 +4,7 @@ require 'rake'
 begin
     require 'hoe'
     Hoe::plugin :yard
+    Hoe::RUBY_FLAGS.gsub!(/-w/, '')
 
     config = Hoe.spec 'pocolog' do
         self.developer "Sylvain Joyeux", "sylvain.joyeux@dfki.de"

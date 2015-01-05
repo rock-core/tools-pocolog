@@ -1,7 +1,7 @@
 require 'pocolog'
-require 'test/unit'
+require 'minitest/autorun'
 
-class TC_File < Test::Unit::TestCase
+class TC_File < Minitest::Test
     attr_reader :logfile
 
     def create_fixture

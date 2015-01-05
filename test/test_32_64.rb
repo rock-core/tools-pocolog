@@ -1,7 +1,7 @@
+require 'minitest/autorun'
 require 'pocolog'
-require 'test/unit'
 
-class TC_3264 < Test::Unit::TestCase
+class TC_3264 < Minitest::Test
     DATA_PATH  = File.expand_path("data", File.dirname(__FILE__))
     LOGS_32BIT = %w{camera32bit.0.log}
 
