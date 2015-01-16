@@ -642,6 +642,10 @@ module Pocolog
 	    end
         end
 
+        def stream_by_index(stream_idx)
+            @stream_index_to_index_helpers[stream_idx].stream
+        end
+
         def each(do_rewind = true)
             if do_rewind
                 rewind
