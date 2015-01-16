@@ -613,7 +613,7 @@ module Pocolog
         #
         # @example
         #    stream_idx, time = aligner.advance
-        #    @read_later = aligner.stream_info(stream_idx)
+        #    @read_later = aligner.sample_info(stream_idx)
         #    ...
         #    if @read_later
         #       stream, position = *@read_later
