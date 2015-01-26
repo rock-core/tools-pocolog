@@ -1,7 +1,7 @@
 require 'pocolog'
-require 'test/unit'
+require 'minitest/autorun'
 
-class TC_DataStream < Test::Unit::TestCase
+class TC_DataStream < Minitest::Test
     attr_reader :logfile
     attr_reader :stream
     attr_reader :expected_data
@@ -174,7 +174,7 @@ class TC_DataStream < Test::Unit::TestCase
     def test_past_the_end_does_not_read_whole_file
         stream.seek(10)
         stream.last
-        assert_not_equal @logfile.rio.tell, stream.logfile.rio.tell
+        refute_equal @logfile.rio.tell, stream.logfile.rio.tell
     end
 
     def test_samples?

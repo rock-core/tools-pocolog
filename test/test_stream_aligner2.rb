@@ -1,7 +1,7 @@
 require 'pocolog'
-require 'test/unit'
+require 'minitest/autorun'
 
-class TC_StreamAligner2 < Test::Unit::TestCase
+class TC_StreamAligner2 < Minitest::Test
     attr_reader :logfile
     attr_reader :stream
     attr_reader :expected_data
