@@ -488,7 +488,7 @@ module Pocolog
                     if e.kind_of?(Interrupt)
                         raise
                     else
-                        raise InvalidIndex, "cannot unmarshal index data"
+                        raise InvalidIndex, "cannot unmarshal index data (#{e.message})"
                     end
                 end
 
@@ -534,7 +534,7 @@ module Pocolog
             return @streams.compact
 
         rescue InvalidIndex => e
-            Pocolog.warn "invalid index file #{index_filename}"
+            Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
 	    nil
         end
 
