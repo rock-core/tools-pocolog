@@ -267,7 +267,7 @@ module Pocolog
 		    data = self.data(header)
 		    return [header.rt, Time.at(header.lg - logfile.time_base), data]
 		else
-		    nil
+		    header
 		end
             end
 	end
