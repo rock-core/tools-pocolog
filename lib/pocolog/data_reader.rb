@@ -28,6 +28,18 @@ module Pocolog
             @raw_data_buffer = ""
         end
 
+        def closed?
+            logfile.closed?
+        end
+
+        def open
+            logfile.open
+        end
+
+        def close
+            logfile.close
+        end
+
 	# Returns a SampleEnumerator object for this stream
 	def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 

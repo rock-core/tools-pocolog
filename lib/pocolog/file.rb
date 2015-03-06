@@ -121,10 +121,23 @@ module Pocolog
             end
 	end
 
+        def closed?
+            @io.all? { |io| io.closed? }
+        end
+
         # Close the underlying IO objects
 	def close
 	    io.each { |file| file.close }
 	end
+
+        def open
+	    @io = io.map do |file|
+                if file.closed?
+                    File.open(file.path)
+                else file
+                end
+            end
+        end
 
 	# The basename for creating new log files. The files
 	# names are
