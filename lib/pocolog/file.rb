@@ -555,7 +555,7 @@ module Pocolog
             end
 	    
             # No index file. Compute it.
-            Pocolog.info "building index ..."
+            Pocolog.info "building index #{index_filename} ..."
 	    each_data_block(nil, true) do |stream_index|
                 # The stream object itself is built when the declaration block
                 # has been found
