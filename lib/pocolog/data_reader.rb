@@ -370,6 +370,7 @@ module Pocolog
                             end
                         end
             
+            data_buffer = String.new
             seek(start_index,false)
             counter = 0
             max = end_index-start_index
@@ -377,7 +378,7 @@ module Pocolog
                 if block
                     return false if block.call(counter)
                 end
-                data = logfile.data(data_header)
+                data = logfile.data(data_header, data_buffer)
                 stream.write_raw(data_header.rt,data_header.lg,data)
                 counter += 1
             end while advance && counter <= max
