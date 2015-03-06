@@ -481,7 +481,7 @@ module Pocolog
             # Look for an index. If it is found, load it and use it.
             return unless File.readable?(index_filename)
             Pocolog.info "loading file info from #{index_filename}... "
-            index_data = File.open(index_filename).read
+            index_data = File.read(index_filename)
             file_info, stream_info =
                 begin Marshal.load(index_data)
                 rescue Exception => e
