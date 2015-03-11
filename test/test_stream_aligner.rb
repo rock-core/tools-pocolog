@@ -45,18 +45,29 @@ class TC_StreamAligner < Minitest::Test
         assert_equal [Time.at(0),Time.at(99,500)], stream.time_interval
     end
 
-    def test_time_advancing	
+    def test_eof_is_a_valid_loop_termination_condition
+	while !@stream.eof?
+	    index = stream.step
+            assert index, "failed at #{stream.sample_index}"
+        end
+    end
+
+    def test_time_advancing
 	cnt = 0
-	while(!@stream.eof?())
-	    index, time, data = stream.step()
-	    last_time ||= time
+        last_time = nil
+	while !@stream.eof?
+	    index, time, data = stream.step
+            assert(!last_time || last_time < time)
+            last_time = time
 	    cnt = cnt + 1
-	    assert last_time <= time
-	    last_time = time
 	end
-	while(cnt > 0)
+        last_time = nil
+        stream.step
+	while cnt > 0
 	    index, time, data = stream.step_back()
+	    assert(!last_time || last_time > time)
 	    cnt = cnt - 1
+	    last_time = time
 	end	
     end
     
@@ -125,9 +136,10 @@ class TC_StreamAligner < Minitest::Test
         assert_equal 21, stream.sample_index
         assert_equal Time.at(10,500), stream.time
         assert_equal [2, Time.at(10,500), 1000], sample
+    end
 
-        #seek to the end and check if we are at the right position
-        sample = stream.seek(197)
+    def test_step_to_eof
+        stream.seek(197)
         assert_equal false, stream.eof?
         stream.step
         assert_equal false, stream.eof?

@@ -28,6 +28,10 @@ module Pocolog
             @raw_data_buffer = ""
         end
 
+        def stream_index
+            info.index
+        end
+
         def closed?
             logfile.closed?
         end
@@ -192,7 +196,7 @@ module Pocolog
 	end
 
         def read_one_raw_data_sample(position, sample = nil)
-	    rio, block_pos = info.index.file_position_by_sample_number(position)
+	    rio, block_pos = stream_index.file_position_by_sample_number(position)
             marshalled_data = logfile.read_one_data_payload(rio, block_pos, @raw_data_buffer)
             data = sample || type.new
             data.from_buffer_direct(marshalled_data)
@@ -262,12 +266,12 @@ module Pocolog
 	def seek(pos, decode_data = true)
 	    if pos.kind_of?(Time)
                 return nil if(time_interval.empty? || time_interval[0] > pos || time_interval[1] < pos)
-		@sample_index = info.index.sample_number_by_time(pos)
+		@sample_index = stream_index.sample_number_by_time(pos)
 	    else
 		@sample_index = pos
 	    end
 
-	    rio, file_pos = info.index.file_position_by_sample_number(@sample_index)
+	    rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
 	    block_info = logfile.read_one_block(file_pos, rio)
             if block_info.index != self.index
                 raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.index).name} while we were expecting #{name}"
@@ -290,7 +294,7 @@ module Pocolog
 	def advance
             if sample_index < size-1
                 @sample_index += 1
-		rio, file_pos = info.index.file_position_by_sample_number(@sample_index)
+		rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
 		logfile.read_one_block(file_pos, rio)
 		return logfile.data_header
             else
@@ -347,7 +351,7 @@ module Pocolog
                               if interval.first > start_index
                                   0
                               else
-                                  info.index.sample_number_by_time(start_index)
+                                  stream_index.sample_number_by_time(start_index)
                               end
                           else
                               if start_index < 0
@@ -360,7 +364,7 @@ module Pocolog
                             if interval.last < end_index
                                 size-1
                             else
-                                info.index.sample_number_by_time(end_index)
+                                stream_index.sample_number_by_time(end_index)
                             end
                         else
                             if end_index >= size
@@ -382,7 +386,7 @@ module Pocolog
                 stream.write_raw(data_header.rt,data_header.lg,data)
                 counter += 1
             end while advance && counter <= max
-            true
+            counter
         end
 
 	# call-seq:
