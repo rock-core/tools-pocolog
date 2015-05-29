@@ -13,6 +13,9 @@ module Pocolog
     # Time base access has a complexity of O(log N)
     #
     class StreamIndex
+        attr_reader :base_time
+        attr_reader :time_to_position_map
+
 	def initialize
 	    # The index holds three arrays, which associate
 	    # the position number of a sample in a stream
@@ -22,6 +25,7 @@ module Pocolog
 	    # pocolog accepts multifile log streams
 	    #
 	   @nr_to_position_map = Array.new()
+           @base_time = nil
 	   @time_to_position_map = Array.new()
 	   @nr_to_rio = Array.new()
 	end
@@ -32,7 +36,9 @@ module Pocolog
 	    #store the posiiton of the header of the data sample
 	    @nr_to_rio << rio
 	    @nr_to_position_map << pos 
-	    @time_to_position_map << time
+            internal_time = time.tv_sec * 1_000_000 + time.tv_usec
+            @base_time ||= internal_time
+	    @time_to_position_map << (internal_time - @base_time)
 	end
 
 	# sanity check for the index, which gets called after
@@ -63,9 +69,20 @@ module Pocolog
 	    return bSearch(a, x, 0, a.length)
 	end
 
+        def self.time_from_internal(time, base_time)
+            time = time + base_time
+            Time.at(time / 1_000_000, time % 1_000_000)
+        end
+
+        def self.time_to_internal(time, base_time)
+            internal = time.tv_sec * 1_000_000 + time.tv_usec
+            internal - base_time
+        end
+
 	#returns the sample nr of the sample before
 	#the given time
 	def sample_number_by_time(sample_time)
+            sample_time = StreamIndex.time_to_internal(sample_time, base_time)
 	    time_map_pos = binSearch(@time_to_position_map, sample_time)
 
 	    #we look for the sample before time x
@@ -81,30 +98,48 @@ module Pocolog
 	    return @nr_to_rio[sample_nr], @nr_to_position_map[sample_nr]
 	end
 
-	#expects a sample nr and returns the time
-	#of the sample
+        # Expects
 	def get_time_by_sample_number(sample_nr)
+        end
+
+
+	# expects a sample nr and returns the time
+	# of the sample
+        def time_by_sample_number(sample_nr)
 	    if(sample_nr < 0 || sample_nr > @time_to_position_map.size() -1)
 		raise ArgumentError, "#{sample_nr} out of bounds"
 	    end
-	    @time_to_position_map[sample_nr]
+	    StreamIndex.time_from_internal(@time_to_position_map[sample_nr], base_time)
 	end
 
         def marshal_dump
-            time_to_position_map = @time_to_position_map.inject(Array.new) { |ary, t| ary << t.tv_sec << t.tv_usec }
             [@nr_to_rio.pack("n*"),
              @nr_to_position_map.pack("Q>*"),
-             time_to_position_map.pack("Q>*")]
+             @base_time,
+             @time_to_position_map.pack("Q>*")]
         end
 
         def marshal_load(info)
+            if info.size == 4
+                nr_to_rio, nr_to_position_map, base_time, time_to_position_map = *info
+                @nr_to_rio = nr_to_rio.unpack("n*")
+                @nr_to_position_map = nr_to_position_map.unpack("Q>*")
+                @base_time = base_time
+                @time_to_position_map = time_to_position_map.unpack("Q>*")
+                return
+            end
+
             nr_to_rio, nr_to_position_map, time_to_position_map = *info
             if nr_to_rio.respond_to?(:to_str)
                 @nr_to_rio = nr_to_rio.unpack("n*")
                 @nr_to_position_map = nr_to_position_map.unpack("Q>*")
                 time_to_position_map = time_to_position_map.unpack("Q>*")
-                @time_to_position_map = time_to_position_map.each_slice(2).map do |tv_sec, tv_usec|
-                    Time.at(tv_sec, tv_usec)
+                if time_to_position_map.empty?
+                else
+                    # Old-new-style :( [tv_sec, tv_usec]
+                    base, _ = time_to_position_map.first
+                    @base_time = base
+                    @time_to_position_map = time_to_position_map.each_slice(2).map { |sec, usec| (sec - base) * 1_000_000 + usec }
                 end
             else
                 Pocolog.warn "found an old-format index. Consider deleting all your index files to upgrade to a newer format"

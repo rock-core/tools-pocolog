@@ -121,10 +121,23 @@ module Pocolog
             end
 	end
 
+        def closed?
+            @io.all? { |io| io.closed? }
+        end
+
         # Close the underlying IO objects
 	def close
 	    io.each { |file| file.close }
 	end
+
+        def open
+	    @io = io.map do |file|
+                if file.closed?
+                    File.open(file.path)
+                else file
+                end
+            end
+        end
 
 	# The basename for creating new log files. The files
 	# names are
@@ -481,14 +494,14 @@ module Pocolog
             # Look for an index. If it is found, load it and use it.
             return unless File.readable?(index_filename)
             Pocolog.info "loading file info from #{index_filename}... "
-            index_data = File.open(index_filename).read
+            index_data = File.read(index_filename)
             file_info, stream_info =
                 begin Marshal.load(index_data)
                 rescue Exception => e
                     if e.kind_of?(Interrupt)
                         raise
                     else
-                        raise InvalidIndex, "cannot unmarshal index data"
+                        raise InvalidIndex, "cannot unmarshal index data (#{e.message})"
                     end
                 end
 
@@ -534,7 +547,7 @@ module Pocolog
             return @streams.compact
 
         rescue InvalidIndex => e
-            Pocolog.warn "invalid index file #{index_filename}"
+            Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
 	    nil
         end
 
@@ -555,7 +568,7 @@ module Pocolog
             end
 	    
             # No index file. Compute it.
-            Pocolog.info "building index ..."
+            Pocolog.info "building index #{index_filename} ..."
 	    each_data_block(nil, true) do |stream_index|
                 # The stream object itself is built when the declaration block
                 # has been found
