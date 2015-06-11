@@ -947,6 +947,11 @@ module Pocolog
                 Logfiles.write_data_block(wio, stream.index, rt, lg, compress, data)
             end
 	end
+
+        # Creates a stream aligner on all streams of this logfile
+        def stream_aligner(use_rt = false)
+            StreamAligner.new(use_rt, *streams.compact)
+        end
     end
 
     # Returns the stream called +stream_name+ from file

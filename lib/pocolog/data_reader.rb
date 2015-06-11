@@ -362,13 +362,13 @@ module Pocolog
                           end
             end_index = if end_index.is_a? Time
                             if interval.last < end_index
-                                size-1
+                                size
                             else
                                 stream_index.sample_number_by_time(end_index)
                             end
                         else
                             if end_index >= size
-                                size-1
+                                size
                             else
                                 end_index
                             end
@@ -385,7 +385,7 @@ module Pocolog
                 data = logfile.data(data_header, data_buffer)
                 stream.write_raw(data_header.rt,data_header.lg,data)
                 counter += 1
-            end while advance && counter <= max
+            end while advance && counter < max
             counter
         end
 
@@ -398,17 +398,9 @@ module Pocolog
             if start_index.is_a? Time
                 interval = time_interval
                 return unless interval.first
-                if start_index <= interval.last && start_index <= end_index && end_index >= interval.first
-                    true
-                else
-                    false
-                end
+                start_index <= interval.last && start_index <= end_index && end_index >= interval.first
             else
-                if start_index < size && start_index <= end_index && end_index >= 0
-                    true
-                else
-                    false
-                end
+                start_index < size && start_index <= end_index && end_index >= 0
             end
         end
     end
