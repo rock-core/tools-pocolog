@@ -75,7 +75,11 @@ module Pocolog
         end
 
         def self.time_to_internal(time, base_time)
-            internal = time.tv_sec * 1_000_000 + time.tv_usec
+	    internal = if(time.is_a?(Fixnum))
+                           time
+		       else
+	    		   time.tv_sec * 1_000_000 + time.tv_usec
+                       end
             internal - base_time
         end
 

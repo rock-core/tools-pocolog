@@ -1,4 +1,3 @@
-require 'rbtree'
 
 module Pocolog
     class OutOfBounds < Exception;end
@@ -104,8 +103,8 @@ module Pocolog
             Pocolog.info "concatenated indexes in #{"%.2f" % [Time.now - tic]} seconds"
             full_index.sort!
             @full_index = full_index.each_with_index.map do |entry, position_global|
-                global_pos_first_sample[entry[2]] ||= position_global
-                global_pos_last_sample[entry[2]] = position_global
+                global_pos_first_sample[streams[entry[2]]] ||= position_global
+                global_pos_last_sample[streams[entry[2]]] = position_global
                 IndexEntry.new(*entry, position_global)
             end
             if full_index.size != size
@@ -284,11 +283,11 @@ module Pocolog
             end_index ||= size - 1
 
             output = Pocolog::Logfiles.create(file)
-            streams.each_with_index do |s|
+            streams.each_with_index do |s,i|
                 first_index = first_sample_pos(s)
                 last_index  = last_sample_pos(s)
                 # Ignore the stream if it is empty
-                next if !start_index
+                next if !first_index
                 # Ignore the stream if there are no samples intersecting with
                 # the required interval
                 next if start_index >= last_index || end_index <= first_index
@@ -328,7 +327,7 @@ module Pocolog
             else
                 # We have to check whether the sample is before or after
                 # position_global and act accordingly
-                stream_number = streams.index_of(stream)
+                stream_number = streams.index(stream)
                 while entry && (entry.time == stream_time)
                     if entry.stream_number == stream_number && entry.position_in_stream == stream_pos
                         return stream_pos
