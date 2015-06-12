@@ -361,6 +361,8 @@ module Pocolog
                     stream_end_index, s)
                 next if first_stream_pos == last_stream_pos
 
+                index = 0
+                number_of_samples = stream_end_index-stream_start_index+1
                 stream_output = output.create_stream(s.name, s.type)
                 result = s.copy_to(first_stream_pos,last_stream_pos,stream_output) do |i|
                     if block
