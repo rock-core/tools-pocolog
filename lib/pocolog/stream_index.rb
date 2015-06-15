@@ -2,8 +2,6 @@ require 'utilrb/module/attr_predicate'
 require 'yaml'
 require 'fileutils'
 module Pocolog
-    
-    #
     # This file contains the index of a data stream.
     #
     # Through this index it is possible to have an O(1) 
@@ -16,18 +14,31 @@ module Pocolog
         attr_reader :base_time
         attr_reader :time_to_position_map
 
-	def initialize
-	    # The index holds three arrays, which associate
-	    # the position number of a sample in a stream
-	    # with the file, file position and time of the sample
-	    #
-	    # The file is encoded as an index value (rio) since 
-	    # pocolog accepts multifile log streams
-	    #
-	   @nr_to_position_map = Array.new()
-           @base_time = nil
-	   @time_to_position_map = Array.new()
-	   @nr_to_rio = Array.new()
+        def base_time=(value)
+            offset = @base_time - value
+            return if offset == 0
+            @time_to_position_map = time_to_position_map.map do |t, i|
+                [t + offset, i]
+            end
+            @base_time = value
+        end
+
+        def size
+            @time_to_position_map.size
+        end
+
+        def initialize
+            # The index holds three arrays, which associate
+            # the position number of a sample in a stream
+            # with the file, file position and time of the sample
+            #
+            # The file is encoded as an index value (rio) since 
+            # pocolog accepts multifile log streams
+            #
+            @nr_to_position_map = Array.new()
+            @base_time = nil
+            @time_to_position_map = Array.new()
+            @nr_to_rio = Array.new()
 	end
 	
 	#adds a given sample header (and thus the sample) to
@@ -38,7 +49,7 @@ module Pocolog
 	    @nr_to_position_map << pos 
             internal_time = time.tv_sec * 1_000_000 + time.tv_usec
             @base_time ||= internal_time
-	    @time_to_position_map << (internal_time - @base_time)
+            @time_to_position_map << [(internal_time - @base_time), time_to_position_map.size]
 	end
 
 	# sanity check for the index, which gets called after
@@ -47,26 +58,6 @@ module Pocolog
 	    @nr_to_rio && @nr_to_position_map && @time_to_position_map &&
 	    @nr_to_rio.size == @nr_to_position_map.size &&
 	    @nr_to_rio.size == @time_to_position_map.size
-	end
-
-	#internal helper method
-	def bSearch(arr, elem, low, high)
-	    mid = low+((high-low)/2).to_i
-	    if low > high
-		return low
-	    end
-	    if elem < arr[mid]
-		return bSearch(arr, elem, low, mid-1)
-	    elsif elem > arr[mid]
-		return bSearch(arr, elem, mid+1, high)
-	    else
-		return mid
-	    end
-	end
-	
-	#binary search
-	def binSearch(a, x)
-	    return bSearch(a, x, 0, a.length)
 	end
 
         def self.time_from_internal(time, base_time)
@@ -79,17 +70,22 @@ module Pocolog
             internal - base_time
         end
 
-	#returns the sample nr of the sample before
-	#the given time
+        # Returns the sample number of the first sample whose time is not before
+        # the given time
+        #
+        # @param [Time]
 	def sample_number_by_time(sample_time)
             sample_time = StreamIndex.time_to_internal(sample_time, base_time)
-	    time_map_pos = binSearch(@time_to_position_map, sample_time)
+            sample_number_by_internal_time(sample_time)
+        end
 
-	    #we look for the sample before time x
-	    if(time_map_pos > 0 && time_map_pos != @time_to_position_map.length && @time_to_position_map[time_map_pos] != sample_time )
-		time_map_pos = time_map_pos - 1
-	    end
-	    time_map_pos
+        # Returns the sample number of the first sample whose time is not before
+        # the given time
+        #
+        # @param [Integer]
+        def sample_number_by_internal_time(sample_time)
+            _, idx = @time_to_position_map.bsearch { |t, _| t >= sample_time }
+            idx || size
 	end
 	
 	# Expects the number of the sample that needs to be accessed 
@@ -98,25 +94,24 @@ module Pocolog
 	    return @nr_to_rio[sample_nr], @nr_to_position_map[sample_nr]
 	end
 
-        # Expects
-	def get_time_by_sample_number(sample_nr)
+        def internal_time_by_sample_number(sample_nr)
+	    if(sample_nr < 0 || sample_nr >= size)
+		raise ArgumentError, "#{sample_nr} out of bounds"
+	    end
+            @time_to_position_map[sample_nr].first
         end
-
 
 	# expects a sample nr and returns the time
 	# of the sample
         def time_by_sample_number(sample_nr)
-	    if(sample_nr < 0 || sample_nr > @time_to_position_map.size() -1)
-		raise ArgumentError, "#{sample_nr} out of bounds"
-	    end
-	    StreamIndex.time_from_internal(@time_to_position_map[sample_nr], base_time)
+	    StreamIndex.time_from_internal(internal_time_by_sample_number(sample_nr), base_time)
 	end
 
         def marshal_dump
             [@nr_to_rio.pack("n*"),
              @nr_to_position_map.pack("Q>*"),
              @base_time,
-             @time_to_position_map.pack("Q>*")]
+             @time_to_position_map.map(&:first).pack("Q>*")]
         end
 
         def marshal_load(info)
@@ -125,7 +120,9 @@ module Pocolog
                 @nr_to_rio = nr_to_rio.unpack("n*")
                 @nr_to_position_map = nr_to_position_map.unpack("Q>*")
                 @base_time = base_time
-                @time_to_position_map = time_to_position_map.unpack("Q>*")
+                @time_to_position_map = time_to_position_map.unpack("Q>*").each_with_index.map do |time, i|
+                    [time, i]
+                end
                 return
             end
 

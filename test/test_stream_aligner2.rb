@@ -104,17 +104,17 @@ class TC_StreamAligner2 < Minitest::Test
         @stream.export_to_file("export2.log",30)
         @stream.export_to_file("export3.log",90,109)
 
-        logfile2 = Pocolog::Logfiles.open('export1.log')
+        logfile2 = Pocolog::Logfiles.open('export1.log.0.log')
         stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
         assert_equal 200, stream2.size
         logfile2.close
 
-        logfile2 = Pocolog::Logfiles.open('export2.log')
+        logfile2 = Pocolog::Logfiles.open('export2.log.0.log')
         stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
         assert_equal 170, stream2.size
         logfile2.close
 
-        logfile2 = Pocolog::Logfiles.open('export3.log')
+        logfile2 = Pocolog::Logfiles.open('export3.log.0.log')
         stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
         assert_equal 20, stream2.size
 
@@ -138,3 +138,4 @@ class TC_StreamAligner2 < Minitest::Test
         end
     end
 end
+
