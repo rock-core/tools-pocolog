@@ -99,6 +99,9 @@ module Pocolog
 	    Pocolog.info("got #{streams.size} streams with #{size} samples")
             tic = Time.now
             @base_time = streams.map { |s| s.stream_index.base_time }.min
+            if @base_time.nil?
+                raise ArgumentError, "No valid time within the log found, maybe the index is broken?"
+            end
 
             time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
             @time_interval = [time_ranges.min,time_ranges.max]
