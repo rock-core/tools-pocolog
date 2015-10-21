@@ -14,5 +14,6 @@
 
     <depend package="typelib" />
     <depend package="utilrb" />
+    <depend package="hoe" />
 </package>
 
