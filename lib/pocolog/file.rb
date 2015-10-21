@@ -742,7 +742,10 @@ module Pocolog
 		size = payload_pos + data_size - data_block_pos
 		expected = block_info.payload_size
 		if size != expected
-		    raise "payload was supposed to be #{expected} bytes, but found #{size}"
+                    if rio.respond_to?(:path)
+                        file = " in #{rio.path}"
+                    end
+		    raise "payload#{file} at position #{data_block_pos} was expected to be #{expected} bytes, but found #{size}"
 		end
 
 		@data_header.io  = rio
