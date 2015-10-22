@@ -191,6 +191,8 @@ module Pocolog
 		end
                 data
 	    end
+        rescue Interrupt
+            raise
         rescue Exception => e
             raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
 	end
@@ -204,8 +206,13 @@ module Pocolog
                 data = data.endian_swap
             end
             data
+        rescue Interrupt
+            raise
         rescue Exception => e
-            raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
+            if rio.respond_to?(:path)
+                file = "in #{rio.path} "
+            end
+            raise e, "#{file}failed to unmarshal sample for block position #{block_pos}: #{e.message}", e.backtrace
         end
 
         def data(data_header = nil)

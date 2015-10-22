@@ -15,6 +15,7 @@ module Pocolog
         attr_reader :time_to_position_map
 
         def base_time=(value)
+            @base_time ||= value
             offset = @base_time - value
             return if offset == 0
             @time_to_position_map = time_to_position_map.map do |t, i|

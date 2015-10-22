@@ -98,9 +98,9 @@ module Pocolog
 	    @size = streams.inject(0) { |s, stream| s + stream.size }
 	    Pocolog.info("got #{streams.size} streams with #{size} samples")
             tic = Time.now
-            @base_time = streams.map { |s| s.stream_index.base_time }.min
+            @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
 
-            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten
+            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten.compact
             @time_interval = [time_ranges.min,time_ranges.max]
 
             full_index = Array.new
