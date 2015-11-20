@@ -49,7 +49,7 @@ module Pocolog
 	DATA_HEADER_SIZE = TIME_SIZE * 2 + 5
 
 	# Data blocks of less than COMPRESSION_MIN_SIZE are never compressed
-	COMPRESSION_MIN_SIZE = 500
+	COMPRESSION_MIN_SIZE = 60 * 1024
 	# If the size gained by compressing is below this value, do not save in
 	# compressed form
 	COMPRESSION_THRESHOLD = 0.3
