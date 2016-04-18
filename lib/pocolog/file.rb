@@ -828,14 +828,22 @@ module Pocolog
             return Logfiles.write_block(wio,type,index,payload)
         end
 
+        def self.normalize_metadata(metadata)
+            result = Hash.new
+            metadata.each do |k, v|
+                result[k.to_str] = v
+            end
+            result
+        end
+
         # Encodes and writes a stream declaration block to +wio+
         def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil, metadata = Hash.new)
-
             if type_name.respond_to?(:name)
                 type_registry ||= type_name.registry.minimal(type_name.name).to_xml
                 type_name  = type_name.name
             end
 
+            metadata = normalize_metadata(metadata)
             metadata = YAML.dump(metadata)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,
