@@ -5,6 +5,10 @@ module Pocolog
     class InvalidIndex < RuntimeError; end
     class InternalError < RuntimeError; end
 
+    class InvalidFile < RuntimeError; end
+    class NotEnoughData < InvalidFile; end
+    class InvalidBlockFound < InvalidFile; end
+
     # Low-level access to (consistent) set of logfiles.
     #
     # The pocolog logfiles can be split during recording in order to limit each
@@ -45,7 +49,7 @@ module Pocolog
 	DATA_HEADER_SIZE = TIME_SIZE * 2 + 5
 
 	# Data blocks of less than COMPRESSION_MIN_SIZE are never compressed
-	COMPRESSION_MIN_SIZE = 500
+	COMPRESSION_MIN_SIZE = 60 * 1024
 	# If the size gained by compressing is below this value, do not save in
 	# compressed form
 	COMPRESSION_THRESHOLD = 0.3
@@ -404,8 +408,7 @@ module Pocolog
             if !BLOCK_TYPES.include?(type)
                 file = if rio.respond_to?(:path) then " in file #{rio.path}"
                        end
-                Pocolog.warn "invalid block type '#{type}' found#{file} at position #{rio.tell}, expected one of #{BLOCK_TYPES.join(", ")}. The file is probably corrupted. The rest of the file will be ignored."
-                return
+                raise InvalidBlockFound, "invalid block type '#{type}' found#{file} at position #{rio.tell}, expected one of #{BLOCK_TYPES.join(", ")}, you may want to try running pocolog-repair on this file"
             end
 
             @block_info.io           = @rio
@@ -732,9 +735,14 @@ module Pocolog
 		@data_header
 	    else
 		data_block_pos = rio.tell
-		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed = rio.
-                    read(TIME_SIZE * 2 + 5, @data_header_buffer).
-                    unpack('VVVVVC')
+                expected_header_size = TIME_SIZE * 2 + 5
+                result = rio.read(expected_header_size)
+                if result.size != expected_header_size
+                    raise NotEnoughData, "expected to have #{expected_header_size} bytes remaining, but got only #{@data_header_buffer.size}, you may want to try running pocolog-repair on this file"
+                end
+
+		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
+                    result.unpack('VVVVVC')
                 rt = Time.at(rt_sec, rt_usec)
                 lg = Time.at(lg_sec, lg_usec)
                 payload_pos = data_block_pos + TIME_SIZE * 2 + 5
@@ -745,7 +753,7 @@ module Pocolog
                     if rio.respond_to?(:path)
                         file = " in #{rio.path}"
                     end
-		    raise "payload#{file} at position #{data_block_pos} was expected to be #{expected} bytes, but found #{size}"
+		    raise NotEnoughData, "payload#{file} at position #{data_block_pos} was expected to be #{expected} bytes, but found #{size}, you may want to try running pocolog-repair on this file"
 		end
 
 		@data_header.io  = rio
@@ -769,6 +777,11 @@ module Pocolog
 	    data = data_header.io.read(size)
 	    data
 	end
+
+        def validate_data_block
+            data_header = self.data_header
+            data_header.io.seek(data_header.payload_pos + data_header.size)
+        end
 	
 	# Returns the raw data payload of the current block
 	def data(data_header = nil, buffer = nil)
