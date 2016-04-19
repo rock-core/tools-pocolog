@@ -208,6 +208,7 @@ class TC_DataStream < Minitest::Test
         end
         logfile.close
         FileUtils.rm_f "copy_test.log"
+        FileUtils.rm_f "copy_test.idx"
     end
 end
 

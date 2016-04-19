@@ -195,6 +195,8 @@ module Pocolog
         after do
             FileUtils.rm_f 'test.0.log'
             FileUtils.rm_f 'test.0.idx'
+            FileUtils.rm_f 'export.0.log'
+            FileUtils.rm_f 'export.0.idx'
         end
 
         it "sorts samples in a stable way" do
@@ -263,22 +265,22 @@ module Pocolog
         describe "#export_to_file" do
             it "exports all the aligned stream if given no arguments" do
                 aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export.log')
-                new_aligner = Logfiles.open('export.log.0.log').stream_aligner
+                aligner.export_to_file('export')
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
                 assert_equal aligner.each.to_a, new_aligner.each.to_a
             end
 
             it "allows to override the start position" do
                 aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export.log', 1)
-                new_aligner = Logfiles.open('export.log.0.log').stream_aligner
+                aligner.export_to_file('export', 1)
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
                 assert_equal aligner.each.to_a[1..-1], new_aligner.each.to_a
             end
 
             it "allows to override the end position" do
                 aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export.log', 1, 4)
-                new_aligner = Logfiles.open('export.log.0.log').stream_aligner
+                aligner.export_to_file('export', 1, 4)
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
                 assert_equal aligner.each.to_a[1..-2], new_aligner.each.to_a
             end
         end
