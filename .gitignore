@@ -1,3 +1,4 @@
 doc
 *.sw?
 *stamp
+coverage/

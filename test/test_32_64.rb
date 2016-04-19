@@ -1,5 +1,4 @@
-require 'minitest/autorun'
-require 'pocolog'
+require 'pocolog/test'
 
 class TC_3264 < Minitest::Test
     DATA_PATH  = File.expand_path("data", File.dirname(__FILE__))

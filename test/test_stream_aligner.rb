@@ -1,5 +1,4 @@
-require 'pocolog'
-require 'minitest/autorun'
+require 'pocolog/test'
 
 class TC_StreamAligner < Minitest::Test
     attr_reader :logfile

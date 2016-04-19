@@ -1,5 +1,4 @@
-require 'pocolog'
-require 'minitest/autorun'
+require 'pocolog/test'
 
 class TC_File < Minitest::Test
     attr_reader :logfile
