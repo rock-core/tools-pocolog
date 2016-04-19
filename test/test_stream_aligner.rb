@@ -199,38 +199,40 @@ module Pocolog
         end
 
         it "sorts samples in a stable way" do
-            aligner, s0, s1 = create_aligner([1, 2, 3], [2, 3])
+            aligner, _ = create_aligner([1, 2, 3], [2, 3])
             assert_equal [0, Time.at(2*10)], aligner.seek_to_pos(1, false)
             assert_equal [1, Time.at(2*10)], aligner.seek_to_pos(2, false)
             assert_equal [0, Time.at(3*10)], aligner.seek_to_pos(3, false)
             assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
         end
 
-        describe "#find_first_stream_sample_before" do
+        describe "#find_first_stream_sample_after" do
 
             it "returns the stream-local position of the next sample if the global positition points to a sample of the expected stream" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
                 assert_equal 3, aligner.find_first_stream_sample_after(3, s0)
             end
             it "returns the stream-local position of the next sample after the global positition, if the global position points to a sample not of the expected stream" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                aligner, _s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
                 assert_equal 1, aligner.find_first_stream_sample_after(2, s1)
             end
             it "deals with multiple samples having the same time by returning the sample strictly after the global position" do
                 aligner, s0, s1 = create_aligner([1, 2, 3], [3])
                 assert_equal 0, aligner.find_first_stream_sample_after(2, s1)
-                aligner, s0, s1 = create_aligner([3], [1, 2, 3])
+                aligner, _s0, s1 = create_aligner([1, 2, 3], [3])
+                assert_equal 3, aligner.find_first_stream_sample_after(2, s0)
+                aligner, _s0, s1 = create_aligner([3], [1, 2, 3])
                 assert_equal 2, aligner.find_first_stream_sample_after(2, s1)
             end
             it "returns past-the-end if there is no sample in the expected stream after the given position" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
                 assert_equal 3, aligner.find_first_stream_sample_after(4, s0)
             end
         end
 
         describe "#first_sample_pos" do
             it "returns the global index of the first sample of the given stream index" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [2.5, 3.5])
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
                 assert_equal 0, aligner.first_sample_pos(0)
                 assert_equal 2, aligner.first_sample_pos(1)
             end
@@ -243,7 +245,7 @@ module Pocolog
 
         describe "#last_sample_pos" do
             it "returns the global index of the last sample of the given stream index" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [2.5, 3.5])
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
                 assert_equal 3, aligner.last_sample_pos(0)
                 assert_equal 4, aligner.last_sample_pos(1)
             end

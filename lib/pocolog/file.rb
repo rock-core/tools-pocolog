@@ -82,9 +82,6 @@ module Pocolog
 
         # An array of IO objects representing the underlying files
 	attr_reader :io
-        # The streams encountered so far. It is initialized the first time
-        # #streams gets called
-	attr_reader :streams
         # The type registry for these logfiles, as a Typelib::Registry instance
 	attr_reader :registry
 
@@ -511,7 +508,7 @@ module Pocolog
             if file_info.size != @io.size
                 raise InvalidIndex, "invalid index file: file set changed"
             end
-            coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
+            coherent = file_info.enum_for(:each_with_index).all? do |(size, _time), idx|
                 size == File.size(@io[idx].path)
             end
             if !coherent
@@ -674,7 +671,7 @@ module Pocolog
 
             io_index      = @rio
 	    block_start   = rio.tell
-	    type          = rio.read(1)
+	    _type         = rio.read(1)
 	    name_size     = rio.read(4).unpack('V').first
 	    name          = rio.read(name_size)
 	    typename_size = rio.read(4).unpack('V').first

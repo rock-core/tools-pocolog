@@ -152,7 +152,7 @@ module Pocolog
             end
 	    
             target_time = StreamIndex.time_to_internal(time, base_time)
-	    entry = @full_index.bsearch { |entry| entry.time >= target_time }
+	    entry = @full_index.bsearch { |e| e.time >= target_time }
             seek_to_index_entry(entry, read_data)
 	end
 
@@ -430,7 +430,6 @@ module Pocolog
                 return search_pos
             end
 
-            stream_number == stream_index_for_stream(stream)
             while entry && entry.time == time
                 if entry.stream_number == stream_number
                     return entry.position_in_stream
