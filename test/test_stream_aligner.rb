@@ -1,5 +1,194 @@
 require 'pocolog/test'
 
+module Pocolog
+    describe StreamAligner do
+        attr_reader :logfile
+
+        def open_logfile
+            FileUtils.rm_f 'test.0.log'
+            FileUtils.rm_f 'test.0.idx'
+            @logfile = Pocolog::Logfiles.create('test')
+        end
+
+        def close_logfile
+            @logfile.close
+            @logfile = nil
+        end
+
+        def create_log_stream(name, data)
+            stream = logfile.stream(name, 'double', true)
+            data.each do |v|
+               stream.write(Time.at(v * 10), Time.at(v * 10), v)
+            end
+            stream
+        end
+
+        def create_aligner(s0_data, s1_data)
+            open_logfile
+            create_log_stream('s0', s0_data)
+            create_log_stream('s1', s1_data)
+            close_logfile
+
+            logfile = Pocolog::Logfiles.open('test.0.log')
+            s0 = logfile.stream('s0')
+            s1 = logfile.stream('s1')
+            aligner = StreamAligner.new(false, s0, s1)
+            return aligner, s0, s1
+        end
+
+        after do
+            FileUtils.rm_f 'test.0.log'
+            FileUtils.rm_f 'test.0.idx'
+            FileUtils.rm_f 'export.0.log'
+            FileUtils.rm_f 'export.0.idx'
+        end
+
+        it "sorts samples in a stable way" do
+            aligner, _ = create_aligner([1, 2, 3], [2, 3])
+            assert_equal [0, Time.at(2*10)], aligner.seek_to_pos(1, false)
+            assert_equal [1, Time.at(2*10)], aligner.seek_to_pos(2, false)
+            assert_equal [0, Time.at(3*10)], aligner.seek_to_pos(3, false)
+            assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
+        end
+
+        describe "#add_streams" do
+            attr_reader :s0, :s1, :aligner
+            before do
+                open_logfile
+                create_log_stream 's0', [1, 2, 3]
+                create_log_stream 's1', [1.5, 2.5, 2.7, 3.2]
+                close_logfile
+                logfile = Pocolog::Logfiles.open('test.0.log')
+                @s0 = logfile.stream('s0')
+                @s1 = logfile.stream('s1')
+                @aligner = StreamAligner.new(false)
+                aligner.add_streams(s1)
+            end
+
+            it "picks base_time once and does not update it" do
+                assert_equal 15_000_000, aligner.base_time
+                aligner.add_streams(s0)
+                assert_equal 15_000_000, aligner.base_time
+            end
+
+            it "aligns the new streams with the existing ones" do
+                aligner.add_streams(s0)
+                assert_equal [[1, 1], [0, 1.5], [1, 2], [0, 2.5], [0, 2.7], [1, 3], [0, 3.2]],
+                    aligner.each.map { |stream_index, _, value| [stream_index, value] }
+            end
+
+            it "updates the size attribute" do
+                assert_equal 4, aligner.size
+                aligner.add_streams(s0)
+                assert_equal 7, aligner.size
+            end
+
+            it "updates the time interval" do
+                aligner.add_streams(s0)
+                assert_equal [Time.at(10), Time.at(32)], aligner.time_interval
+            end
+
+            it "updates the current position" do
+                aligner.seek(1)
+                aligner.add_streams(s0)
+                assert_equal 3, aligner.sample_index
+            end
+
+            it "updates the per-stream start positions" do
+                assert_equal 0, aligner.global_pos_first_sample[0]
+                aligner.add_streams(s0)
+                assert_equal 1, aligner.global_pos_first_sample[0]
+            end
+
+            it "updates the per-stream start positions" do
+                assert_equal 3, aligner.global_pos_last_sample[0]
+                aligner.add_streams(s0)
+                assert_equal 6, aligner.global_pos_last_sample[0]
+            end
+        end
+
+        describe "#find_first_stream_sample_after" do
+            it "returns the stream-local position of the next sample if the global positition points to a sample of the expected stream" do
+                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 3, aligner.find_first_stream_sample_after(3, s0)
+            end
+            it "returns the stream-local position of the next sample after the global positition, if the global position points to a sample not of the expected stream" do
+                aligner, _s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 1, aligner.find_first_stream_sample_after(2, s1)
+            end
+            it "deals with multiple samples having the same time by returning the sample strictly after the global position" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [3])
+                assert_equal 0, aligner.find_first_stream_sample_after(2, s1)
+                aligner, _s0, s1 = create_aligner([1, 2, 3], [3])
+                assert_equal 3, aligner.find_first_stream_sample_after(2, s0)
+                aligner, _s0, s1 = create_aligner([3], [1, 2, 3])
+                assert_equal 2, aligner.find_first_stream_sample_after(2, s1)
+            end
+            it "returns past-the-end if there is no sample in the expected stream after the given position" do
+                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 3, aligner.find_first_stream_sample_after(4, s0)
+            end
+        end
+
+        describe "#first_sample_pos" do
+            it "returns the global index of the first sample of the given stream index" do
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
+                assert_equal 0, aligner.first_sample_pos(0)
+                assert_equal 2, aligner.first_sample_pos(1)
+            end
+            it "returns the global index of the first sample of the given stream" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 0, aligner.first_sample_pos(s0)
+                assert_equal 1, aligner.first_sample_pos(s1)
+            end
+        end
+
+        describe "#last_sample_pos" do
+            it "returns the global index of the last sample of the given stream index" do
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
+                assert_equal 3, aligner.last_sample_pos(0)
+                assert_equal 4, aligner.last_sample_pos(1)
+            end
+            it "returns the global index of the last sample of the given stream" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 3, aligner.last_sample_pos(s0)
+                assert_equal 4, aligner.last_sample_pos(s1)
+            end
+        end
+
+        describe "#size" do
+            it "returns the total number of samples in the aligner" do
+                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
+                assert_equal 5, aligner.size
+            end
+        end
+
+        describe "#export_to_file" do
+            it "exports all the aligned stream if given no arguments" do
+                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
+                aligner.export_to_file('export')
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
+                assert_equal aligner.each.to_a, new_aligner.each.to_a
+            end
+
+            it "allows to override the start position" do
+                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
+                aligner.export_to_file('export', 1)
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
+                assert_equal aligner.each.to_a[1..-1], new_aligner.each.to_a
+            end
+
+            it "allows to override the end position" do
+                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
+                aligner.export_to_file('export', 1, 4)
+                new_aligner = Logfiles.open('export.0.log').stream_aligner
+                assert_equal aligner.each.to_a[1..-2], new_aligner.each.to_a
+            end
+        end
+    end
+end
+
+
 class TC_StreamAligner < Minitest::Test
     attr_reader :logfile
     attr_reader :stream
@@ -167,124 +356,143 @@ class TC_StreamAligner < Minitest::Test
     end
 end
 
-module Pocolog
-    describe StreamAligner do
-        def create_aligner(s0_data, s1_data)
-            FileUtils.rm_f 'test.0.log'
-            FileUtils.rm_f 'test.0.idx'
+class TC_StreamAligner2 < Minitest::Test
+    attr_reader :logfile
+    attr_reader :stream
+    attr_reader :expected_data
 
-            logfile = Pocolog::Logfiles.create('test')
-            s0 = logfile.stream('s0', 'double', true)
-            s0_data.each do |v|
-                s0.write(Time.at(v * 10), Time.at(v * 10), v)
-            end
-            s1 = logfile.stream('s1', 'double', true)
-            s1_data.each do |v|
-                s1.write(Time.at(v * 10), Time.at(v * 10), v)
-            end
-            logfile.close
-
-            logfile = Pocolog::Logfiles.open('test.0.log')
-            s0 = logfile.stream('s0')
-            s1 = logfile.stream('s1')
-            aligner = StreamAligner.new(false, s0, s1)
-            return aligner, s0, s1
+    def create_fixture
+        logfile = Pocolog::Logfiles.create('test')
+        all_values = logfile.create_stream('all', 'int', 'test' => 'value', 'test2' => 'value2')
+        @expected_data = Array.new
+        100.times do |i|
+            all_values.write(Time.at(i), Time.at(i * 100), i)
+            expected_data << i
         end
 
-        after do
-            FileUtils.rm_f 'test.0.log'
-            FileUtils.rm_f 'test.0.idx'
-            FileUtils.rm_f 'export.0.log'
-            FileUtils.rm_f 'export.0.idx'
+        # Add a followup stream that fills in the file. It is used for a corner
+        # case in #test_past_the_end_does_not_read_whole_file
+        other_stream = logfile.create_stream('other', 'int')
+        100.times do |i|
+	    i = i + 100
+            other_stream.write(Time.at(i), Time.at(i * 100), i)
+            expected_data << i
         end
+        logfile.close
+    end
+    
+    attr_reader :interleaved_data
+    def setup
+        create_fixture
+        @logfile = Pocolog::Logfiles.open('test.0.log')
+        @stream  = Pocolog::StreamAligner.new(false, logfile.stream('all'), logfile.stream('other'))
+    end
+    
+    def teardown
+        FileUtils.rm_f 'test.0.log'
+        FileUtils.rm_f 'test.0.idx'
+    end
 
-        it "sorts samples in a stable way" do
-            aligner, _ = create_aligner([1, 2, 3], [2, 3])
-            assert_equal [0, Time.at(2*10)], aligner.seek_to_pos(1, false)
-            assert_equal [1, Time.at(2*10)], aligner.seek_to_pos(2, false)
-            assert_equal [0, Time.at(3*10)], aligner.seek_to_pos(3, false)
-            assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
-        end
+    def test_properties
+        assert !stream.eof?
+        assert_equal 200, stream.size
+    end
 
-        describe "#find_first_stream_sample_after" do
 
-            it "returns the stream-local position of the next sample if the global positition points to a sample of the expected stream" do
-                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
-                assert_equal 3, aligner.find_first_stream_sample_after(3, s0)
-            end
-            it "returns the stream-local position of the next sample after the global positition, if the global position points to a sample not of the expected stream" do
-                aligner, _s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
-                assert_equal 1, aligner.find_first_stream_sample_after(2, s1)
-            end
-            it "deals with multiple samples having the same time by returning the sample strictly after the global position" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [3])
-                assert_equal 0, aligner.find_first_stream_sample_after(2, s1)
-                aligner, _s0, s1 = create_aligner([1, 2, 3], [3])
-                assert_equal 3, aligner.find_first_stream_sample_after(2, s0)
-                aligner, _s0, s1 = create_aligner([3], [1, 2, 3])
-                assert_equal 2, aligner.find_first_stream_sample_after(2, s1)
-            end
-            it "returns past-the-end if there is no sample in the expected stream after the given position" do
-                aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
-                assert_equal 3, aligner.find_first_stream_sample_after(4, s0)
-            end
-        end
+    def test_start_of_stream
+	index, time, data = stream.step()
+	assert_equal index, 0
+	assert_equal data, expected_data[0]
+	assert_equal time, Time.at(expected_data[0] * 100)
+    end
 
-        describe "#first_sample_pos" do
-            it "returns the global index of the first sample of the given stream index" do
-                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
-                assert_equal 0, aligner.first_sample_pos(0)
-                assert_equal 2, aligner.first_sample_pos(1)
-            end
-            it "returns the global index of the first sample of the given stream" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
-                assert_equal 0, aligner.first_sample_pos(s0)
-                assert_equal 1, aligner.first_sample_pos(s1)
-            end
-        end
+    def test_full_replay
+	cnt = 0
+	while(!stream.eof?)
+	    stream_index, time, data = stream.step()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
+	    assert_equal data, expected_data[cnt]
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
+	    cnt = cnt + 1
+	end
+	
+	assert_equal cnt, 200
+    end
 
-        describe "#last_sample_pos" do
-            it "returns the global index of the last sample of the given stream index" do
-                aligner, _s0, _s1 = create_aligner([1, 2, 3], [2.5, 3.5])
-                assert_equal 3, aligner.last_sample_pos(0)
-                assert_equal 4, aligner.last_sample_pos(1)
-            end
-            it "returns the global index of the last sample of the given stream" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
-                assert_equal 3, aligner.last_sample_pos(s0)
-                assert_equal 4, aligner.last_sample_pos(s1)
-            end
-        end
+    def test_forward_backward
+	cnt = 0
+	while(!stream.eof?)
+	    stream_index, time, data = stream.step()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
+	    assert_equal data, expected_data[cnt]
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
+	    cnt = cnt + 1
+	end
+	
+	assert_equal cnt, 200
+	cnt = cnt - 1
+	
+	while(cnt > 1)
+	    cnt = cnt - 1
+	    stream_index, time, data = stream.step_back()
+	    if(cnt < 100)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
+	    assert_equal data, expected_data[cnt]
+	    assert_equal time, Time.at(expected_data[cnt] * 100)
+	end	    
+	
+    end
 
-        describe "#size" do
-            it "returns the total number of samples in the aligner" do
-                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                assert_equal 5, aligner.size
-            end
-        end
+    def test_export_to_file
+        @stream.export_to_file("export1")
+        @stream.export_to_file("export2",30)
+        @stream.export_to_file("export3",90,110)
 
-        describe "#export_to_file" do
-            it "exports all the aligned stream if given no arguments" do
-                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export')
-                new_aligner = Logfiles.open('export.0.log').stream_aligner
-                assert_equal aligner.each.to_a, new_aligner.each.to_a
-            end
+        logfile2 = Pocolog::Logfiles.open('export1.0.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 200, stream2.size
+        logfile2.close
 
-            it "allows to override the start position" do
-                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export', 1)
-                new_aligner = Logfiles.open('export.0.log').stream_aligner
-                assert_equal aligner.each.to_a[1..-1], new_aligner.each.to_a
-            end
+        logfile2 = Pocolog::Logfiles.open('export2.0.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 170, stream2.size
+        logfile2.close
 
-            it "allows to override the end position" do
-                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
-                aligner.export_to_file('export', 1, 4)
-                new_aligner = Logfiles.open('export.0.log').stream_aligner
-                assert_equal aligner.each.to_a[1..-2], new_aligner.each.to_a
-            end
+        logfile2 = Pocolog::Logfiles.open('export3.0.log')
+        stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
+        assert_equal 20, stream2.size
+
+        cnt = 0
+	while(!stream2.eof?)
+	    stream_index, time, data = stream2.step()
+	    if(cnt < 10)
+		assert_equal stream_index, 0
+	    else
+		assert_equal stream_index, 1
+	    end
+	    assert_equal data, expected_data[cnt+90]
+	    assert_equal time, Time.at(expected_data[cnt+90] * 100)
+	    cnt = cnt + 1
+	end
+        logfile2.close
+
+    ensure
+        1.upto(3) do |i|
+            FileUtils.rm_f "export#{i}.0.log"
+            FileUtils.rm_f "export#{i}.0.idx"
         end
     end
 end
+
 

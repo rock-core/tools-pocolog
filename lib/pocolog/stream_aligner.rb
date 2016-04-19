@@ -54,12 +54,15 @@ module Pocolog
             @use_rt  = use_rt
             @global_pos_first_sample = Hash.new
             @global_pos_last_sample = Hash.new
-            @streams = streams
+
+            @size = 0
+            @time_interval = Array.new
+            @base_time = nil
             @stream_state = Array.new
+            @streams = Array.new
 
             @sample_index = -1
-            build_index(streams)
-            rewind
+            add_streams(*streams)
         end
 
 	# Returns the time of the last played back sample
@@ -89,22 +92,29 @@ module Pocolog
 
         IndexEntry = Struct.new :time, :stream_number, :position_in_stream, :position_global
 
-        # @api private
-        #
-        # This method builds {#full_index} and fills in some of the global
-        # attributes based on the information contained in the underlying
-        # streams
-        def build_index(streams)
-	    @size = streams.inject(0) { |s, stream| s + stream.size }
-	    Pocolog.info("got #{streams.size} streams with #{size} samples")
-            tic = Time.now
-            @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
+        # Add new streams to the alignment
+        def add_streams(*streams)
+            return if streams.empty?
 
-            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten.compact
-            @time_interval = [time_ranges.min,time_ranges.max]
+            if sample_index != -1
+                current_entry = full_index[sample_index]
+            end
+
+            streams_size = streams.inject(0) { |s, stream| s + stream.size }
+	    @size += streams_size
+	    Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
+
+            tic = Time.now
+            if !base_time
+                @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
+            end
+
+            time_ranges = streams.map { |s| s.time_interval(use_rt) }.flatten.compact
+            time_ranges.concat(time_interval)
+            @time_interval = [time_ranges.min, time_ranges.max]
 
             full_index = Array.new
-            streams.each_with_index do |stream, i|
+            (@streams + streams).each_with_index do |stream, i|
                 stream.stream_index.base_time = base_time
                 stream.stream_index.time_to_position_map.each do |time, position|
                     full_index << [time, i, position]
@@ -112,20 +122,30 @@ module Pocolog
             end
 
             Pocolog.info "concatenated indexes in #{"%.2f" % [Time.now - tic]} seconds"
+
+            tic = Time.now
             full_index.sort!
+
+            global_pos_first_sample.clear
+            global_pos_last_sample.clear
             @full_index = full_index.each_with_index.map do |entry, position_global|
                 entry = IndexEntry.new(*entry, position_global)
                 global_pos_first_sample[entry.stream_number] ||= position_global
                 global_pos_last_sample[entry.stream_number] = position_global
                 entry
             end
-            if full_index.size != size
-                raise
-            end
+            @streams.concat(streams)
+            Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
 
-            Pocolog.info "built index in #{"%.2f" % [Time.now - tic]} seconds"
+            if current_entry
+                @sample_index = @full_index.
+                    index do |e|
+                        e.stream_number == current_entry.stream_number &&
+                            e.position_in_stream == current_entry.position_in_stream
+                    end
+            end
         end
-	
+
         # Seek at the given position or time
         #
         # @overload seek(pos, read_data = true)
