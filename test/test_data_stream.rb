@@ -107,24 +107,24 @@ class TC_DataStream < Minitest::Test
     def test_seek_time
         [0, 1].each do |offset|
             _, _, value = stream.seek(Time.at(1000, offset))
-            assert_equal 10, value
-            assert_equal 10, stream.sample_index
+            assert_equal 10 + offset, value
+            assert_equal 10 + offset, stream.sample_index
             _, _, value = stream.next
-            assert_equal 11, value
-            assert_equal 11, stream.sample_index
+            assert_equal 11 + offset, value
+            assert_equal 11 + offset, stream.sample_index
             _, _, value = stream.previous
-            assert_equal 10, value
-            assert_equal 10, stream.sample_index
+            assert_equal 10 + offset, value
+            assert_equal 10 + offset, stream.sample_index
 
             _, _, value = stream.seek(Time.at(2000, offset))
-            assert_equal 20, value
-            assert_equal 20, stream.sample_index
+            assert_equal 20 + offset, value
+            assert_equal 20 + offset, stream.sample_index
             _, _, value = stream.previous
-            assert_equal 19, value
-            assert_equal 19, stream.sample_index
+            assert_equal 19 + offset, value
+            assert_equal 19 + offset, stream.sample_index
             _, _, value = stream.next
-            assert_equal 20, value
-            assert_equal 20, stream.sample_index
+            assert_equal 20 + offset, value
+            assert_equal 20 + offset, stream.sample_index
         end
     end
 
@@ -171,12 +171,6 @@ class TC_DataStream < Minitest::Test
         assert_equal expected_data, data.map(&:last)
     end
 
-    def test_past_the_end_does_not_read_whole_file
-        stream.seek(10)
-        stream.last
-        refute_equal @logfile.rio.tell, stream.logfile.rio.tell
-    end
-
     def test_samples?
         assert_equal(true,stream.samples?(0,100))
         assert_equal(false,stream.samples?(-10,-1))
@@ -198,8 +192,8 @@ class TC_DataStream < Minitest::Test
 
         #copy samples according to the given intervals 
         stream.copy_to(0,120,stream_output1)
-        stream.copy_to(20,29,stream_output2)
-        stream.copy_to(Time.at(10*100),Time.at(29*100),stream_output3)
+        stream.copy_to(20,30,stream_output2)
+        stream.copy_to(Time.at(10*100),Time.at(30*100),stream_output3)
         output.close
 
         logfile = Pocolog::Logfiles.open('copy_test.log')

@@ -102,7 +102,7 @@ class TC_StreamAligner2 < Minitest::Test
     def test_export_to_file
         @stream.export_to_file("export1.log")
         @stream.export_to_file("export2.log",30)
-        @stream.export_to_file("export3.log",90,109)
+        @stream.export_to_file("export3.log",90,110)
 
         logfile2 = Pocolog::Logfiles.open('export1.log.0.log')
         stream2  = Pocolog::StreamAligner.new(false, logfile2.stream('all'), logfile2.stream('other'))
