@@ -1,32 +1,13 @@
-require 'rake'
-#require './lib/pocolog/version'
+require "bundler/gem_tasks"
+require "rake/testtask"
 
-begin
-    require 'hoe'
-    Hoe::plugin :yard
-    Hoe::RUBY_FLAGS.gsub!(/-w/, '')
+task :default
 
-    config = Hoe.spec 'pocolog' do
-        self.developer "Sylvain Joyeux", "sylvain.joyeux@dfki.de"
-        self.summary = "Log file manipulation for oroGen's logger component"
-        self.description = paragraphs_of('README.markdown', 3..6).join("\n\n")
-        self.changes     = paragraphs_of('History.txt', 0..1).join("\n\n")
-        licenses << "GPLv2 or later"
-
-        extra_deps <<
-            ['utilrb',   '>= 1.3.4'] <<
-            ['rake',     '>= 0.8'] <<
-            ['rbtree',   '>= 0.3.0'] <<
-            ['hoe-yard', '>= 0.1.2']
-    end
-
-    Rake.clear_tasks(/^default$/)
-    task :default => []
-
-    task :docs => :yard
-    task :redocs => :yard
-
-rescue LoadError
-    STDERR.puts "cannot load the Hoe gem. Distribution is disabled"
+Rake::TestTask.new(:test) do |t|
+    t.libs << "lib"
+    t.libs << "."
+    t.ruby_opts << '-w'
+    t.test_files = FileList['test/**/test_*.rb']
 end
 
+task :gem => :build
