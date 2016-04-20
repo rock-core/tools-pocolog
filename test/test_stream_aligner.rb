@@ -103,8 +103,24 @@ module Pocolog
 
             it "updates the current position" do
                 aligner.seek(1)
-                aligner.add_streams(s0)
+                assert_nil aligner.add_streams(s0)
                 assert_equal 3, aligner.sample_index
+            end
+
+            describe "if the aligner is eof" do
+                it "leaves it at past-the-end if the new streams do not add samples after the current sample set" do
+                    aligner.seek(4)
+                    assert_nil aligner.add_streams(s0)
+                    assert aligner.eof?
+                end
+
+                it "sets the current position to the first new sample appended after the current end if the stream was eof?" do
+                    aligner = StreamAligner.new(false)
+                    aligner.add_streams(s0)
+                    aligner.seek(3)
+                    assert_equal [1, Time.at(32), 3.2], aligner.add_streams(s1)
+                    assert_equal 6, aligner.sample_index
+                end
             end
 
             it "updates the per-stream start positions" do
@@ -123,16 +139,7 @@ module Pocolog
         describe "#remove_streams" do
             attr_reader :s0, :s1, :aligner
             before do
-                open_logfile
-                create_log_stream 's0', [1, 2, 3]
-                create_log_stream 's1', [1.5, 2.5, 2.7, 3.2]
-                close_logfile
-                logfile = Pocolog::Logfiles.open('test.0.log')
-                @s0 = logfile.stream('s0')
-                @s1 = logfile.stream('s1')
-                @aligner = StreamAligner.new(false)
-                aligner.add_streams(s0)
-                aligner.add_streams(s1)
+                @aligner, @s0, @s1 = create_aligner [1, 2, 3], [1.5, 2.5, 2.7, 3.2]
             end
 
             it "does not update #base_time" do
@@ -170,21 +177,36 @@ module Pocolog
                 assert_equal [Time.at(10), Time.at(30)], aligner.time_interval
             end
 
-            it "updates the current position to the current sample if it still in the aligner" do
+            it "leaves the position at past-the-end" do
+                aligner.seek(7)
+                assert_nil aligner.remove_streams(s0)
+                assert aligner.eof?
+            end
+
+            it "updates the current position to the current sample if it still in the aligner and returns nil" do
                 aligner.seek(1)
-                aligner.remove_streams(s0)
+                assert_nil aligner.remove_streams(s0)
                 assert_equal 0, aligner.sample_index
+                assert_equal [s1, 0], aligner.sample_info(0)
             end
 
-            it "updates the current position to the next still-present sample if it the current sample has been removed" do
+            it "updates the current position to the next still-present sample if it the current sample has been removed, and returns the new sample information" do
                 aligner.seek(2)
-                aligner.remove_streams(s0)
+                assert_equal [0, Time.at(25), 2.5], aligner.remove_streams(s0)
                 assert_equal 1, aligner.sample_index
+                assert_equal [s1, 1], aligner.sample_info(0)
             end
 
-            it "updates the current position to past-the-end if the current sample and all the ones after it have been removed" do
+            it "behaves if the position-to-be-updated is the last sample" do
+                aligner.seek(5)
+                assert_equal [0, Time.at(32), 3.2], aligner.remove_streams(s0)
+                assert_equal 3, aligner.sample_index
+                assert_equal [s1, 3], aligner.sample_info(0)
+            end
+
+            it "updates the current position to past-the-end if the current sample and all the ones after it have been removed, and returns nil" do
                 aligner.seek(6)
-                aligner.remove_streams(s1)
+                assert_nil aligner.remove_streams(s1)
                 assert aligner.eof?
             end
 

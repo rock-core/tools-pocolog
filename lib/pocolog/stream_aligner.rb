@@ -101,7 +101,12 @@ module Pocolog
             return if streams.empty?
 
             if sample_index != -1
-                current_entry = full_index[sample_index]
+                if eof?
+                    eof = true
+                    current_entry = full_index[-1]
+                else
+                    current_entry = full_index[sample_index]
+                end
             end
 
             streams_size = streams.inject(0) { |s, stream| s + stream.size }
@@ -115,10 +120,12 @@ module Pocolog
 
             sort_index = Array.new
             all_streams = (@streams + streams)
-            all_streams.each_with_index do |stream, i|
-                stream.stream_index.base_time = base_time
-                for entry in stream.stream_index.time_to_position_map
-                    sort_index << entry[0] * size + i
+            if base_time
+                all_streams.each_with_index do |stream, i|
+                    stream.stream_index.base_time = base_time
+                    for entry in stream.stream_index.time_to_position_map
+                        sort_index << entry[0] * size + i
+                    end
                 end
             end
 
@@ -154,6 +161,10 @@ module Pocolog
                         e.stream_number == current_entry.stream_number &&
                             e.position_in_stream == current_entry.position_in_stream
                     end
+
+                if eof
+                    step
+                end
             end
         end
 
@@ -162,10 +173,6 @@ module Pocolog
         # The index-to-stream mapping changes after this. Refer to {#streams} to
         # map indexes to streams
         def remove_streams(*streams)
-            if sample_index != -1
-                current_entry = full_index[sample_index]
-            end
-
             # First, build a map of the current stream indexes to the new
             # stream indexes
             stream_indexes = Array.new
@@ -184,6 +191,13 @@ module Pocolog
                     index_map[stream_index] = new_index
                     new_index += 1
                 end
+            end
+
+            if eof?
+                eof = true
+            elsif sample_index != -1
+                current_entry = full_index[sample_index]
+                changed_sample = for_removal[current_entry.stream_number]
             end
 
             # Then, transform the index accordingly
@@ -205,16 +219,26 @@ module Pocolog
                 end
             end
 
-            if full_index.empty?
+            @stream_state.clear
+
+            if @full_index.empty?
                 @sample_index = -1
+            elsif eof
+                @sample_index = size
+            elsif @sample_index != -1
+                sample_info = seek_to_pos(@sample_index, false)
             end
-            
+
             # Remove the streams, and update the global attributes
             stream_indexes.reverse.each do |i|
                 s = @streams.delete_at(i)
                 @size -= s.size
             end
             update_time_interval
+
+            if changed_sample && (sample_index != full_index.size)
+                return *sample_info, single_data(sample_info[0])
+            end
         end
 
         # @api private
