@@ -101,7 +101,7 @@ module Pocolog
             end
 
             streams_size = streams.inject(0) { |s, stream| s + stream.size }
-	    @size += streams_size
+	    size = (@size += streams_size)
 	    Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
 
             tic = Time.now
@@ -113,28 +113,38 @@ module Pocolog
             time_ranges.concat(time_interval)
             @time_interval = [time_ranges.min, time_ranges.max]
 
-            full_index = Array.new
-            (@streams + streams).each_with_index do |stream, i|
+            sort_index = Array.new
+            all_streams = (@streams + streams)
+            all_streams.each_with_index do |stream, i|
                 stream.stream_index.base_time = base_time
-                stream.stream_index.time_to_position_map.each do |time, position|
-                    full_index << [time, i, position]
+                for entry in stream.stream_index.time_to_position_map
+                    sort_index << entry[0] * size + i
                 end
             end
 
             Pocolog.info "concatenated indexes in #{"%.2f" % [Time.now - tic]} seconds"
 
             tic = Time.now
-            full_index.sort!
+            sort_index.sort!
 
             global_pos_first_sample.clear
             global_pos_last_sample.clear
-            @full_index = full_index.each_with_index.map do |entry, position_global|
-                entry = IndexEntry.new(*entry, position_global)
+            current_positions = Array.new(all_streams.size, 0)
+            @full_index = Array.new(size)
+            position_global = 0
+            for sort_code in sort_index
+                time         = sort_code / size
+                stream_index = sort_code % size
+                position_in_stream = current_positions[stream_index]
+                current_positions[stream_index] = position_in_stream + 1
+
+                entry = IndexEntry.new(time, stream_index, position_in_stream, position_global)
                 global_pos_first_sample[entry.stream_number] ||= position_global
                 global_pos_last_sample[entry.stream_number] = position_global
-                entry
+                @full_index[position_global] = entry
+                position_global += 1
             end
-            @streams.concat(streams)
+            @streams = all_streams
             Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
 
             if current_entry
