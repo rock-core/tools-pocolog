@@ -51,6 +51,19 @@ module Pocolog
             assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
         end
 
+        describe "#time" do
+            it "returns nil on a rewound stream aligner" do
+                aligner, _ = create_aligner [1, 2], [1.1, 1.2]
+                aligner.seek(2)
+                aligner.rewind
+                assert_nil aligner.time
+            end
+            it "returns nil on an empty stream aligner" do
+                aligner, _ = create_aligner [], []
+                assert_nil aligner.time
+            end
+        end
+
         describe "#add_streams" do
             attr_reader :s0, :s1, :aligner
             before do

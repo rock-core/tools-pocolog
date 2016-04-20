@@ -73,7 +73,7 @@ module Pocolog
         #
         # @return [Time]
         def time
-            if entry = full_index[sample_index]
+            if (sample_index != -1) && (entry = full_index[sample_index])
                 StreamIndex.time_from_internal(entry.time, base_time)
             end
         end
