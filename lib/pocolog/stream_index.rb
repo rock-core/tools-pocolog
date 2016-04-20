@@ -48,9 +48,8 @@ module Pocolog
 	    #store the posiiton of the header of the data sample
 	    @nr_to_rio << rio
 	    @nr_to_position_map << pos 
-            internal_time = time.tv_sec * 1_000_000 + time.tv_usec
-            @base_time ||= internal_time
-            @time_to_position_map << [(internal_time - @base_time), time_to_position_map.size]
+            @base_time ||= time
+            @time_to_position_map << [(time - @base_time), time_to_position_map.size]
 	end
 
 	# sanity check for the index, which gets called after

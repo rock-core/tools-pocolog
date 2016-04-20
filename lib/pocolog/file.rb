@@ -580,7 +580,7 @@ module Pocolog
                     info.interval_io[1] = [@rio, block_info.pos]
 		    info.interval_io[0] ||= info.interval_io[1]
 
-		    info.index.add_sample_to_index(@rio, data_header.block_pos, data_header.lg)		    
+		    info.index.add_sample_to_index(@rio, data_header.block_pos, data_header.lg_time)
                     info.size += 1
                 end
 	    end
@@ -717,7 +717,10 @@ module Pocolog
 	    Time.at(rt_sec, rt_usec)
 	end
 
-	DataHeader = Struct.new :io, :block_pos, :payload_pos, :rt, :lg, :size, :compressed, :updated
+	DataHeader = Struct.new :io, :block_pos, :payload_pos, :rt_time, :lg_time, :size, :compressed, :updated do
+            def rt; StreamIndex.time_from_internal(rt_time, 0) end
+            def lg; StreamIndex.time_from_internal(lg_time, 0) end
+        end
 
 	# Reads the header of a data block. This sets the @data_header
 	# instance variable to a new DataHeader object describing the
@@ -740,8 +743,6 @@ module Pocolog
 
 		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
                     result.unpack('VVVVVC')
-                rt = Time.at(rt_sec, rt_usec)
-                lg = Time.at(lg_sec, lg_usec)
                 payload_pos = data_block_pos + TIME_SIZE * 2 + 5
 
 		size = payload_pos + data_size - data_block_pos
@@ -756,8 +757,8 @@ module Pocolog
 		@data_header.io  = rio
                 @data_header.block_pos   = @block_info.pos
 		@data_header.payload_pos = payload_pos
-		@data_header.rt = rt
-		@data_header.lg = lg
+		@data_header.rt_time = rt_sec * 1_000_000 + rt_usec
+		@data_header.lg_time = lg_sec * 1_000_000 + lg_usec
 		@data_header.size = data_size
 		@data_header.compressed = (compressed != 0)
 		@data_header.updated = true
