@@ -107,6 +107,96 @@ module Pocolog
             end
         end
 
+        describe "#remove_streams" do
+            attr_reader :s0, :s1, :aligner
+            before do
+                open_logfile
+                create_log_stream 's0', [1, 2, 3]
+                create_log_stream 's1', [1.5, 2.5, 2.7, 3.2]
+                close_logfile
+                logfile = Pocolog::Logfiles.open('test.0.log')
+                @s0 = logfile.stream('s0')
+                @s1 = logfile.stream('s1')
+                @aligner = StreamAligner.new(false)
+                aligner.add_streams(s0)
+                aligner.add_streams(s1)
+            end
+
+            it "does not update #base_time" do
+                assert_equal 10_000_000, aligner.base_time
+                aligner.remove_streams(s0)
+                assert_equal 10_000_000, aligner.base_time
+                aligner.remove_streams(s1)
+                assert_equal 10_000_000, aligner.base_time
+            end
+
+            it "behaves when removing the last stream" do
+                aligner.remove_streams(s1)
+                aligner.remove_streams(s0)
+                assert_equal 0, aligner.size
+                assert_equal [], aligner.time_interval
+                assert aligner.global_pos_first_sample.empty?
+                assert aligner.global_pos_last_sample.empty?
+            end
+
+            it "updates the alignment, and updates the stream indexes" do
+                # We remove s0 to force the method to shift the index of the
+                # remaining stream
+                aligner.remove_streams(s0)
+                assert_equal [[0, 1.5], [0, 2.5], [0, 2.7], [0, 3.2]],
+                    aligner.each.map { |stream_index, _, value| [stream_index, value] }
+            end
+
+            it "updates the size attribute" do
+                aligner.remove_streams(s1)
+                assert_equal 3, aligner.size
+            end
+
+            it "updates the time interval" do
+                aligner.remove_streams(s1)
+                assert_equal [Time.at(10), Time.at(30)], aligner.time_interval
+            end
+
+            it "updates the current position to the current sample if it still in the aligner" do
+                aligner.seek(1)
+                aligner.remove_streams(s0)
+                assert_equal 0, aligner.sample_index
+            end
+
+            it "updates the current position to the next still-present sample if it the current sample has been removed" do
+                aligner.seek(2)
+                aligner.remove_streams(s0)
+                assert_equal 1, aligner.sample_index
+            end
+
+            it "updates the current position to past-the-end if the current sample and all the ones after it have been removed" do
+                aligner.seek(6)
+                aligner.remove_streams(s1)
+                assert aligner.eof?
+            end
+
+            it "updates the current position to before-the-beginning if all streams are removed" do
+                aligner.seek(4)
+                aligner.remove_streams(s1)
+                aligner.remove_streams(s0)
+                assert_equal -1, aligner.sample_index
+            end
+
+            it "updates the per-stream start positions" do
+                assert_equal 1, aligner.global_pos_first_sample[1]
+                aligner.remove_streams(s0)
+                assert_equal 0, aligner.global_pos_first_sample[0]
+                assert_equal 1, aligner.global_pos_first_sample.size
+            end
+
+            it "updates the per-stream start positions" do
+                assert_equal 6, aligner.global_pos_last_sample[1]
+                aligner.remove_streams(s0)
+                assert_equal 3, aligner.global_pos_last_sample[0]
+                assert_equal 1, aligner.global_pos_first_sample.size
+            end
+        end
+
         describe "#find_first_stream_sample_after" do
             it "returns the stream-local position of the next sample if the global positition points to a sample of the expected stream" do
                 aligner, s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
@@ -183,6 +273,63 @@ module Pocolog
                 aligner.export_to_file('export', 1, 4)
                 new_aligner = Logfiles.open('export.0.log').stream_aligner
                 assert_equal aligner.each.to_a[1..-2], new_aligner.each.to_a
+            end
+        end
+
+        describe "#pretty_print" do
+            it "does not raise" do
+                aligner, _ = create_aligner([1, 2, 3], [2.5, 3.5])
+                PP.pp(aligner, "")
+            end
+        end
+
+        describe "#seek_to_time" do
+            it "raises RangeError on an empty stream" do
+                aligner = StreamAligner.new(false)
+                assert_raises(RangeError) { aligner.seek_to_time(Time.now) }
+            end
+            it "raises RangeError if the time is before the start of the streams" do
+                aligner, _ = create_aligner [1, 2], [1.2]
+                assert_raises(RangeError) { aligner.seek_to_time(Time.at(0)) }
+            end
+            it "raises RangeError if the time is after the end of the streams" do
+                aligner, _ = create_aligner [1, 2], [1.2]
+                assert_raises(RangeError) { aligner.seek_to_time(Time.at(310)) }
+            end
+            it "seeks to the first sample with the expected time if it exists" do
+                aligner, _ = create_aligner [1], [1.2]
+                assert_equal [0, Time.at(10), 1], aligner.seek_to_time(Time.at(10))
+            end
+            it "seeks to the first sample just after the expected time if none exists with the expected time" do
+                aligner, _ = create_aligner [1], [1.2]
+                assert_equal [1, Time.at(12), 1.2], aligner.seek_to_time(Time.at(11))
+            end
+            it "does not read the data if read_data is false" do
+                aligner, _ = create_aligner [1], [1.2]
+                assert_equal [1, Time.at(12)], aligner.seek_to_time(Time.at(11), false)
+            end
+        end
+
+        describe "#seek_to_pos" do
+            it "raises RangeError on an empty stream" do
+                aligner = StreamAligner.new(false)
+                assert_raises(RangeError) { aligner.seek_to_pos(0) }
+            end
+            it "raises RangeError if the position is negative" do
+                aligner, _ = create_aligner [1, 2], [1.2]
+                assert_raises(RangeError) { aligner.seek_to_pos(-1) }
+            end
+            it "raises RangeError if the position is after the end of the streams" do
+                aligner, _ = create_aligner [1, 2], [1.2]
+                assert_raises(RangeError) { aligner.seek_to_pos(5) }
+            end
+            it "returns to sample at the expected global index" do
+                aligner, _ = create_aligner [1, 2], [1.2, 1.3]
+                assert_equal [1, Time.at(13), 1.3], aligner.seek_to_pos(2)
+            end
+            it "does not read the data if read_data is false" do
+                aligner, _ = create_aligner [1, 2], [1.2, 1.3]
+                assert_equal [1, Time.at(13)], aligner.seek_to_pos(2, false)
             end
         end
     end
