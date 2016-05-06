@@ -5,9 +5,9 @@ module LogTools
             class CompoundCast < Base
                 attr_reader :field_convertions
 
-                def initialize(field_convertions, target_t)
+                def initialize(field_convertions, to_type)
                     @field_convertions = field_convertions
-                    super(target_t)
+                    super(to_type)
                 end
 
                 def call(target, value)

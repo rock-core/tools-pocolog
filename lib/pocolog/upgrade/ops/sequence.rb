@@ -6,10 +6,10 @@ module LogTools
                 # The operations to apply, along with their intermdiate values
                 attr_reader :ops
 
-                def initialize(ops, target_t)
-                    super(target_t)
+                def initialize(ops, to_type)
+                    super(to_type)
                     @ops = ops.map do |op|
-                        [op, op.target_t.new]
+                        [op, op.to_type.new]
                     end
                 end
 

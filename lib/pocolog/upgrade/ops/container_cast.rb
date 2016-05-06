@@ -4,8 +4,8 @@ module LogTools
             class ContainerCast < Base
                 attr_reader :element_ops
 
-                def initialize(target_t, element_ops)
-                    super(target_t)
+                def initialize(to_type, element_ops)
+                    super(to_type)
                     @element_ops = element_ops
                 end
 

@@ -22,8 +22,30 @@ module Pocolog
                 target_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
                 time = Time.now
                 flexmock(Upgrade).should_receive(:build_deep_cast).with(time, source_t, target_t, converter_registry).
-                    and_return([op = flexmock])
+                    and_return(op = flexmock)
                 assert_equal op, Upgrade.compute(time, source_t, target_t, converter_registry)
+            end
+
+            it "applies the same-type converters in time order" do
+                recorder = flexmock
+                int_t = registry.create_numeric '/int', 4, :sint
+                converter_registry.add(Time.now - 5, int_t, int_t) do |target, source|
+                    recorder.called(source)
+                    Typelib.copy(target, Typelib.from_ruby(30, int_t))
+                end
+                converter_registry.add(Time.now - 10, int_t, int_t) do |target, source|
+                    recorder.called(source)
+                    Typelib.copy(target, Typelib.from_ruby(20, int_t))
+                end
+
+                recorder.should_receive(:called).ordered.once.
+                    with(->(source) { Typelib.to_ruby(source) == 10 })
+                recorder.should_receive(:called).ordered.once.
+                    with(->(source) { Typelib.to_ruby(source) == 20 })
+                ops = Upgrade.compute(Time.now - 20, int_t, int_t, converter_registry)
+                result = ops.convert(Typelib.from_ruby(10, int_t))
+                assert_kind_of int_t, result
+                assert_equal 30, Typelib.to_ruby(result)
             end
         end
 
@@ -60,12 +82,12 @@ module Pocolog
                         ops.convert(Typelib.from_ruby(2**33, double_t))
                     end
                 end
-                it "raises InvalidCast if the target type is not a numeric type" do
+                it "raises if the target type is not a numeric type" do
                     int_t = registry.create_numeric '/int32', 4, :sint
                     target_t = registry.create_enum '/E' do |e|
                         e.add 'SYM'
                     end
-                    assert_raises Upgrade::InvalidCast do
+                    assert_raises Upgrade::NoChain do
                         Upgrade.compute(Time.now, int_t, target_t, converter_registry)
                     end
                 end
@@ -74,7 +96,7 @@ module Pocolog
             it "raises if attempting to convert an array to a non-enumerable" do
                 element_t = registry.create_numeric '/int32', 4, :sint
                 array_t = registry.create_array element_t, 8
-                assert_raises(Upgrade::InvalidCast) do
+                assert_raises(Upgrade::NoChain) do
                     Upgrade.compute(Time.now, array_t, element_t, converter_registry)
                 end
             end
@@ -82,7 +104,7 @@ module Pocolog
             it "raises if attempting to convert a container to a non-enumerable" do
                 element_t = registry.create_numeric '/int32', 4, :sint
                 container_t = registry.create_container '/std/vector', element_t, 8
-                assert_raises(Upgrade::InvalidCast) do
+                assert_raises(Upgrade::NoChain) do
                     Upgrade.compute(Time.now, container_t, element_t, converter_registry)
                 end
             end
@@ -95,14 +117,14 @@ module Pocolog
                 it "raises at model time if the source has less elements" do
                     source_t = registry.create_array element_t, 8
                     target_t = registry.create_array element_t, 10
-                    assert_raises(Upgrade::ArraySizeMismatch) do
+                    assert_raises(Upgrade::NoChain) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end
                 it "raises at model time if the source has more elements" do
                     source_t = registry.create_array element_t, 10
                     target_t = registry.create_array element_t, 8
-                    assert_raises(Upgrade::ArraySizeMismatch) do
+                    assert_raises(Upgrade::NoChain) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end

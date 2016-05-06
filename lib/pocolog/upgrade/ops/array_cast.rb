@@ -5,14 +5,14 @@ module LogTools
             class ArrayCast < Base
                 attr_reader :element_ops
 
-                def initialize(target_t, element_ops)
-                    super(target_t)
+                def initialize(to_type, element_ops)
+                    super(to_type)
                     @element_ops = element_ops
                 end
 
                 def call(target, value)
-                    if value.size != target_t.length
-                        raise ArraySizeMismatch, "attempting to copy a container of size #{value.size} into an array of size #{target_t.length}"
+                    if value.size != to_type.length
+                        raise ArraySizeMismatch, "attempting to copy a container of size #{value.size} into an array of size #{to_type.length}"
                     end
 
                     i = 0

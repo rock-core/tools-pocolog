@@ -6,10 +6,10 @@ module LogTools
             # One MUST reimplement either {#call} or {#convert}. Otherwise, they
             # will do an infinite recursion
             class Base
-                attr_reader :target_t
+                attr_reader :to_type
 
-                def initialize(target_t)
-                    @target_t = target_t
+                def initialize(to_type)
+                    @to_type = to_type
                 end
 
                 def call(target, value)
@@ -17,7 +17,7 @@ module LogTools
                 end
 
                 def convert(value)
-                    target = target_t.new
+                    target = to_type.new
                     call(target, value)
                     target
                 end

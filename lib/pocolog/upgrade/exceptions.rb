@@ -6,6 +6,10 @@ module Pocolog
         # different sizes
         class ArraySizeMismatch < InvalidCast
         end
+
+        # Exception raised when a conversion chain cannot be found
+        class NoChain < InvalidCast
+        end
     end
 end
 

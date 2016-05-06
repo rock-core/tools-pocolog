@@ -17,7 +17,7 @@ module LogTools
                     if !known_symbols.include?(symbol)
                         raise InvalidCast, "#{symbol} is not present in the target enum"
                     end
-                    Typelib.from_ruby(symbol, target_t)
+                    Typelib.from_ruby(symbol, to_type)
                 end
             end
         end

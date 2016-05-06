@@ -2,13 +2,13 @@ module LogTools
     module Upgrade
         module Ops
             class NumericCast < Base
-                # Minimum value allowed in {#target_t} if a range check is needed
+                # Minimum value allowed in {#to_type} if a range check is needed
                 #
                 # @return [Numeric,nil] the minimum value, or nil if the source
                 #   type cannot cause a range error
                 attr_reader :range_min
 
-                # Maximum value allowed in {#target_t} if a range check is needed
+                # Maximum value allowed in {#to_type} if a range check is needed
                 #
                 # @return [Numeric,nil] the maximum value, or nil if the source
                 #   type cannot cause a range error
@@ -47,12 +47,12 @@ module LogTools
                     ruby_value = Typelib.to_ruby(value)
                     if range_min
                         if ruby_value < range_min
-                            raise RangeError, "value below minimum value for #{target_t}"
+                            raise RangeError, "value below minimum value for #{to_type}"
                         elsif ruby_value > range_max
-                            raise RangeError, "value above maximum value for #{target_t}"
+                            raise RangeError, "value above maximum value for #{to_type}"
                         end
                     end
-                    Typelib.from_ruby(ruby_value, target_t)
+                    Typelib.from_ruby(ruby_value, to_type)
                 end
             end
         end
