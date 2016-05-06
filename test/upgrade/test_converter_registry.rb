@@ -56,8 +56,8 @@ module Pocolog
                 end
                 it "links the type to known types of the same name that are valid deep casts" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
-                    flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time - 1, eq_int_t, int_t, registry).
+                    flexmock(Upgrade).should_receive(:build_deep_cast, relax: false).
+                        with(base_time - 1, eq_int_t, int_t, registry, Hash[relax: false]).
                         and_return(deep_cast_op = flexmock)
                     v, _ = registry.compute_source_conversions(graph, base_time - 1, eq_int_t)
                     assert_equal Set[[v, deep_cast_op], [deep_cast_op, converter]],
@@ -70,7 +70,7 @@ module Pocolog
                 it "ignores types of the same name that are invalid deep casts" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
                     flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time - 1, eq_int_t, int_t, registry).
+                        with(base_time - 1, eq_int_t, int_t, registry, relax: false).
                         and_raise(InvalidCast)
                     registry.compute_source_conversions(graph, base_time - 1, eq_int_t)
                     assert_equal [], graph.enum_for(:each_edge).to_a
@@ -101,7 +101,7 @@ module Pocolog
                 it "links the type to known types of the same name that are valid deep casts" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
                     flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time, int_t, eq_int_t, registry).
+                        with(base_time, int_t, eq_int_t, registry, relax: false).
                         and_return(deep_cast_op = flexmock)
                     v, _ = registry.compute_target_conversions(graph, eq_int_t)
                     assert_equal Set[[converter, deep_cast_op], [deep_cast_op, v]],
@@ -110,7 +110,7 @@ module Pocolog
                 it "ignores types of the same name that are invalid deep casts" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
                     flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time, int_t, eq_int_t, registry).
+                        with(base_time, int_t, eq_int_t, registry, relax: false).
                         and_raise(InvalidCast)
                     registry.compute_target_conversions(graph, eq_int_t)
                     assert_equal [], graph.enum_for(:each_edge).to_a
@@ -120,40 +120,44 @@ module Pocolog
             describe "#find_converter_chain" do
                 it "returns identity for equivalent types that are unknown to the registry" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
-                    ops = registry.find_converter_chain(base_time - 1, int_t, eq_int_t)
+                    ops, _ = registry.find_converter_chain(base_time - 1, int_t, eq_int_t)
                     assert_equal 1, ops.size
                     assert_kind_of Ops::Identity, ops.first
                 end
                 it "returns identity for equivalent types that are known to the registry" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
                     converter = registry.add base_time, int_t, double_t
-                    ops = registry.find_converter_chain(base_time - 1, int_t, eq_int_t)
+                    ops, _ = registry.find_converter_chain(base_time - 1, int_t, eq_int_t)
                     assert_equal 1, ops.size
                     assert_kind_of Ops::Identity, ops.first
                 end
                 it "returns a converter chain if there is one and both types have converters" do
                     converter_0 = registry.add base_time, int_t, int_t
                     converter_1 = registry.add base_time + 1, int_t, double_t
-                    ops = registry.find_converter_chain(base_time - 1, int_t, double_t)
+                    ops, _ = registry.find_converter_chain(base_time - 1, int_t, double_t)
                     assert_equal [converter_0, converter_1], ops
                 end
                 it "returns nil if both types have converters but no chain exists" do
                     converter_0 = registry.add base_time, int_t, int_t
                     converter_1 = registry.add base_time + 1, double_t, double_t
-                    assert !registry.find_converter_chain(base_time - 1, int_t, double_t)
+                    ops, failures = registry.find_converter_chain(base_time - 1, int_t, double_t)
+                    assert !ops
+                    assert failures.empty?
                 end
                 it "attempts a deep cast if the two types are not equivalent and are unknown to the registry" do
                     flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time - 1, int_t, double_t, registry).
+                        with(base_time - 1, int_t, double_t, registry, relax: false).
                         and_return(cast_ops = flexmock)
-                    ops = registry.find_converter_chain(base_time - 1, int_t, double_t)
+                    ops, _ = registry.find_converter_chain(base_time - 1, int_t, double_t)
                     assert_equal [cast_ops], ops
                 end
                 it "returns nil if the deep cast of two unregistered types fail" do
                     flexmock(Upgrade).should_receive(:build_deep_cast).
-                        with(base_time - 1, int_t, double_t, registry).
-                        and_raise(Upgrade::InvalidCast)
-                    assert !registry.find_converter_chain(base_time - 1, int_t, double_t)
+                        with(base_time - 1, int_t, double_t, registry, relax: false).
+                        and_raise(e = Upgrade::InvalidCast.exception)
+                    ops, failures = registry.find_converter_chain(base_time - 1, int_t, double_t)
+                    assert !ops
+                    assert_equal [e], failures
                 end
             end
         end

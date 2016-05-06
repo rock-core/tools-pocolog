@@ -70,7 +70,7 @@ module Pocolog
             # It checks whether 'type' itself is known, and if not tries to find
             # the types that have the same name and can into which 'type' can be
             # converted.
-            def compute_source_conversions(graph, time, type)
+            def compute_source_conversions(graph, time, type, relax: false)
                 source_vertex = Object.new
                 if self_type = find_equivalent_type(type)
                     type = self_type
@@ -87,7 +87,7 @@ module Pocolog
                             graph.add_edge(source_vertex, converter)
                         else
                             begin
-                                cast_op = Upgrade.build_deep_cast(time, type, candidate_type, self)
+                                cast_op = Upgrade.build_deep_cast(time, type, candidate_type, self, relax: relax)
                                 graph.add_edge(source_vertex, cast_op)
                                 graph.add_edge(cast_op, converter)
                             rescue InvalidCast => e
@@ -106,7 +106,7 @@ module Pocolog
             #
             # It checks whether 'type' itself is known, and if not tries to find
             # the types that have the same name and can be converted to it.
-            def compute_target_conversions(graph, type)
+            def compute_target_conversions(graph, type, relax: false)
                 target_vertex = Object.new
                 if self_type = find_equivalent_type(type)
                     type = self_type
@@ -126,7 +126,7 @@ module Pocolog
                         graph.add_edge(converter, target_vertex)
                     else
                         begin
-                            deep_cast = Upgrade.build_deep_cast(converter.time_to, candidate_type, type, self)
+                            deep_cast = Upgrade.build_deep_cast(converter.time_to, candidate_type, type, self, relax: relax)
                             graph.add_edge(converter, deep_cast)
                             graph.add_edge(deep_cast, target_vertex)
                         rescue InvalidCast => e
@@ -167,10 +167,10 @@ module Pocolog
             #
             # @return [Array<Ops::Base>,nil] either a chain of conversions that
             #   need to be applied, or nil if no conversions couldbe computed
-            def find_converter_chain(time, from_type, to_type)
+            def find_converter_chain(time, from_type, to_type, relax: false)
                 graph = build_converter_graph(time)
-                source_v, from_type, from_failures = compute_source_conversions(graph, time, from_type)
-                target_v, to_type, to_failures     = compute_target_conversions(graph, to_type)
+                source_v, from_type, from_failures = compute_source_conversions(graph, time, from_type, relax: relax)
+                target_v, to_type, to_failures     = compute_target_conversions(graph, to_type, relax: relax)
 
                 if !graph.include?(source_v) || !graph.include?(target_v)
                     if from_type == to_type
@@ -178,7 +178,7 @@ module Pocolog
                     end
 
                     begin
-                        return [Upgrade.build_deep_cast(time, from_type, to_type, self)], Array.new
+                        return [Upgrade.build_deep_cast(time, from_type, to_type, self, relax: false)], Array.new
                     rescue InvalidCast => e
                         return nil, from_failures + to_failures + [e]
                     end

@@ -16,8 +16,8 @@ require 'log_tools/upgrade/ops/custom'
 
 module Pocolog
     module Upgrade
-        def self.compute(time, from_type, to_type, registered_converters)
-            chain, failures = registered_converters.find_converter_chain(time, from_type, to_type)
+        def self.compute(time, from_type, to_type, registered_converters, relax: false)
+            chain, failures = registered_converters.find_converter_chain(time, from_type, to_type, relax: relax)
             if !chain
                 raise NoChain.new(from_type, to_type, failures)
             elsif chain.empty?
@@ -29,7 +29,7 @@ module Pocolog
             end
         end
 
-        def self.build_deep_cast(time, from_type, to_type, registered_converters)
+        def self.build_deep_cast(time, from_type, to_type, registered_converters, relax: false)
             if from_type < Typelib::NumericType
                 if !(to_type < Typelib::NumericType)
                     raise InvalidCast, "cannot automatically cast a numeric type into a non-numeric type"
@@ -43,7 +43,7 @@ module Pocolog
                         end
                     end
                     element_conversion =
-                        compute(time, from_type.deference, to_type.deference, registered_converters)
+                        compute(time, from_type.deference, to_type.deference, registered_converters, relax: relax)
                     Ops::ArrayCast.new(to_type, element_conversion)
 
                 elsif to_type < Typelib::ContainerType
@@ -64,15 +64,23 @@ module Pocolog
                     raise InvalidCast, "cannot automatically cast a compound to a non-compound"
                 end
                 field_convertions = Array.new
+
                 from_type.each_field do |field_name, field_type|
                     if to_type.has_field?(field_name)
-                        field_ops = compute(time, field_type, to_type[field_name], registered_converters)
-                        field_convertions << [field_name, field_ops]
+                        begin
+                            field_ops = compute(time, field_type, to_type[field_name], registered_converters, relax: true)
+                            field_convertions << [field_name, field_ops]
+                        rescue InvalidCast
+                            raise if !relax
+                        end
                     end
                 end
-                to_type.each_field do |field_name, field_type|
-                    if !from_type.has_field?(field_name) && !(field_type <= Typelib::ContainerType)
-                        raise CannotAddNonContainerField.new(to_type, field_name), "cannot automatically convert to a compound that adds a non-container field, #{to_type.name} adds #{field_name} of type #{field_type.name}"
+
+                if !relax
+                    to_type.each_field do |field_name, field_type|
+                        if !from_type.has_field?(field_name) && !(field_type <= Typelib::ContainerType)
+                            raise CannotAddNonContainerField.new(to_type, field_name), "cannot automatically convert to a compound that adds a non-container field, #{to_type.name} adds #{field_name} of type #{field_type.name}"
+                        end
                     end
                 end
                 Ops::CompoundCast.new(field_convertions, to_type)

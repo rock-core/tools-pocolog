@@ -21,7 +21,7 @@ module Pocolog
                 source_t = registry.create_numeric '/int', 4, :sint
                 target_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
                 time = Time.now
-                flexmock(Upgrade).should_receive(:build_deep_cast).with(time, source_t, target_t, converter_registry).
+                flexmock(Upgrade).should_receive(:build_deep_cast).with(time, source_t, target_t, converter_registry, relax: false).
                     and_return(op = flexmock)
                 assert_equal op, Upgrade.compute(time, source_t, target_t, converter_registry)
             end
