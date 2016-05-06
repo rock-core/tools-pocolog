@@ -17,9 +17,9 @@ require 'log_tools/upgrade/ops/custom'
 module Pocolog
     module Upgrade
         def self.compute(time, from_type, to_type, registered_converters)
-            chain = registered_converters.find_converter_chain(time, from_type, to_type)
+            chain, failures = registered_converters.find_converter_chain(time, from_type, to_type)
             if !chain
-                raise NoChain, "no chain to convert #{from_type} to #{to_type}"
+                raise NoChain.new(from_type, to_type, failures)
             elsif chain.empty?
                 Ops::Identity.new(to_type)
             elsif chain.size == 1
@@ -72,7 +72,7 @@ module Pocolog
                 end
                 to_type.each_field do |field_name, field_type|
                     if !from_type.has_field?(field_name) && !(field_type <= Typelib::ContainerType)
-                        raise InvalidCast, "cannot automatically convert to a compound that adds a non-container field"
+                        raise CannotAddNonContainerField.new(to_type, field_name), "cannot automatically convert to a compound that adds a non-container field, #{to_type.name} adds #{field_name} of type #{field_type.name}"
                     end
                 end
                 Ops::CompoundCast.new(field_convertions, to_type)

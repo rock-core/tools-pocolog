@@ -9,6 +9,10 @@ module LogTools
                 def call(target, value)
                     Typelib.copy(target, value)
                 end
+
+                def identity?
+                    true
+                end
             end
         end
     end

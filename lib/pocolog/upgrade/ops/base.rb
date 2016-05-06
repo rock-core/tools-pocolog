@@ -21,6 +21,10 @@ module LogTools
                     call(target, value)
                     target
                 end
+
+                def identity?
+                    false
+                end
             end
         end
     end

@@ -79,6 +79,7 @@ module Pocolog
                     candidates = type_by_type_name.fetch(type.name, Array.new)
                 end
 
+                failures = Array.new
                 candidates.each do |candidate_type|
                     converters = converters_by_from_type.fetch(candidate_type, Array.new)
                     if converter = converters.sort_by(&:time_to).find { |c| c.time_to > time }
@@ -89,12 +90,13 @@ module Pocolog
                                 cast_op = Upgrade.build_deep_cast(time, type, candidate_type, self)
                                 graph.add_edge(source_vertex, cast_op)
                                 graph.add_edge(cast_op, converter)
-                            rescue InvalidCast
+                            rescue InvalidCast => e
+                                failures << e
                             end
                         end
                     end
                 end
-                return source_vertex, type
+                return source_vertex, type, failures
             end
 
             # @api private
@@ -113,6 +115,7 @@ module Pocolog
                     candidates = type_by_type_name.fetch(type.name, Array.new)
                 end
 
+                failures = Array.new
                 candidates.each do |candidate_type|
                     converter = converters_by_to_type.fetch(candidate_type, Array.new).
                         sort_by(&:time_to).last
@@ -126,11 +129,12 @@ module Pocolog
                             deep_cast = Upgrade.build_deep_cast(converter.time_to, candidate_type, type, self)
                             graph.add_edge(converter, deep_cast)
                             graph.add_edge(deep_cast, target_vertex)
-                        rescue InvalidCast
+                        rescue InvalidCast => e
+                            failures << e
                         end
                     end
                 end
-                return target_vertex, type
+                return target_vertex, type, failures
             end
 
             # Enumerate all registered converters
@@ -165,22 +169,26 @@ module Pocolog
             #   need to be applied, or nil if no conversions couldbe computed
             def find_converter_chain(time, from_type, to_type)
                 graph = build_converter_graph(time)
-                source_v, from_type = compute_source_conversions(graph, time, from_type)
-                target_v, to_type   = compute_target_conversions(graph, to_type)
+                source_v, from_type, from_failures = compute_source_conversions(graph, time, from_type)
+                target_v, to_type, to_failures     = compute_target_conversions(graph, to_type)
 
                 if !graph.include?(source_v) || !graph.include?(target_v)
                     if from_type == to_type
-                        return [Ops::Identity.new(to_type)]
+                        return [Ops::Identity.new(to_type)], Array.new
                     end
 
                     begin
-                        return [Upgrade.build_deep_cast(time, from_type, to_type, self)]
-                    rescue InvalidCast
-                        return
+                        return [Upgrade.build_deep_cast(time, from_type, to_type, self)], Array.new
+                    rescue InvalidCast => e
+                        return nil, from_failures + to_failures + [e]
                     end
                 elsif chain = graph.dijkstra_shortest_path(Hash.new(1), source_v, target_v)
-                    chain[1..-2]
+                    return chain[1..-2], Array.new
+                else
+                    return nil, from_failures + to_failures
                 end
+
+
             end
         end
     end
