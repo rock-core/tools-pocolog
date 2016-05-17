@@ -949,9 +949,14 @@ module Pocolog
 	DATA_BLOCK_HEADER_FORMAT = "VVx#{TIME_PADDING}VVx#{TIME_PADDING}VC"
 
         def self.write_data_block(io, stream_index, rt, lg, compress, data)
-            payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
-                data.length, compress, data
-            ].pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
+            if rt.kind_of?(Time)
+                payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
+                    data.length, compress, data]
+            else
+                payload = [rt / 1_000_000, rt % 1_000_000, lg / 1_000_000, lg % 1_000_000,
+                           data.length, compress, data]
+            end
+            payload = payload.pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
             write_block(io, DATA_BLOCK, stream_index, payload)
         end
 
