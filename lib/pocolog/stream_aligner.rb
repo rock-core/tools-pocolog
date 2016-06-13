@@ -236,7 +236,7 @@ module Pocolog
             end
             update_time_interval
 
-            if changed_sample && (sample_index != full_index.size)
+            if sample_info && changed_sample && (sample_index != full_index.size)
                 return *sample_info, single_data(sample_info[0])
             end
         end
