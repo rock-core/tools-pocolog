@@ -352,10 +352,7 @@ module Pocolog
         # the copy process will be canceled and the method returns false 
         #
         # The given interval is automatically truncated if it is too big
-        def copy_to(start_index,end_index,stream,&block)
-            if !samples?(start_index,end_index)
-                raise "no samples for the given interval!"
-            end
+        def copy_to(start_index = 0, end_index = size, stream, &block)
             interval = time_interval
             return unless interval.first
             start_index = if start_index.is_a? Time
