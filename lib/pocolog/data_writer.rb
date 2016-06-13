@@ -12,7 +12,9 @@ module Pocolog
         # Write an already marshalled sample. +data+ is supposed to be a
         # typelib-marshalled value of the stream type
         def write_raw(rt, lg, data)
+            pos = logfile.wio.tell
 	    logfile.write_data_block(self, rt, lg, data)
+            info.append_sample(logfile.wio_index, pos, rt, lg)
         end
     end
 end

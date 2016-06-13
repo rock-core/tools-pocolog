@@ -122,9 +122,18 @@ module Pocolog
             end
 	end
 
+        def path
+            @io[0].path
+        end
+
         def closed?
             @io.all? { |io| io.closed? }
         end
+
+        # Flush the IO objects
+	def flush
+	    io.each(&:flush)
+	end
 
         # Close the underlying IO objects
 	def close
@@ -300,8 +309,12 @@ module Pocolog
         def eof?; @io.size == @rio end
 	# Returns the IO object currently used for reading
 	def rio; @io[@rio] end
+        # Return the IO index of the IO being currently read
+        def rio_index; @rio end
 	# Returns the IO object currently used for writing
 	def wio; @io.last end
+        # Return the IO index of the IO being currently written
+        def wio_index; @io.size - 1 end
         # Returns the file size of the IO object currently used
         def file_size; @io_size[@rio] end
 	
@@ -450,7 +463,7 @@ module Pocolog
 
         # Basic information about a stream, as saved in the index files
         class StreamInfo
-	    STREAM_INFO_VERSION = "1.2"
+	    STREAM_INFO_VERSION = "1.3"
 	    
 	    #the version of the StreamInfo class. This is only used to detect
 	    #if an old index file is on the disk compared to the code 
@@ -484,7 +497,18 @@ module Pocolog
                 @interval_lg = []
                 @interval_rt = []
                 @size        = 0
-                @index       = StreamIndex.new()
+                @index       = StreamIndex.new
+            end
+
+            def append_sample(io_index, pos, rt, lg)
+                @interval_io[0] ||= [io_index, pos]
+                @interval_io[1]   = [io_index, pos]
+                @interval_rt[0] ||= rt
+                @interval_rt[1]   = rt
+                @interval_lg[0] ||= lg
+                @interval_lg[1]   = lg
+                @size += 1
+                index.add_sample_to_index(io_index, pos, lg)
             end
         end
 
@@ -556,17 +580,30 @@ module Pocolog
             @streams[index]
         end
 
+        def default_index_filename
+            index_filename = File.basename(@io[0].path, File.extname(@io[0].path)) + ".idx"
+            File.join(File.dirname(@io[0].path), index_filename)
+        end
+
 	# Loads and returns the set of data streams found in this file. Will
         # lazily build an index file when required.
 	def streams
 	    return @streams.compact if @streams
 
-            index_filename = File.basename(@io[0].path, File.extname(@io[0].path)) + ".idx"
-            index_filename = File.join(File.dirname(@io[0].path), index_filename)
+            index_filename = default_index_filename
             if streams = load_index_file(index_filename)
                 return streams
             end
-	    
+
+            rebuild_index(index_filename)
+            if @streams
+                @streams.compact
+            end
+        end
+
+        # Go through the whole file to extract index information, and write the
+        # index file
+        def rebuild_index(index_filename = self.default_index_filename)
             # No index file. Compute it.
             Pocolog.info "building index #{index_filename} ..."
 	    each_data_block(nil, true) do |stream_index|
@@ -574,39 +611,19 @@ module Pocolog
                 # has been found
                 s    = @streams[stream_index]
                 if s.nil? 
-                    Pocolog.warn "Got empty Streamline. Seems file is corrupted, skipping this" 
+                    Pocolog.warn "stream #{stream_index} looks empty, skipping"
                 else
-                    info = s.info
-                    info.interval_io[1] = [@rio, block_info.pos]
-		    info.interval_io[0] ||= info.interval_io[1]
-
-		    info.index.add_sample_to_index(@rio, data_header.block_pos, data_header.lg_time)
-                    info.size += 1
+                    s.info.append_sample(@rio, data_header.block_pos, data_header.rt_time, data_header.lg_time)
                 end
 	    end
 
-            if !@streams
+            if @streams
+                write_index_file(index_filename)
                 Pocolog.info "done"
-                return []
             end
+        end
 
-	    @streams.each do |s|
-		next unless s
-
-		#set correct time interval
-                stream_info = s.info
-		if !stream_info.empty?
-		    @rio, pos = stream_info.interval_io[0]
-		    rio.seek(pos + BLOCK_HEADER_SIZE)
-                    stream_info.interval_rt[0] = read_time
-                    stream_info.interval_lg[0] = read_time
-		    @rio, pos = stream_info.interval_io[1] || stream_info.interval_io[0]
-		    rio.seek(pos + BLOCK_HEADER_SIZE)
-                    stream_info.interval_rt[1] = read_time
-                    stream_info.interval_lg[1] = read_time	    
-		end
-	    end
-
+        def write_index_file(index_filename = self.default_index_filename)
             file_info   = @io.map { |io| [File.size(io.path), io.mtime] }
             stream_info = @streams.compact.map { |s| s.info }
 
@@ -618,8 +635,6 @@ module Pocolog
                 FileUtils.rm_f index_filename
                 raise
             end
-            Pocolog.info "done"
-	    @streams.compact
 	end
 
 	# True if there is a stream +index+
@@ -905,9 +920,11 @@ module Pocolog
 
 	    @streams ||= Array.new
 	    new_index = @streams.size
+            pos = wio.tell
 	    write_stream_declaration(new_index, name, type.name, registry, metadata)
 
 	    stream = DataStream.new(self, new_index, name, typename, registry, metadata)
+            stream.info.declaration_block = [wio_index, pos]
 	    @streams << stream
 	    stream
         end

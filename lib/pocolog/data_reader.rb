@@ -27,6 +27,7 @@ module Pocolog
             @registry = nil
             @sample_index = -1
             @raw_data_buffer = ""
+            @info = Logfiles::StreamInfo.new
         end
 
         def stream_index
@@ -82,9 +83,11 @@ module Pocolog
         #
         # Returns nil if the stream is empty
 	def time_interval(rt = false)
-	    if rt then info.interval_rt
-	    else info.interval_lg
-	    end
+	    if rt
+                info.interval_rt.map { |t| StreamIndex.time_from_internal(t, 0) }
+            else
+                info.interval_lg.map { |t| StreamIndex.time_from_internal(t, 0) }
+            end
 	end
 
         # The data header for the current sample. You can store a copy of this
