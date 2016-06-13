@@ -382,18 +382,18 @@ module Pocolog
                             end
                         end
             
-            data_buffer = String.new
-            seek(start_index,false)
             counter = 0
-            max = end_index-start_index
-            begin
+            data_buffer = String.new
+            data_header = seek(start_index, false)
+            while sample_index < end_index
                 if block
                     return false if block.call(counter)
                 end
-                data = logfile.data(data_header, data_buffer)
-                stream.write_raw(data_header.rt,data_header.lg,data)
+                logfile.data(data_header, data_buffer)
+                stream.write_raw(data_header.rt_time, data_header.lg_time, data_buffer)
                 counter += 1
-            end while advance && counter < max
+                data_header = advance
+            end
             counter
         end
 
