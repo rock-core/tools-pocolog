@@ -5,7 +5,8 @@ class TC_File < Minitest::Test
 
     def create_fixture
         logfile = Pocolog::Logfiles.create('test')
-        all_values = logfile.create_stream('all', 'int', 'test' => 'value', 'test2' => 'value2')
+        int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
+        all_values = logfile.create_stream('all', int_t, 'test' => 'value', 'test2' => 'value2')
         100.times do |i|
             all_values.write(Time.at(i), Time.at(i * 100), i)
         end

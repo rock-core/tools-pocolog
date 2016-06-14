@@ -203,15 +203,10 @@ module Pocolog
 	# Create an empty log file using +basename+ to build its name.
         # Namely, it will create a new file named <basename>.0.log. Then,
         # calls to #new_file would create <basename>.1.log and so on
-	def self.create(basename, registry = nil)
-            if !registry
-                registry = Typelib::Registry.new
-                Typelib::Registry.add_standard_cxx_types(registry)
-            end
+	def self.create(basename, registry = Typelib::Registry.new)
 	    file = Logfiles.new(registry)
 	    file.basename = basename
 	    file.new_file
-
 	    file
 	end
 

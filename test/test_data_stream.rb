@@ -6,8 +6,10 @@ class TC_DataStream < Minitest::Test
     attr_reader :expected_data
 
     def create_fixture
+        registry = Typelib::Registry.new
+        int_t = registry.create_numeric '/int', 4, :sint
         logfile = Pocolog::Logfiles.create('test')
-        all_values = logfile.create_stream('all', 'int', 'test' => 'value', 'test2' => 'value2')
+        all_values = logfile.create_stream('all', int_t, 'test' => 'value', 'test2' => 'value2')
         @expected_data = Array.new
         100.times do |i|
             all_values.write(Time.at(i), Time.at(i * 100), i)
@@ -16,7 +18,7 @@ class TC_DataStream < Minitest::Test
 
         # Add a followup stream that fills in the file. It is used for a corner
         # case in #test_past_the_end_does_not_read_whole_file
-        other_stream = logfile.create_stream('other', 'int')
+        other_stream = logfile.create_stream('other', int_t)
         100.times do |i|
             other_stream.write(Time.at(i), Time.at(i * 100), i)
         end

@@ -16,7 +16,8 @@ module Pocolog
         end
 
         def create_log_stream(name, data)
-            stream = logfile.stream(name, 'double', true)
+            double_t = Typelib::Registry.new.create_numeric '/double', 8, :float
+            stream = logfile.stream(name, double_t, true)
             data.each do |v|
                stream.write(Time.at(v * 10), Time.at(v * 10), v)
             end
@@ -376,10 +377,13 @@ class TC_StreamAligner < Minitest::Test
     attr_reader :stream
 
     def self.create_fixture
+        registry = Typelib::Registry.new
+        double_t = registry.create_numeric '/double', 8, :float
+        int_t    = registry.create_numeric '/int', 4, :sint
         logfile = Pocolog::Logfiles.create('test')
-        all_values  = logfile.stream('all', 'int', true)
-        odd_values  = logfile.stream('odd', 'int', true)
-        even_values = logfile.stream('even', 'int', true)
+        all_values  = logfile.stream('all', int_t, true)
+        odd_values  = logfile.stream('odd', int_t, true)
+        even_values = logfile.stream('even', int_t, true)
 
         interleaved_data = []
         100.times do |i|
@@ -545,7 +549,8 @@ class TC_StreamAligner2 < Minitest::Test
 
     def create_fixture
         logfile = Pocolog::Logfiles.create('test')
-        all_values = logfile.create_stream('all', 'int', 'test' => 'value', 'test2' => 'value2')
+        int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
+        all_values = logfile.create_stream('all', int_t, 'test' => 'value', 'test2' => 'value2')
         @expected_data = Array.new
         100.times do |i|
             all_values.write(Time.at(i), Time.at(i * 100), i)
@@ -554,7 +559,7 @@ class TC_StreamAligner2 < Minitest::Test
 
         # Add a followup stream that fills in the file. It is used for a corner
         # case in #test_past_the_end_does_not_read_whole_file
-        other_stream = logfile.create_stream('other', 'int')
+        other_stream = logfile.create_stream('other', int_t)
         100.times do |i|
 	    i = i + 100
             other_stream.write(Time.at(i), Time.at(i * 100), i)
