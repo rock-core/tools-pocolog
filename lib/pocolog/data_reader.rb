@@ -9,7 +9,7 @@ module Pocolog
         def typename; type_name end
 
         attr_reader :marshalled_registry
-        # The Logfiles::StreamInfo structure for that stream
+        # The {StreamInfo} structure for that stream
         attr_reader :info
         # The index in the stream of the last read sample
         #
@@ -27,7 +27,7 @@ module Pocolog
             @registry = nil
             @sample_index = -1
             @raw_data_buffer = ""
-            @info = Logfiles::StreamInfo.new
+            @info = StreamInfo.new
         end
 
         def stream_index

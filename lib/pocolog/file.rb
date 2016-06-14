@@ -54,15 +54,6 @@ module Pocolog
 	# compressed form
 	COMPRESSION_THRESHOLD = 0.3
 
-        # Exception thrown when opening if the log file is not 
-        #
-        # One should run pocolog --upgrade-version when this happen
-	class ObsoleteVersion < RuntimeError; end
-        # Logfiles.open could not find a valid prologue in the provided file(s)
-        #
-        # This is most often because the provided file(s) are not pocolog files
-	class MissingPrologue < RuntimeError; end
-
         # Structure that stores additional information about a block
 	BlockInfo = Struct.new :io, :pos, :type, :index, :payload_size
         # The BlockInfo instance storing information about the last block read
@@ -461,57 +452,6 @@ module Pocolog
 	    end
 	end
 
-        # Basic information about a stream, as saved in the index files
-        class StreamInfo
-	    STREAM_INFO_VERSION = "1.3"
-	    
-	    #the version of the StreamInfo class. This is only used to detect
-	    #if an old index file is on the disk compared to the code 
-            attr_accessor :version
-            # Position of the declaration block as [raw_pos, io_index]. This
-            # information can directly be given to Logfiles#seek
-            attr_accessor :declaration_block
-            # The position of the first and last samples in the file set, as
-            # [[raw_pos, io_index], [raw_pos, io_index]]. It is empty for empty
-            # streams.
-            attr_accessor :interval_io
-            # The logical time of the first and last samples of that stream
-            # [beginning, end]. It is empty for empty streams.
-            attr_accessor :interval_lg
-            # The real time of the first and last samples of that stream
-            # [beginning, end]. It is empty for empty streams.
-            attr_accessor :interval_rt
-            # The number of samples in this stream
-            attr_accessor :size
-
-	    # The index data itself. 
-	    # This is a instance of StreamIndex
-            attr_accessor :index
-
-            # True if this stream is empty
-            def empty?; size == 0 end
-
-            def initialize
-		@version = STREAM_INFO_VERSION
-                @interval_io = []
-                @interval_lg = []
-                @interval_rt = []
-                @size        = 0
-                @index       = StreamIndex.new
-            end
-
-            def append_sample(io_index, pos, rt, lg)
-                @interval_io[0] ||= [io_index, pos]
-                @interval_io[1]   = [io_index, pos]
-                @interval_rt[0] ||= rt
-                @interval_rt[1]   = rt
-                @interval_lg[0] ||= lg
-                @interval_lg[1]   = lg
-                @size += 1
-                index.add_sample_to_index(io_index, pos, lg)
-            end
-        end
-
         # Load the given index file. Returns nil if the index file does not
         # match the files in the file set.
         def load_index_file(index_filename)
@@ -529,6 +469,14 @@ module Pocolog
                     end
                 end
 
+            initialize_from_index(file_info, stream_info)
+            return @streams.compact
+        rescue InvalidIndex => e
+            Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
+	    nil
+        end
+
+        def initialize_from_index(file_info, stream_info)
             if file_info.size != @io.size
                 raise InvalidIndex, "invalid index file: file set changed"
             end
@@ -568,11 +516,6 @@ module Pocolog
                     @streams[idx].instance_variable_set(:@info, info)
                 end
             end
-            return @streams.compact
-
-        rescue InvalidIndex => e
-            Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
-	    nil
         end
 
         # Returns a stream from its index
@@ -592,35 +535,29 @@ module Pocolog
 
             index_filename = default_index_filename
             if streams = load_index_file(index_filename)
-                return streams
-            end
-
-            rebuild_index(index_filename)
-            if @streams
-                @streams.compact
+                streams
+            else
+                rebuild_and_load_index(index_filename)
             end
         end
 
         # Go through the whole file to extract index information, and write the
         # index file
-        def rebuild_index(index_filename = self.default_index_filename)
+        def rebuild_and_load_index(index_filename = self.default_index_filename)
             # No index file. Compute it.
             Pocolog.info "building index #{index_filename} ..."
-	    each_data_block(nil, true) do |stream_index|
-                # The stream object itself is built when the declaration block
-                # has been found
-                s    = @streams[stream_index]
-                if s.nil? 
-                    Pocolog.warn "stream #{stream_index} looks empty, skipping"
-                else
-                    s.info.append_sample(@rio, data_header.block_pos, data_header.rt_time, data_header.lg_time)
-                end
-	    end
-
-            if @streams
-                write_index_file(index_filename)
-                Pocolog.info "done"
+            builder = FileIndexBuilder.new
+            @io.each do |single_io|
+                single_io.rewind
+                block_stream = BlockStream.new(single_io)
+                block_stream.read_prologue
+                builder.add(block_stream)
+                single_io.rewind
             end
+            builder.save(index_filename)
+            Pocolog.info "done"
+            initialize_from_index(builder.file_info, builder.stream_info)
+            return @streams.compact
         end
 
         def write_index_file(index_filename = self.default_index_filename)
