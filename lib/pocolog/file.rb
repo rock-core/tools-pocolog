@@ -96,6 +96,7 @@ module Pocolog
 	    end
 
 	    @io          = io
+            @wio         = io.last
             @io_size     = io.map { |rio| rio.stat.size }
 	    @streams     = nil
 	    @block_info  = BlockInfo.new
@@ -164,13 +165,16 @@ module Pocolog
                 unless io_index = @io.index(pos.io)
                     raise "#{pos} does not come from this log fileset"
                 end
-                @rio = io_index
+                @rio_index = io_index
                 @next_block_pos = pos.block_pos
             else
 		raise ArgumentError, "need rio argument, if pos is not a DataHeader" unless rio
-		@rio = rio
+		@rio_index = rio
                 @next_block_pos = pos
             end
+
+            @file_size = @io_size[@rio_index]
+            @rio       = @io[@rio_index]
             nil
         end
 
@@ -181,6 +185,10 @@ module Pocolog
 	    io = File.new(name, 'w')
 	    Logfiles.write_prologue(io)
 	    @io << io
+            @wio = io
+            if @io.size == 1
+                rewind
+            end
 	    streams.each_with_index do |s, i|
 		write_stream_declaration(i, s.name, s.type.name, registry.to_xml)
 	    end
@@ -240,7 +248,9 @@ module Pocolog
 
 	# Returns at the beginning of the first file of the file set
 	def rewind
-	    @rio     = 0
+	    @rio_index     = 0
+            @file_size     = @io_size[0]
+            @rio           = @io[0]
 	    @time_base      = []
 	    @time_offset    = []
 	    @next_block_pos = 0
@@ -282,27 +292,29 @@ module Pocolog
 	# Continue reading on the next IO object, or raise EOFError if we
 	# are currently reading the last one
 	def next_io
-	    @rio += 1
-	    if @io.size == @rio
+	    @rio_index += 1
+	    if @io.size == @rio_index
 		raise EOFError
 	    else
 		read_prologue
+                @file_size = @io_size[@rio_index]
+                @rio       = @io[@rio_index]
 		rio
 	    end
 	end
 
         # True if we read the last block in the file set
-        def eof?; @io.size == @rio end
+        def eof?; @io.size == @rio_index end
 	# Returns the IO object currently used for reading
-	def rio; @io[@rio] end
+        attr_reader :rio
         # Return the IO index of the IO being currently read
-        def rio_index; @rio end
+        attr_reader :rio_index
 	# Returns the IO object currently used for writing
-	def wio; @io.last end
+        attr_reader :wio
         # Return the IO index of the IO being currently written
         def wio_index; @io.size - 1 end
         # Returns the file size of the IO object currently used
-        def file_size; @io_size[@rio] end
+        attr_reader :file_size
 	
         # Yields a BlockInfo instance for each block found in the file set.
         #
@@ -313,13 +325,13 @@ module Pocolog
         # after rewind. It is meant to be used internally to upgrade old files.
         #
         # This is not meant for direct use. Use #each_data_block instead.
-	def each_block(rewind = true, with_prologue = true)
+	def each_block(rewind = true, with_prologue = true, streaming: false)
 	    self.rewind if rewind
 	    while !eof?
 		io = self.rio
 		if @next_block_pos == 0 && with_prologue
 		    read_prologue
-		else
+                elsif !streaming
 		    io.seek(@next_block_pos)
 		end
 
@@ -335,6 +347,11 @@ module Pocolog
 	    end
 	rescue EOFError
 	end
+
+        # Read the payload of the current block
+        def read_block_payload
+            rio.read(@block_info.payload_size)
+        end
 
         # Reads one block at the specified position and returns the block type
         # (equal to block_info.type). If the block is a control or stream block,
@@ -407,7 +424,7 @@ module Pocolog
                 raise InvalidBlockFound, "invalid block type '#{type}' found#{file} at position #{rio.tell}, expected one of #{BLOCK_TYPES.join(", ")}, you may want to try running pocolog-repair on this file"
             end
 
-            @block_info.io           = @rio
+            @block_info.io           = @rio_index
             @block_info.pos          = @next_block_pos
             @block_info.type         = type
             @block_info.index        = index
@@ -429,8 +446,8 @@ module Pocolog
         #
         # The with_prologue parameter is a backward compatibility feature that
         # allowed to read old files that did not have a prologue.
- 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true)
-	    each_block(rewind) do |block_info|
+ 	def each_data_block(stream_index = nil, rewind = true, with_prologue = true, streaming: false)
+	    each_block(rewind, streaming: streaming) do |block_info|
                 if handle_block(block_info) == DATA_BLOCK
                     if !stream_index || stream_index == block_info.index
                         yield(block_info.index)
@@ -487,16 +504,16 @@ module Pocolog
 		    raise InvalidIndex, "old index file found"
 		end
 
-                @rio, pos = info.declaration_block
-                if read_one_block(pos, @rio).type != STREAM_BLOCK
+                rio, pos = info.declaration_block
+                if read_one_block(pos, rio).type != STREAM_BLOCK
                     raise InvalidIndex, "invalid declaration_block reference in index"
                 end
 
                 # Read the stream declaration block and then update the
                 # info attribute of the stream object
                 if !info.empty?
-                    @rio, pos = info.interval_io[0]
-                    if read_one_block(pos, @rio).type != DATA_BLOCK
+                    rio, pos = info.interval_io[0]
+                    if read_one_block(pos, rio).type != DATA_BLOCK
                         raise InvalidIndex, "invalid start IO reference in index"
                     end
 
@@ -616,7 +633,7 @@ module Pocolog
 		raise "bad data size #{block_info.size}"
 	    end
 
-            io_index      = @rio
+            io_index      = @rio_index
 	    block_start   = rio.tell
 	    _type         = rio.read(1)
 	    name_size     = rio.read(4).unpack('V').first
@@ -903,6 +920,7 @@ module Pocolog
 	def write_data_block(stream, rt, lg, data) # :nodoc:
 	    compress = 0
 	    if compress? && data.size > COMPRESSION_MIN_SIZE
+                raise
 		data = Zlib::Deflate.deflate(data)
 		compress = 1
 	    end
