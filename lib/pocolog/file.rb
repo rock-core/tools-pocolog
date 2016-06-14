@@ -798,21 +798,9 @@ module Pocolog
 	    write_block(wio, STREAM_BLOCK, index, payload)
         end
 
-        # Helper method that makes sure to create new files if the current file
-        # size is bigger than MAX_FILE_SIZE (if defined). 
-	def do_write # :nodoc:
-            yield
-	    
-	    if defined?(MAX_FILE_SIZE) && (wio.tell > MAX_FILE_SIZE)
-		new_file
-	    end
-	end
-
         # Writes a stream declaration to the current write IO
 	def write_stream_declaration(index, name, type, registry, metadata)
-            do_write do
-                Logfiles.write_stream_declaration(wio, index, name, type, registry, metadata)
-            end
+            Logfiles.write_stream_declaration(wio, index, name, type, registry, metadata)
 	end
 
         # Returns all streams of the given type. The type can be given by its
@@ -919,9 +907,7 @@ module Pocolog
 		compress = 1
 	    end
 
-            do_write do
-                Logfiles.write_data_block(wio, stream.index, rt, lg, compress, data)
-            end
+            Logfiles.write_data_block(wio, stream.index, rt, lg, compress, data)
 	end
 
         # Creates a stream aligner on all streams of this logfile
