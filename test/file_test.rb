@@ -1,4 +1,4 @@
-require 'pocolog/test'
+require 'test_helper'
 
 class TC_File < Minitest::Test
     attr_reader :logfile

@@ -1,4 +1,4 @@
-require 'pocolog/test'
+require 'test_helper'
 
 module Pocolog
     describe StreamAligner do

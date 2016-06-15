@@ -1,4 +1,4 @@
-require 'pocolog/test'
+require 'test_helper'
 
 class TC_DataStream < Minitest::Test
     attr_reader :logfile
@@ -213,4 +213,37 @@ class TC_DataStream < Minitest::Test
     end
 end
 
+module Pocolog
+    describe DataStream do
+        describe "file sequences" do
+            attr_reader :files
+            before do
+                int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
+                file = Pocolog::Logfiles.new
+                file.basename = 'file-sequence'
+                file.new_file
+                stream = file.create_stream 'test', int_t
+                stream.write Time.now, Time.now, 0
+                stream.write Time.now, Time.now, 1
+                file.new_file
+                stream.write Time.now, Time.now, 2
+                stream.write Time.now, Time.now, 3
+                file.close
 
+                ios = ['file-sequence.0.log', 'file-sequence.1.log'].map do |path|
+                    File.open(path)
+                end
+                @files = Pocolog::Logfiles.new(*ios)
+            end
+            it "transparently iterates through the files" do
+                stream = files.streams.first
+                assert_equal 0, stream.next
+                assert_equal 1, stream.next
+                assert_equal 2, stream.next
+                assert_equal 3, stream.next
+            end
+            it "seeks between the files" do
+            end
+        end
+    end
+end
