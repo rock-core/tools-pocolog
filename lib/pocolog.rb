@@ -7,6 +7,7 @@ require 'zlib'
 
 require 'pocolog/convert'
 require 'pocolog/data_reader'
+require 'pocolog/io_sequence'
 require 'pocolog/stream_aligner'
 require 'pocolog/data_writer'
 require 'pocolog/file'
