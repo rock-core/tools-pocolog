@@ -872,9 +872,9 @@ module Pocolog
         # If +create+ is false, raises ArgumentError if the stream does not
         # exist.
 	def stream(name, type = nil, create = false)
-	    if s = streams.find { |s| s.name == name }
-                s.registry # load the registry NOW
-		return s
+	    if matching_stream = streams.find { |s| s.name == name }
+                matching_stream.registry # load the registry NOW
+		return matching_stream
 	    elsif !type || !create
 		raise ArgumentError, "no such stream #{name}"
 	    end

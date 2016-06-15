@@ -215,7 +215,7 @@ module Pocolog
                 aligner.seek(4)
                 aligner.remove_streams(s1)
                 aligner.remove_streams(s0)
-                assert_equal -1, aligner.sample_index
+                assert_equal(-1, aligner.sample_index)
             end
 
             it "updates the per-stream start positions" do
@@ -378,7 +378,6 @@ class TC_StreamAligner < Minitest::Test
 
     def self.create_fixture
         registry = Typelib::Registry.new
-        double_t = registry.create_numeric '/double', 8, :float
         int_t    = registry.create_numeric '/int', 4, :sint
         logfile = Pocolog::Logfiles.create('test')
         all_values  = logfile.stream('all', int_t, true)

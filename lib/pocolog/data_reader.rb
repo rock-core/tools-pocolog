@@ -541,7 +541,6 @@ module Pocolog
 	    if do_display
 		self.sample_count += 1
 		yield(data_block.rt, data_block.lg, (stream.raw_data(data_block) if read_data))
-		last_data_block = nil
 	    end
 	end
     end
