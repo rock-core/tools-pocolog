@@ -1,70 +1,86 @@
-require 'utilrb/module/attr_predicate'
-require 'yaml'
-require 'fileutils'
 module Pocolog
-    # This file contains the index of a data stream.
+    # @api private
     #
-    # Through this index it is possible to have an O(1) 
-    # acess to the data position with an given
-    # sample number.
+    # Index containing the information for a given stream
     #
-    # Time base access has a complexity of O(log N)
-    #
+    # The stream can possibly span multiple files if it is backed by a
+    # {IOSequence} object. This is transparent to the index as {IOSequence}
+    # provides an interface where positions span the IOs
     class StreamIndex
         attr_reader :base_time
-        attr_reader :time_to_position_map
 
+        # The index information
+        #
+        # This is an array of tuples.
+        #
+        # REALLY IMPORTANT: the tuples MUST be of size 3 or lower. On CRuby,
+        # this ensures that the elements are stored within the array object
+        # itself instead of allocating extra memory on the heap.
+        attr_reader :index_map
+
+        def initialize
+            @base_time = nil
+            @index_map = Array.new
+	end
+
+        def initialize_copy(copy)
+            raise NotImplementedError, "StreamInfo is non-copyable"
+        end
+
+        # Change this stream's base time
+        #
+        # @param [Integer,Time] value the new base time, either in StreamIndex's
+        #   internal representation, or as a Time object
         def base_time=(value)
+            if value.respond_to?(:to_time)
+                value = StreamIndex.time_to_internal(value, 0)
+            end
+
             @base_time ||= value
             offset = @base_time - value
             return if offset == 0
-            @time_to_position_map = time_to_position_map.map do |t, i|
-                [t + offset, i]
+            @index_map = index_map.map do |file_pos, time, sample_index|
+                [file_pos, time + offset, sample_index]
             end
             @base_time = value
         end
 
+        # Number of samples in this index
         def size
-            @time_to_position_map.size
+            @index_map.size
         end
 
-        def initialize
-            # The index holds three arrays, which associate
-            # the position number of a sample in a stream
-            # with the file, file position and time of the sample
-            #
-            # The file is encoded as an index value (rio) since 
-            # pocolog accepts multifile log streams
-            #
-            @nr_to_position_map = Array.new()
-            @base_time = nil
-            @time_to_position_map = Array.new()
-            @nr_to_rio = Array.new()
-	end
+        # Concatenates followup information for the same stream
+        #
+        # @param [StreamIndex] stream_index the index to concatenate
+        # @param [Integer] file_pos_offset offset to apply to the added stream's
+        #   file position. This is used when building the index of a stream
+        #   backed by a {IOSequence}.
+        def concat(stream_index, file_pos_offset = 0)
+            @base_time ||= stream_index.base_time
+
+            time_offset         = stream_index.base_time - base_time
+            sample_index_offset = size
+            stream_index.index_map.each do |file_pos, time, sample_index|
+                index_map << [file_pos + file_pos_offset,
+                              time + time_offset,
+                              sample_index + sample_index_offset]
+            end
+        end
 	
-	#adds a given sample header (and thus the sample) to
-	#the index
-	def add_sample_to_index(rio, pos, time)
-	    #store the posiiton of the header of the data sample
-	    @nr_to_rio << rio
-	    @nr_to_position_map << pos 
-            @base_time ||= time
-            @time_to_position_map << [(time - @base_time), time_to_position_map.size]
+        # Append a new sample to the index
+	def add_sample(pos, time)
+            @base_time ||= StreamIndex.time_to_internal(time, 0)
+            @index_map << [pos, StreamIndex.time_to_internal(time, @base_time), @index_map.size]
 	end
 
-	# sanity check for the index, which gets called after
-	# marshalling, to see if the index needs rebuilding
-	def sane?
-	    @nr_to_rio && @nr_to_position_map && @time_to_position_map &&
-	    @nr_to_rio.size == @nr_to_position_map.size &&
-	    @nr_to_rio.size == @time_to_position_map.size
-	end
-
+        # Create a Time object from the index' own internal Time representation
         def self.time_from_internal(time, base_time)
             time = time + base_time
             Time.at(time / 1_000_000, time % 1_000_000)
         end
 
+        # Converts a Time object into the index' internal representation
         def self.time_to_internal(time, base_time)
             internal = time.tv_sec * 1_000_000 + time.tv_usec
             internal - base_time
@@ -84,68 +100,35 @@ module Pocolog
         #
         # @param [Integer]
         def sample_number_by_internal_time(sample_time)
-            _, idx = @time_to_position_map.bsearch { |t, _| t >= sample_time }
+            _pos_, _time, idx = @index_map.bsearch { |_, t, _| t >= sample_time }
             idx || size
 	end
 	
-	# Expects the number of the sample that needs to be accessed 
-	# and returns the position of the sample in the file
-	def file_position_by_sample_number(sample_nr)
-	    return @nr_to_rio[sample_nr], @nr_to_position_map[sample_nr]
+	# Returns the IO position of a sample
+        #
+        # @param [Integer] sample_number the sample index in the stream
+        # @return [Integer] the sample's position in the backing IO
+        # @raise IndexError if the sample number is out of bounds
+	def file_position_by_sample_number(sample_number)
+            @index_map.fetch(sample_number)[0]
 	end
 
-        def internal_time_by_sample_number(sample_nr)
-	    if(sample_nr < 0 || sample_nr >= size)
-		raise ArgumentError, "#{sample_nr} out of bounds"
-	    end
-            @time_to_position_map[sample_nr].first
+        # Returns the time of a sample
+        #
+        # @param [Integer] sample_number the sample index in the stream
+        # @return [Integer] the sample's time in the index' internal encoding
+        # @raise IndexError if the sample number is out of bounds
+        def internal_time_by_sample_number(sample_number)
+            @index_map.fetch(sample_number)[1]
         end
 
-	# expects a sample nr and returns the time
-	# of the sample
-        def time_by_sample_number(sample_nr)
-	    StreamIndex.time_from_internal(internal_time_by_sample_number(sample_nr), base_time)
+        # Returns the time of a sample
+        #
+        # @param [Integer] sample_number the sample index in the stream
+        # @return [Time] the sample's time in the index' internal encoding
+        # @raise (see internal_time_by_sample_number)
+        def time_by_sample_number(sample_number)
+            StreamIndex.time_from_internal(internal_time_by_sample_number(sample_number), base_time)
 	end
-
-        def marshal_dump
-            [@nr_to_rio.pack("n*"),
-             @nr_to_position_map.pack("Q>*"),
-             @base_time,
-             @time_to_position_map.map(&:first).pack("Q>*")]
-        end
-
-        def marshal_load(info)
-            if info.size == 4
-                nr_to_rio, nr_to_position_map, base_time, time_to_position_map = *info
-                @nr_to_rio = nr_to_rio.unpack("n*")
-                @nr_to_position_map = nr_to_position_map.unpack("Q>*")
-                @base_time = base_time
-                @time_to_position_map = time_to_position_map.unpack("Q>*").each_with_index.map do |time, i|
-                    [time, i]
-                end
-                return
-            end
-
-            nr_to_rio, nr_to_position_map, time_to_position_map = *info
-            if nr_to_rio.respond_to?(:to_str)
-                @nr_to_rio = nr_to_rio.unpack("n*")
-                @nr_to_position_map = nr_to_position_map.unpack("Q>*")
-                time_to_position_map = time_to_position_map.unpack("Q>*")
-                if time_to_position_map.empty?
-                else
-                    # Old-new-style :( [tv_sec, tv_usec]
-                    base, _ = time_to_position_map.first
-                    @base_time = base
-                    @time_to_position_map = time_to_position_map.each_slice(2).map { |sec, usec| (sec - base) * 1_000_000 + usec }
-                end
-            else
-                Pocolog.warn "found an old-format index. Consider deleting all your index files to upgrade to a newer format"
-                @nr_to_rio = nr_to_rio
-                @nr_to_position_map = nr_to_position_map
-                @time_to_position_map = time_to_position_map.map do |tv_sec, tv_usec|
-                    Time.at(tv_sec, tv_usec)
-                end
-            end
-        end
     end
 end
