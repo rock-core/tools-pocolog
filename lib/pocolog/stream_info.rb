@@ -1,36 +1,36 @@
 module Pocolog
-    # Basic information about a stream, as saved in the index files
+    # Information about a stream
     class StreamInfo
-        STREAM_INFO_VERSION = "1.3"
+        STREAM_INFO_VERSION = "2"
         
         #the version of the StreamInfo class. This is only used to detect
         #if an old index file is on the disk compared to the code 
-        attr_accessor :version
-        # Position of the declaration block as [raw_pos, io_index]. This
-        # information can directly be given to Logfiles#seek
-        attr_accessor :declaration_block
+        attr_reader :version
+        # Positions of the declaration blocks
+        attr_reader :declaration_blocks
         # The position of the first and last samples in the file set, as
         # [[raw_pos, io_index], [raw_pos, io_index]]. It is empty for empty
         # streams.
-        attr_accessor :interval_io
+        attr_reader :interval_io
         # The logical time of the first and last samples of that stream
         # [beginning, end]. It is empty for empty streams.
-        attr_accessor :interval_lg
+        attr_reader :interval_lg
         # The real time of the first and last samples of that stream
         # [beginning, end]. It is empty for empty streams.
-        attr_accessor :interval_rt
+        attr_reader :interval_rt
         # The number of samples in this stream
-        attr_accessor :size
+        attr_reader :size
 
         # The index data itself. 
         # This is a instance of StreamIndex
-        attr_accessor :index
+        attr_reader :index
 
         # True if this stream is empty
         def empty?; size == 0 end
 
         def initialize
             @version = STREAM_INFO_VERSION
+            @declaration_blocks = Array.new
             @interval_io = []
             @interval_lg = []
             @interval_rt = []
@@ -38,23 +38,61 @@ module Pocolog
             @index       = StreamIndex.new
         end
 
-        def append_sample(io_index, pos, rt, lg)
+        def initialize_copy(copy)
+            raise NotImplementedError, "StreamInfo is non-copyable"
+        end
+
+        def add_sample(pos, rt, lg)
             if !@interval_io[0]
-                @interval_io[0] = @interval_io[1] = [io_index, pos]
+                @interval_io[0] = @interval_io[1] = pos
                 @interval_rt[0] = @interval_rt[1] = rt
                 @interval_lg[0] = @interval_lg[1] = lg
             else
-                if rt < @interval_rt[1]
-                    raise ArgumentError, "attempting to go back in time in StreamInfo#append_sample (from #{@interval_rt[1]} to #{rt}"
+                if pos <= @interval_io[1]
+                    raise ArgumentError, "attempting to go back in stream in StreamInfo#add_sample (from #{@interval_io[1]} to #{pos}"
+                elsif rt < @interval_rt[1]
+                    raise ArgumentError, "attempting to go back in time in StreamInfo#add_sample (from #{@interval_rt[1]} to #{rt}"
                 elsif lg < @interval_lg[1]
-                    raise ArgumentError, "attempting to go back in time in StreamInfo#append_sample (from #{@interval_lg[1]} to #{lg}"
+                    raise ArgumentError, "attempting to go back in time in StreamInfo#add_sample (from #{@interval_lg[1]} to #{lg}"
                 end
-                @interval_io[1]   = [io_index, pos]
+                @interval_io[1]   = pos
                 @interval_rt[1]   = rt
                 @interval_lg[1]   = lg
             end
             @size += 1
-            index.add_sample_to_index(io_index, pos, lg)
+            index.add_sample(pos, lg)
+        end
+
+        # When using IO sequences, use this to append information about the same
+        # stream coming from a separate IO
+        #
+        # @param [Integer] file_pos_offset an offset that should be applied on
+        #   all file positions within stream_info. This is used to concatenate
+        #   streaminfo objects for streams backed by a {IOSequence}
+        def concat(stream_info, file_pos_offset = 0)
+            return if stream_info.empty?
+
+            stream_interval_io = stream_info.interval_io.map { |v| v + file_pos_offset }
+            if empty?
+                interval_io[0] = stream_interval_io[0]
+                interval_lg[0] = stream_info.interval_lg[0]
+                interval_rt[0] = stream_info.interval_rt[0]
+            else
+                if @interval_io[1] >= stream_interval_io[0]
+                    raise ArgumentError, "the IO range of the given stream starts before the range of self"
+                elsif @interval_lg[1] > stream_info.interval_lg[0]
+                    raise ArgumentError, "the logical time range of the given stream starts before the range of self"
+                elsif @interval_rt[1] > stream_info.interval_rt[0]
+                    raise ArgumentError, "the realtime range of the given stream starts before the range of self"
+                end
+            end
+
+            interval_io[1] = stream_interval_io[1]
+            interval_lg[1] = stream_info.interval_lg[1]
+            interval_rt[1] = stream_info.interval_rt[1]
+
+            @size += stream_info.size
+            index.concat(stream_info.index, file_pos_offset)
         end
     end
 end

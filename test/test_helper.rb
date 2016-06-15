@@ -19,6 +19,7 @@ require 'pocolog'
 require 'minitest/autorun'
 require 'minitest/spec'
 require 'flexmock/minitest'
+FlexMock.partials_are_based = true
 
 if ENV['TEST_ENABLE_PRY'] != '0'
     begin
