@@ -1,15 +1,24 @@
 module Pocolog
     # Enumeration of blocks in a pocolog-compatible stream
     class BlockStream
-        FORMAT_VERSION = Pocolog::Logfiles::FORMAT_VERSION
+        FORMAT_VERSION = Format::Current::VERSION
 
         # The size of the generic block header
-	BLOCK_HEADER_SIZE = Logfiles::BLOCK_HEADER_SIZE
+	BLOCK_HEADER_SIZE = Format::Current::BLOCK_HEADER_SIZE
         # The size of a time in a block header
-	TIME_SIZE = Logfiles::TIME_SIZE
+	TIME_SIZE = Format::Current::TIME_SIZE
+
+        # Magic code at the beginning of the log file
+	MAGIC = Format::Current::MAGIC
+
+        # Read by 1MB chunks
+        DEFAULT_BUFFER_READ = 1024 * 1024
 
         # The underlying IO
         attr_reader :io
+
+        # The amount of bytes that should be read into the internal buffer
+        attr_reader :buffer_read
 
         # Whether the data in the file is stored in little or big endian
         def big_endian?
@@ -17,16 +26,13 @@ module Pocolog
         end
 
         # Create a {BlockStream} object to sequentially interpret a stream of data
-        #
-        # @param [Boolean] tail if true, self will block waiting for new data
-        #   when needed. Otherwise, it will assume the stream has been truncated
-        def initialize(io, tail: false)
+        def initialize(io, buffer_read: DEFAULT_BUFFER_READ)
             @io  = io
-            @tail = tail
             @big_endian = nil
             @native_endian = nil
             @payload_size = 0
             @buffer_io = StringIO.new
+            @buffer_read = buffer_read
         end
 
         # Current position in {#io}
@@ -44,14 +50,6 @@ module Pocolog
                 @buffer_io.seek(count, IO::SEEK_CUR)
             end
             @payload_size -= count
-        end
-
-        # Whether the underlying IO is accessed in tail mode or not
-        #
-        # When in tail mode, self will block waiting for new data when
-        # needed. Otherwise, it will assume the stream has been truncated
-        def tail?
-            @tail
         end
 
         # The IO path, if the backing IO is a file
@@ -80,11 +78,14 @@ module Pocolog
             io.close
         end
 
-        # Magic code at the beginning of the log file
-	MAGIC = "POCOSIM"
-
-        # Read by 1MB chunks
-        BUFFER_READ = 1024 * 1024
+        # Seek to the current raw position in the IO
+        #
+        # The new position is assumed to be at the start of a block
+        def seek(pos)
+            io.seek(pos)
+            @buffer_io = StringIO.new
+            @payload_size = 0
+        end
 
         # @api private
         #
@@ -96,7 +97,7 @@ module Pocolog
                 remaining = size
             end
             if remaining > 0
-                @buffer_io = StringIO.new(io.read([BUFFER_READ, remaining].max) || "")
+                @buffer_io = StringIO.new(io.read([buffer_read, remaining].max) || "")
                 if buffer_data = @buffer_io.read(remaining) 
                     (data || "") + buffer_data
                 else
@@ -107,11 +108,6 @@ module Pocolog
             end
         end
 
-        # Write a pocolog file prologue in the given IO
-	def self.write_prologue(io, big_endian: Pocolog.big_endian?)
-	    io.write(MAGIC + [FORMAT_VERSION, big_endian ? 1 : 0].pack('xVV'))
-	end
-
         # If the IO is a file, it starts with a prologue to describe the file
         # format
         #
@@ -119,46 +115,41 @@ module Pocolog
         # the file format is not up-to-date (in which case one has to run
         # pocolog --to-new-format).
 	def read_prologue # :nodoc:
-	    header = read(MAGIC.size + 9) || ""
-            magic = header[0, MAGIC.size]
-            if magic != MAGIC
-                if !magic
-                    raise MissingPrologue, "#{io.path} is empty"
-                else
-                    raise MissingPrologue, "#{io.path} is not a pocolog log file. Got #{magic} at #{io.tell}, but was expecting #{MAGIC}"
-                end
-	    end
-
-            format_version, big_endian = header[MAGIC.size, 9].unpack('xVV')
-
-	    if format_version < FORMAT_VERSION
-		raise ObsoleteVersion, "old format #{format_version}, current format is #{FORMAT_VERSION}. Convert it using the --to-new-format of pocolog"
-	    elsif format_version > FORMAT_VERSION
-		raise "this file is in v#{format_version} which is newer that the one we know #{FORMAT_VERSION}. Update pocolog"
-	    end
-
-            @format_version = format_version
+            big_endian = Format::Current.read_prologue(io)
+            @format_version = Format::Current::VERSION
             @big_endian = big_endian
             @native_endian = ((big_endian != 0) ^ Pocolog.big_endian?)
             @payload_size = 0
 	end
 
-        Block = Struct.new :kind, :stream_index, :payload_size, :raw_data
+        BlockHeader = Struct.new :kind, :stream_index, :payload_size, :raw_data do
+            def self.parse(raw_header)
+                type, index, payload_size = raw_header.unpack('CxvV')
+                new(type, index, payload_size, raw_header)
+            end
+        end
 
-        # Interpret the next block
-        def next
+        def self.read_block_header(io, pos = nil)
+            if pos
+                io.seek(pos, IO::SEEK_SET)
+            end
+            BlockHeader.parse(io.read(BLOCK_HEADER_SIZE))
+        end
+
+        # Read the header of the next block
+        def read_next_block_header
             if @payload_size != 0
                 skip(@payload_size)
             end
 
-            return if !(raw_header = read(Pocolog::Logfiles::BLOCK_HEADER_SIZE))
-            if raw_header.size != Pocolog::Logfiles::BLOCK_HEADER_SIZE
+            return if !(raw_header = read(Format::Current::BLOCK_HEADER_SIZE))
+            if raw_header.size != Format::Current::BLOCK_HEADER_SIZE
                 raise NotEnoughData, "not enought data while reading header at position the end of file"
             end
 
-            type, index, payload_size = raw_header.unpack('CxvV')
-            @payload_size = payload_size
-            Block.new(type, index, payload_size, raw_header)
+            block = BlockHeader.parse(raw_header)
+            @payload_size = block.payload_size
+            block
         end
 
         # Information about a stream declaration block
@@ -201,12 +192,6 @@ module Pocolog
                 @metadata = nil
             end
 
-            def valid_followup_stream?(other_stream)
-                name == other_stream.name &&
-                    type == other_stream.type &&
-                    metadata == other_stream.metadata
-            end
-
             def type
                 if @type
                     @type
@@ -219,6 +204,21 @@ module Pocolog
             def metadata
                 @metadata ||= YAML.load(metadata_yaml)
             end
+        end
+
+        def self.read_stream_block(io, pos = nil)
+            block = read_block(io, pos)
+            if block.kind != STREAM_BLOCK
+                raise InvalidFile, "expected stream declaration block"
+            end
+            StreamBlock.parse(io.read(block.payload_size))
+        end
+
+        # Read one stream block
+        #
+        # The IO is assumed to be positioned at the stream definition's block's payload
+        def read_stream_block
+            StreamBlock.parse(read_payload)
         end
 
         # Read the payload of the last block returned by {#next}
@@ -247,15 +247,13 @@ module Pocolog
             attr_reader :data_size
             def compressed?; @compressed end
 
-            SIZE = TIME_SIZE * 2 + 5
-
             def self.parse(raw_data)
 		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
                     raw_data.unpack('VVVVVC')
                 new(rt_sec * 1_000_000 + rt_usec,
                     lg_sec * 1_000_000 + lg_usec,
                     data_size,
-                    compressed)
+                    compressed != 0)
             end
 
             def initialize(rt_time, lg_time, data_size, compressed)
@@ -264,10 +262,37 @@ module Pocolog
                 @data_size = data_size
                 @compressed = compressed
             end
+
+            def rt
+                StreamIndex.time_from_internal(rt_time, 0)
+            end
+
+            def lg
+                StreamIndex.time_from_internal(lg_time, 0)
+            end
         end
 
+        # Read the header of one data block
+        #
+        # The IO is assumed to be positioned at the beginning of the block's
+        # payload
         def read_data_block_header
-            DataBlockHeader.parse(read_payload(DataBlockHeader::SIZE))
+            DataBlockHeader.parse(read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE))
+        end
+
+        # Read the data payload of a data block, not parsing the header
+        #
+        # The IO is assumed to be positioned at the beginning of the block's
+        # payload
+        def read_data_block_payload
+            skip(Format::Current::DATA_BLOCK_HEADER_SIZE - 1)
+            compressed = read_payload(1).unpack('C').first
+            data = read_payload
+            if compressed != 0
+                # Payload is compressed
+                data = Zlib::Inflate.inflate(data)
+            end
+            data
         end
     end
 end

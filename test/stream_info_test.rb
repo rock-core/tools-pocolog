@@ -7,7 +7,7 @@ module Pocolog
 
         before do
             @stream_info = StreamInfo.new
-            @base_time = Time.now
+            @base_time = 10
         end
 
         describe "#add_sample" do

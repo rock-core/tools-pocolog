@@ -1,11 +1,8 @@
 module Pocolog
-    # Information about a stream
+    # @api private
+    #
+    # Information about a stream for indexing purposes
     class StreamInfo
-        STREAM_INFO_VERSION = "2"
-        
-        #the version of the StreamInfo class. This is only used to detect
-        #if an old index file is on the disk compared to the code 
-        attr_reader :version
         # Positions of the declaration blocks
         attr_reader :declaration_blocks
         # The position of the first and last samples in the file set, as
@@ -28,8 +25,14 @@ module Pocolog
         # True if this stream is empty
         def empty?; size == 0 end
 
+        # Initialize a stream info object from raw information
+        def self.from_raw_data(declaration_block, interval_rt, base_time, index_map)
+            info = StreamInfo.new
+            info.initialize_from_raw_data(declaration_block, interval_rt, base_time, index_map)
+            info
+        end
+
         def initialize
-            @version = STREAM_INFO_VERSION
             @declaration_blocks = Array.new
             @interval_io = []
             @interval_lg = []
@@ -45,8 +48,8 @@ module Pocolog
         def add_sample(pos, rt, lg)
             if !@interval_io[0]
                 @interval_io[0] = @interval_io[1] = pos
-                @interval_rt[0] = @interval_rt[1] = rt
-                @interval_lg[0] = @interval_lg[1] = lg
+                @interval_rt[0] = @interval_rt[1] = Integer(rt)
+                @interval_lg[0] = @interval_lg[1] = Integer(lg)
             else
                 if pos <= @interval_io[1]
                     raise ArgumentError, "attempting to go back in stream in StreamInfo#add_sample (from #{@interval_io[1]} to #{pos}"
@@ -81,7 +84,7 @@ module Pocolog
                 if @interval_io[1] >= stream_interval_io[0]
                     raise ArgumentError, "the IO range of the given stream starts before the range of self"
                 elsif @interval_lg[1] > stream_info.interval_lg[0]
-                    raise ArgumentError, "the logical time range of the given stream starts before the range of self"
+                    raise ArgumentError, "the logical time range of the given stream starts (#{stream_info.interval_lg[0]}) before the range of self (#{@interval_lg[1]})"
                 elsif @interval_rt[1] > stream_info.interval_rt[0]
                     raise ArgumentError, "the realtime range of the given stream starts before the range of self"
                 end
@@ -93,6 +96,24 @@ module Pocolog
 
             @size += stream_info.size
             index.concat(stream_info.index, file_pos_offset)
+        end
+
+        # Initializes self based on raw information
+        #
+        # This is used when marshalling/demarshalling index data
+        def initialize_from_raw_data(declaration_block, interval_rt, base_time, index_map)
+            @declaration_blocks = [declaration_block]
+            @index = StreamIndex.from_raw_data(base_time, index_map)
+            @interval_rt = interval_rt
+            @size = index.size
+            if !index.empty?
+                @interval_io =
+                    [index.file_position_by_sample_number(0),
+                     index.file_position_by_sample_number(-1)]
+                @interval_lg =
+                    [index.internal_time_by_sample_number(0) + index.base_time,
+                     index.internal_time_by_sample_number(-1) + index.base_time]
+            end
         end
     end
 end

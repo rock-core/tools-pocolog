@@ -17,24 +17,26 @@ module Pocolog
 
         def create_log_stream(name, data)
             double_t = Typelib::Registry.new.create_numeric '/double', 8, :float
-            stream = logfile.stream(name, double_t, true)
+            stream = logfile.create_stream(name, double_t)
             data.each do |v|
                stream.write(Time.at(v * 10), Time.at(v * 10), v)
             end
             stream
         end
 
-        def create_aligner(s0_data, s1_data)
+        def create_aligner(*data)
             open_logfile
-            create_log_stream('s0', s0_data)
-            create_log_stream('s1', s1_data)
+            data.each_with_index do |samples, i|
+                create_log_stream("s#{i}", samples)
+            end
             close_logfile
 
             logfile = Pocolog::Logfiles.open('test.0.log')
-            s0 = logfile.stream('s0')
-            s1 = logfile.stream('s1')
-            aligner = StreamAligner.new(false, s0, s1)
-            return aligner, s0, s1
+            streams = data.each_with_index.map do |_, i|
+                logfile.stream("s#{i}")
+            end
+            aligner = StreamAligner.new(false, *streams)
+            return aligner, *streams
         end
 
         after do
@@ -368,6 +370,60 @@ module Pocolog
                 assert_equal [1, Time.at(13)], aligner.seek_to_pos(2, false)
             end
         end
+
+        describe "#stream_indeX_for_name" do
+            it "returns the index of the matching stream" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_equal 1, aligner.stream_index_for_name('s1')
+            end
+            it "returns nil if there is no match" do
+                aligner, _ = create_aligner([1, 2, 3], [1.5, 3.5])
+                assert_nil aligner.stream_index_for_name('does_not_exist')
+            end
+        end
+
+        describe "#stream_index_for_type" do
+            it "returns the index of the matching stream" do
+                aligner, _s0 = create_aligner([1, 2, 3])
+                assert_equal 0, aligner.stream_index_for_type('/double')
+            end
+            it "raises ArgumentError if there is more than one match" do
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [3, 4])
+                assert_raises(ArgumentError) do
+                    aligner.stream_index_for_type('/double')
+                end
+            end
+
+            it "returns nil if there is no match" do
+                aligner, _ = create_aligner
+                assert_nil aligner.stream_index_for_type('/does_not_exist')
+            end
+        end
+
+        describe "#next" do
+            it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
+                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.next
+                assert_equal [Time.at(20), Time.at(20), [1, 2]], aligner.next
+            end
+            it "returns nil at the end of stream" do
+                aligner, _ = create_aligner
+                assert !aligner.next
+            end
+        end
+        describe "#previous" do
+            it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
+                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                aligner.next
+                aligner.next
+                assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.previous
+            end
+            it "returns nil at the beginning of file" do
+                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.next
+                assert_nil aligner.previous
+            end
+        end
     end
 end
 
@@ -380,9 +436,9 @@ class TC_StreamAligner < Minitest::Test
         registry = Typelib::Registry.new
         int_t    = registry.create_numeric '/int', 4, :sint
         logfile = Pocolog::Logfiles.create('test')
-        all_values  = logfile.stream('all', int_t, true)
-        odd_values  = logfile.stream('odd', int_t, true)
-        even_values = logfile.stream('even', int_t, true)
+        all_values  = logfile.create_stream('all', int_t)
+        odd_values  = logfile.create_stream('odd', int_t)
+        even_values = logfile.create_stream('even', int_t)
 
         interleaved_data = []
         100.times do |i|
@@ -586,7 +642,7 @@ class TC_StreamAligner2 < Minitest::Test
 
 
     def test_start_of_stream
-	index, time, data = stream.step()
+	index, time, data = stream.step
 	assert_equal index, 0
 	assert_equal data, expected_data[0]
 	assert_equal time, Time.at(expected_data[0] * 100)

@@ -13,12 +13,48 @@ module Pocolog
 
         def initialize(*ios)
             @size = 0
-            @ios  = ios.map do |io|
-                io_size = io.size
-                @size += io_size
-                [io, io_size]
+            @ios = Array.new
+            ios.each do |io|
+                add_io(io)
             end
-            select_io_from_pos(0)
+        end
+
+        def num_io
+            ios.size
+        end
+
+        def add_io(io)
+            io_size = io.size
+            @size += io_size
+            ios << [io, io_size]
+            if ios.size == 1
+                rewind
+            end
+        end
+
+        def flush
+            ios.each(&:flush)
+        end
+
+        def closed?
+            ios.any?(&:flush)
+        end
+
+        def close
+            ios.each(&:close)
+        end
+
+        def eof?
+            (@current_io == ios.last) && @current_io.eof?
+        end
+        
+        def open
+	    @io = io.map do |file|
+                if file.closed?
+                    File.open(file.path)
+                else file
+                end
+            end
         end
 
         # Seek to the beginning of the file

@@ -187,9 +187,9 @@ class TC_DataStream < Minitest::Test
     def test_copy_to
         output = Pocolog::Logfiles.new(Typelib::Registry.new)
         output.new_file("copy_test.log")
-        stream_output1 = output.stream("test1",stream.type,true)
-        stream_output2 = output.stream("test2",stream.type,true)
-        stream_output3 = output.stream("test3",stream.type,true)
+        stream_output1 = output.create_stream("test1",stream.type)
+        stream_output2 = output.create_stream("test2",stream.type)
+        stream_output3 = output.create_stream("test3",stream.type)
 
         #copy samples according to the given intervals 
         stream.copy_to(0,120,stream_output1)
@@ -217,17 +217,20 @@ module Pocolog
     describe DataStream do
         describe "file sequences" do
             attr_reader :files
+            attr_reader :base_time
             before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+
                 int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
-                file = Pocolog::Logfiles.new
-                file.basename = 'file-sequence'
-                file.new_file
+                file = Pocolog::Logfiles.create('file-sequence.0.log')
                 stream = file.create_stream 'test', int_t
-                stream.write Time.now, Time.now, 0
-                stream.write Time.now, Time.now, 1
-                file.new_file
-                stream.write Time.now, Time.now, 2
-                stream.write Time.now, Time.now, 3
+                stream.write base_time + 0, base_time + 10, 0
+                stream.write base_time + 1, base_time + 11, 1
+                file.close
+                file = Pocolog::Logfiles.create('file-sequence.1.log')
+                stream = file.create_stream 'test', int_t
+                stream.write base_time + 2, base_time + 12, 2
+                stream.write base_time + 3, base_time + 13, 3
                 file.close
 
                 ios = ['file-sequence.0.log', 'file-sequence.1.log'].map do |path|
@@ -235,14 +238,27 @@ module Pocolog
                 end
                 @files = Pocolog::Logfiles.new(*ios)
             end
+            it "has a #size that is the sum of all the sizes" do
+                stream = files.streams.first
+                assert_equal 4, stream.size
+            end
             it "transparently iterates through the files" do
                 stream = files.streams.first
-                assert_equal 0, stream.next
-                assert_equal 1, stream.next
-                assert_equal 2, stream.next
-                assert_equal 3, stream.next
+                assert_equal [base_time + 0, base_time + 10, 0], stream.next
+                assert_equal 0, stream.sample_index
+                assert_equal [base_time + 1, base_time + 11, 1], stream.next
+                assert_equal 1, stream.sample_index
+                assert_equal [base_time + 2, base_time + 12, 2], stream.next
+                assert_equal 2, stream.sample_index
+                assert_equal [base_time + 3, base_time + 13, 3], stream.next
+                assert_equal 3, stream.sample_index
+                assert_nil stream.next
             end
             it "seeks between the files" do
+                stream = files.streams.first
+                assert_equal 0, stream.read_one_data_sample(0)
+                assert_equal 3, stream.read_one_data_sample(3)
+                assert_equal 1, stream.read_one_data_sample(1)
             end
         end
     end

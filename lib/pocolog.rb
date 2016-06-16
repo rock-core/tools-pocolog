@@ -5,14 +5,17 @@ require 'tempfile'
 require 'stringio'
 require 'zlib'
 
+require 'pocolog/warn_deprecated'
+
 require 'pocolog/convert'
 require 'pocolog/format'
 require 'pocolog/io_sequence'
 
+require 'pocolog/block_stream'
 require 'pocolog/data_stream'
+require 'pocolog/sample_enumerator'
 require 'pocolog/stream_aligner'
 require 'pocolog/logfiles'
-require 'pocolog/block_stream'
 require 'pocolog/stream_info'
 require 'pocolog/file_index_builder'
 require 'pocolog/version'
@@ -38,14 +41,5 @@ module Pocolog
 
     CONTROL_SET_TIMEBASE   = 0
     CONTROL_SET_TIMEOFFSET = 1
-
-    # Exception thrown when opening if the log file is not 
-    #
-    # One should run pocolog --upgrade-version when this happen
-    class ObsoleteVersion < RuntimeError; end
-    # Logfiles.open could not find a valid prologue in the provided file(s)
-    #
-    # This is most often because the provided file(s) are not pocolog files
-    class MissingPrologue < RuntimeError; end
 end
 

@@ -16,6 +16,7 @@ module Pocolog
             FileUtils.rm_rf @fixture_dir
         end
 
+
         describe "#seek" do
             it "seeks within the first file" do
                 io_sequence.seek(4)

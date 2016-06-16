@@ -46,12 +46,36 @@ module Pocolog
     #   end
     #
     module SelfTest
+        attr_reader :double_t
+
         # Common setup code for all pocolog tests
         def setup
+            @double_t = Typelib::Registry.new.create_numeric '/double', 8, :float
         end
 
         # Common teardown code for all pocolog tests
         def teardown
+            FileUtils.rm_f 'test.0.log'
+            FileUtils.rm_f 'test.0.idx'
+        end
+
+        def open_logfile
+            FileUtils.rm_f 'test.0.log'
+            FileUtils.rm_f 'test.0.idx'
+            @logfile = Pocolog::Logfiles.create('test')
+        end
+
+        def close_logfile
+            @logfile.close
+            @logfile = nil
+        end
+
+        def create_log_stream(name, data = Array.new, metadata: Hash.new)
+            stream = @logfile.create_stream(name, double_t, metadata)
+            data.each do |v|
+               stream.write(Time.at(v * 10), Time.at(v * 10), v)
+            end
+            stream
         end
     end
 end

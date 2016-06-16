@@ -18,8 +18,15 @@ module Pocolog
         # itself instead of allocating extra memory on the heap.
         attr_reader :index_map
 
-        def initialize
-            @base_time = nil
+        # Initialize a stream index object from the raw information
+        def self.from_raw_data(base_time, index_map)
+            index = StreamIndex.new(base_time: base_time)
+            index.index_map.concat(index_map)
+            index
+        end
+
+        def initialize(base_time: nil)
+            @base_time = base_time
             @index_map = Array.new
 	end
 
@@ -50,6 +57,11 @@ module Pocolog
             @index_map.size
         end
 
+        # True if there are no samples indexed in self
+        def empty?
+            @index_map.empty?
+        end
+
         # Concatenates followup information for the same stream
         #
         # @param [StreamIndex] stream_index the index to concatenate
@@ -70,8 +82,13 @@ module Pocolog
 	
         # Append a new sample to the index
 	def add_sample(pos, time)
-            @base_time ||= StreamIndex.time_to_internal(time, 0)
-            @index_map << [pos, StreamIndex.time_to_internal(time, @base_time), @index_map.size]
+            add_raw_sample(pos, time)
+	end
+	
+        # Append a new sample to the index
+	def add_raw_sample(pos, time)
+            @base_time ||= time
+            @index_map << [pos, time - @base_time, @index_map.size]
 	end
 
         # Create a Time object from the index' own internal Time representation

@@ -4,11 +4,9 @@ module Pocolog
         attr_reader :logfile
         attr_reader :index
         attr_reader :name
-        attr_reader :type_name
-        # Provided for backward compatibility reasons. Use #type_name
-        def typename; type_name end
 
-        attr_reader :marshalled_registry
+        attr_reader :type
+
         # The {StreamInfo} structure for that stream
         attr_reader :info
         # The index in the stream of the last read sample
@@ -19,15 +17,29 @@ module Pocolog
         # The stream associated metadata
         attr_reader :metadata
 
-        def initialize(logfile, index, name, type_name, marshalled_registry, metadata)
-            @logfile, @index, @name, @type_name, @marshalled_registry, @metadata =
-                logfile, index, name, type_name, marshalled_registry, metadata
+        def initialize(logfile, index, name, type, metadata = Hash.new, info = StreamInfo.new)
+            @logfile, @index, @name, @metadata, @info =
+                logfile, index, name, metadata, info
+
+            # if we do have a registry, then adapt it to the local machine
+            # if needed. Right now, this is required if containers changed
+            # size.
+            registry = type.registry
+            resize_containers = Hash.new
+            registry.each do |type|
+                if type <= Typelib::ContainerType && type.size != type.natural_size
+                    resize_containers[type] = type.natural_size
+                end
+            end
+            if resize_containers.empty?
+                @type = type
+            else
+                registry.resize(resize_containers)
+                @type = registry.get(type.name)
+            end
 	    
             @data = nil
-            @registry = nil
             @sample_index = -1
-            @raw_data_buffer = ""
-            @info = StreamInfo.new
         end
 
         def stream_index
@@ -72,7 +84,7 @@ module Pocolog
 	def time
             header = logfile.data_header
             if !time_getter
-                [header.rt, Time.at(header.lg - logfile.time_base)]
+                [header.rt, header.lg]
             else
                 [header.rt, time_getter[data(header)]]
             end
@@ -107,9 +119,6 @@ module Pocolog
         # True if the size of this stream is zero
         def empty?; size == 0 end
 
-	# True if this data stream has a Typelib::Registry object associated
-	def has_type?; !marshalled_registry.empty? end
-
         # Reload the registry. Can be useful if new convertions have been added
         # to the Typelib system
         def reload_registry
@@ -120,46 +129,8 @@ module Pocolog
 
 	# Get the Typelib::Registry object for this stream
 	def registry
-	    if !@registry
-		@registry = logfile.registry || Typelib::Registry.new
-
-		stream_registry = Typelib::Registry.new
-
-		if has_type?
-                    begin
-                        stream_registry.merge_xml(marshalled_registry)
-                    rescue ArgumentError
-                        Typelib::Registry.add_standard_cxx_types(stream_registry)
-                        stream_registry.merge_xml(marshalled_registry)
-                    end
-
-                    stream_registry = stream_registry.minimal(typename, false)
-
-                    # if we do have a registry, then adapt it to the local machine
-                    # if needed. Right now, this is required if containers changed
-                    # size.
-                    resize_containers = Hash.new
-                    stream_registry.each do |type|
-                        if type <= Typelib::ContainerType && type.size != type.natural_size
-                            resize_containers[type] = type.natural_size
-                        end
-                    end
-                    stream_registry.resize(resize_containers)
-
-                    begin
-                        @registry.merge(stream_registry)
-                    rescue RuntimeError => e
-                        if e.message =~ /but with a different definition/
-                            raise e, e.message + ". Are you mixing 32 and 64 bit data ?", e.backtrace
-                        end
-                    end
-		end
-	    end
-	    @registry
+            type.registry
 	end
-
-	# Get a Typelib object describing the type of this data stream
-	def type; @type ||= registry.get(typename) end
 
 	#Returns the decoded subfield specified by 'fieldname'
 	#for the given data header. If no header is given, the
@@ -187,7 +158,7 @@ module Pocolog
 	def raw_data(data_header = nil, sample = nil)
 	    if(@data && !data_header) then @data
 	    else
-                marshalled_data = logfile.data(data_header, @raw_data_buffer)
+                marshalled_data = logfile.data(data_header)
 		data = sample || type.new
                 data.from_buffer_direct(marshalled_data)
 		if logfile.endian_swap
@@ -201,9 +172,13 @@ module Pocolog
             raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
 	end
 
+        def read_one_data_sample(position)
+            Typelib.to_ruby(read_one_raw_data_sample(position))
+        end
+
         def read_one_raw_data_sample(position, sample = nil)
-	    rio, block_pos = stream_index.file_position_by_sample_number(position)
-            marshalled_data = logfile.read_one_data_payload(rio, block_pos, @raw_data_buffer)
+	    block_pos = stream_index.file_position_by_sample_number(position)
+            marshalled_data = logfile.read_one_data_payload(block_pos)
             data = sample || type.new
             data.from_buffer_direct(marshalled_data)
             if logfile.endian_swap
@@ -213,10 +188,7 @@ module Pocolog
         rescue Interrupt
             raise
         rescue Exception => e
-            if rio.respond_to?(:path)
-                file = "in #{rio.path} "
-            end
-            raise e, "#{file}failed to unmarshal sample for block position #{block_pos}: #{e.message}", e.backtrace
+            raise e, "failed to unmarshal sample for block position #{block_pos}: #{e.message}", e.backtrace
         end
 
         def data(data_header = nil)
@@ -258,8 +230,6 @@ module Pocolog
         #
         # After a call to #last, #sample_index is size - 1
         def last
-            last_sample_pos = info.interval_io[1]
-            logfile.seek(last_sample_pos[1], last_sample_pos[0])
             @sample_index = size - 2
             self.next
         end
@@ -282,17 +252,17 @@ module Pocolog
 		@sample_index = pos
 	    end
 
-	    rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
-	    block_info = logfile.read_one_block(file_pos, rio)
-            if block_info.index != self.index
-                raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.index).name} while we were expecting #{name}"
+	    file_pos = stream_index.file_position_by_sample_number(@sample_index)
+	    block_info = logfile.read_one_block(file_pos)
+            if block_info.stream_index != self.index
+                raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.stream_index).name} while we were expecting #{name}"
             end
+
             if header = self.data_header
                 header = header.dup
-
-		if(decode_data)
+		if decode_data
 		    data = self.data(header)
-		    return [header.rt, Time.at(header.lg - logfile.time_base), data]
+		    return [header.rt, header.lg, data]
 		else
 		    header
 		end
@@ -305,8 +275,8 @@ module Pocolog
 	def advance
             if sample_index < size-1
                 @sample_index += 1
-		rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
-		logfile.read_one_block(file_pos, rio)
+		file_pos = stream_index.file_position_by_sample_number(@sample_index)
+		logfile.read_one_block(file_pos)
 		return logfile.data_header
             else
                 @sample_index = size
@@ -321,8 +291,8 @@ module Pocolog
         # +advance+ as it always decodes the data sample.
 	def next
 	    header = advance
-            if(header) 
-              return [header.rt, Time.at(header.lg - logfile.time_base), data]
+            if header
+                return [header.rt, header.lg, data]
             end
 	end
 
@@ -383,13 +353,12 @@ module Pocolog
                         end
             
             counter = 0
-            data_buffer = String.new
             data_header = seek(start_index, false)
             while sample_index < end_index
                 if block
                     return false if block.call(counter)
                 end
-                logfile.data(data_header, data_buffer)
+                data_buffer = logfile.data(data_header)
                 stream.write_raw(data_header.rt_time, data_header.lg_time, data_buffer)
                 counter += 1
                 data_header = advance
@@ -411,138 +380,21 @@ module Pocolog
                 start_index < size && start_index <= end_index && end_index >= 0
             end
         end
-    end
 
-    # Sample enumerators are nicer interfaces for data reading built on top of a DataStream
-    # object
-    class SampleEnumerator
-	include Enumerable
-
-	attr_accessor :use_rt
-	attr_accessor :min_time,  :max_time,  :every_time
-	attr_accessor :min_index, :max_index, :every_index
-	attr_accessor :max_count
-	def setvar(name, val)
-	    time, index = case val
-			  when Integer then [nil, val]
-			  when Time then [val, nil] 
-			  end
-
-	    send("#{name}_time=", time)
-	    send("#{name}_index=", index)
+	# Write a sample in this stream, with the +rt+ and +lg+
+	# timestamps. +data+ can be either a Typelib::Type object of the
+	# right type, or a String (in which case we consider that it is
+	# the raw data)
+	def write(rt, lg, data)
+            data = Typelib.from_ruby(data, type)
+            write_raw(rt, lg, data.to_byte_array)
 	end
 
-	attr_reader :stream, :read_data
-	def initialize(stream, read_data)
-	    @stream = stream 
-	    @read_data = read_data
-	end
-	def every(interval)
-	    setvar('every', interval) 
-	    self
-	end
-	def from(from);
-	    setvar("min", from)
-	    self
-	end
-	def to(to)
-	    setvar("max", to)
-	    self
-	end
-	def between(from, to)
-	    self.from(from)
-	    self.to(to)
-	end
-	def at(pos)
-	    from(pos) 
-	    max(1)
-	end
-
-	def realtime(use_rt = true)
-	    @use_rt = use_rt 
-	    self
-	end
-	def max(count)
-	    @max_count = count
-	    self
-	end
-
-	attr_accessor :next_sample
-	attr_accessor :sample_count
-
-        def each(&block)
-            raw_each do |rt, lg, raw_data|
-                yield(rt, lg, Typelib.to_ruby(raw_data))
-            end
+        # Write an already marshalled sample. +data+ is supposed to be a
+        # typelib-marshalled value of the stream type
+        def write_raw(rt, lg, data)
+	    logfile.write_data_block(self, rt, lg, data)
         end
-
-	def raw_each(&block)
-	    self.sample_count = 0
-	    self.next_sample = nil
-
-	    last_data_block = nil
-
-            min_index = self.min_index
-            min_time  = self.min_time
-
-            if min_index || min_time
-                if min_time && stream.time_interval[0] > min_time
-                    min_time = nil
-                else
-                    stream.seek(min_index || min_time)
-                end
-            end
-	    stream.each_block(!(min_index || min_time)) do
-                sample_index = stream.sample_index
-		return self if max_index && max_index < sample_index
-		return self if max_count && max_count <= sample_count
-
-		rt, lg = stream.time
-		sample_time = if use_rt then rt
-			      else lg
-			      end
-
-		if min_time
-		    if sample_time < min_time
-			last_data_block = stream.data_header.dup
-			next
-		    elsif last_data_block
-			last_data_time = if use_rt then last_data_block.rt
-					 else last_data_block.lg
-					 end
-			yield_sample(last_data_time, sample_index - 1, last_data_block, &block)
-			last_data_block = nil
-		    end
-		end
-		return self if max_time && max_time < sample_time
-
-		yield_sample(sample_time, sample_index, stream.data_header, &block)
-	    end
-	    self
-	end
-
-	# Yield the given sample if required by our configuration
-	def yield_sample(sample_time, sample_index, data_block = nil)
-	    do_display = !next_sample
-	    if every_time 
-		self.next_sample ||= sample_time
-		while self.next_sample <= sample_time
-		    do_display = true
-		    self.next_sample += every_time.to_f
-		end
-	    elsif every_index
-		self.next_sample ||= sample_index
-		if self.next_sample <= sample_index
-		    do_display = true
-		    self.next_sample += every_index
-		end
-	    end
-
-	    if do_display
-		self.sample_count += 1
-		yield(data_block.rt, data_block.lg, (stream.raw_data(data_block) if read_data))
-	    end
-	end
     end
 end
 

@@ -123,8 +123,8 @@ module Pocolog
             if base_time
                 all_streams.each_with_index do |stream, i|
                     stream.stream_index.base_time = base_time
-                    for entry in stream.stream_index.time_to_position_map
-                        sort_index << entry[0] * size + i
+                    for entry in stream.stream_index.index_map
+                        sort_index << entry[1] * size + i
                     end
                 end
             end
@@ -345,12 +345,7 @@ module Pocolog
         # @param [String] name
         # @return [Integer,nil]
         def stream_index_for_name(name)
-            streams.each_with_index do |s,i|
-                if(s.name == name)
-                    return i
-                end
-            end
-            return nil 
+            streams.index { |s| s.name == name }
         end
         
         # Returns the stream index of the stream whose type has this name
@@ -358,15 +353,19 @@ module Pocolog
         # @param [String] name
         # @return [Integer,nil]
         # @raise [ArgumentError] if more than one stream has this type
-        def stream_index_for_type(name)
-            stream = nil
-            streams.each_with_index do |s,i|
-                if(s.type_name == name)
-                    raise ArgumentError, "There exists more than one stream with type #{name}" if stream
-                    stream = i
-                end
+        def stream_index_for_type(type)
+            if type.respond_to?(:name)
+                type = type.name
             end
-            stream
+
+            match_i = streams.index { |s| s.type.name == type }
+            if match_i
+                rmatch_i = streams.rindex { |s| s.type.name == type }
+                if match_i != rmatch_i
+                    raise ArgumentError, "There exists more than one stream with type #{type}"
+                end
+                match_i
+            end
         end
 
         # Advances one step in the joint stream, and returns the index of the
