@@ -1,4 +1,21 @@
 module Pocolog
+    # Raw stream information gathered while passing through a log file, to build
+    # an index
+    #
+    # @!method stream_block_pos
+    #   @return [Integer] the position of the stream definition in the IO
+    # 
+    # @!method index_map
+    #   @return [Array<(Integer,Integer,Integer)>] at list of
+    #   (block_pos,lg_time,sample_index) tuples. The logical time is in
+    #   absolute microseconds.
+    IndexBuilderStreamInfo = Struct.new :stream_block_pos, :index_map
+
+    # Build the index of a block stream
+    #
+    # @param [BlockStream] block_stream the block stream that represents the log
+    #   file
+    # @return [Array<StreamInfo,nil>]
     def self.file_index_builder(block_stream)
         # We build the information expected by StreamInfo.from_raw_data
         # That is (declaration_block, interval_rt, base_time, index_map)
@@ -12,39 +29,50 @@ module Pocolog
             stream_index = block.stream_index
 
             if block.kind == STREAM_BLOCK
-                raw_stream_info[stream_index] = [block_pos, Array.new]
+                raw_stream_info[stream_index] = IndexBuilderStreamInfo.new(block_pos, Array.new)
             elsif block.kind == DATA_BLOCK
                 data_block = block_stream.read_data_block_header
-                index_map  = raw_stream_info[stream_index].last
-                index_map << [block_pos, data_block.lg_time, index_map.size]
+                index_map  = raw_stream_info[stream_index].index_map
+                index_map << block_pos << data_block.lg_time
             end
             block_stream.skip_payload
             block_pos = block_stream.tell
         end
+        create_index_from_raw_info(block_stream, raw_stream_info)
+    end
 
-        raw_stream_info.map do |raw_info|
+    # Create an list of {StreamInfo} object based on basic information about the
+    # file
+    #
+    # @param [Array<IndexBuilderStreamInfo>] raw_info minimal stream information
+    #   needed to build the index
+    # @return [Array<StreamInfo,nil>]
+    def self.create_index_from_raw_info(block_stream, raw_info)
+        raw_info.map do |raw_info|
             next if !raw_info
 
-            declaration_block, index_map = raw_info
+            index_map = raw_info.index_map
             interval_rt = Array.new
             base_time = nil
             # Read the realtime of the first and last samples
             if !index_map.empty?
-                block_stream.seek(index_map[0][0])
+                block_stream.seek(index_map.first)
                 block_stream.read_next_block_header
                 first_block = block_stream.read_data_block_header
 
-                block_stream.seek(index_map[-1][0])
+                block_stream.seek(index_map[-2])
                 block_stream.read_next_block_header
                 last_block = block_stream.read_data_block_header
                 interval_rt = [first_block.rt_time, last_block.rt_time]
 
-                base_time = index_map[0][1]
-                index_map.each do |entry|
-                    entry[1] -= base_time
+                base_time = index_map[1]
+                sample_index = -1
+                index_map = index_map.each_slice(2).map do |block_pos, lg_time|
+                    sample_index += 1
+                    [block_pos, lg_time - base_time, sample_index]
                 end
             end
-            StreamInfo.from_raw_data(declaration_block, interval_rt, base_time, index_map)
+            StreamInfo.from_raw_data(raw_info.stream_block_pos, interval_rt, base_time, index_map)
         end
     end
 end
