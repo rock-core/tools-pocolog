@@ -25,8 +25,8 @@ module Pocolog
         describe 'without arguments' do
             it "outputs a file's summary" do
                 output = assert_run_successful(logfile_path('test.0.log'))
-                assert_match /stream.*int32_t/, output[-2]
-                assert_match /3 samples/, output[-1]
+                assert_match(/stream.*int32_t/, output[-2])
+                assert_match(/3 samples/, output[-1])
             end
         end
 

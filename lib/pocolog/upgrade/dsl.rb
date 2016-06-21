@@ -18,6 +18,7 @@ module Pocolog
                     @source_registry = source_registry
                     @target_registry = target_registry
                     @deep_cast = nil
+                    @reference_date = nil
                 end
 
                 def define(date_string, from_type_name, to_type_name, &block)

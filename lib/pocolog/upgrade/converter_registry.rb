@@ -155,8 +155,8 @@ module Pocolog
                     next if converter.time_to < time
                     
                     converters = converters_by_from_type.fetch(converter.to_type, Array.new)
-                    if c = converters.sort_by(&:time_to).find { |c| converter.time_to < c.time_to }
-                        graph.add_edge(converter, c)
+                    if next_converter = converters.sort_by(&:time_to).find { |c| converter.time_to < c.time_to }
+                        graph.add_edge(converter, next_converter)
                     end
                 end
                 graph
