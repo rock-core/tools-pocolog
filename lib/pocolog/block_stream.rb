@@ -25,6 +25,17 @@ module Pocolog
             @big_endian
         end
 
+        # Create a BlockStream object that acts on a given file
+        def self.open(path)
+            if block_given?
+                File.open(path) do |io|
+                    yield(new(io))
+                end
+            else
+                new(File.open(path))
+            end
+        end
+
         # Create a {BlockStream} object to sequentially interpret a stream of data
         def initialize(io, buffer_read: DEFAULT_BUFFER_READ)
             @io  = io
