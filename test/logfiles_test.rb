@@ -26,6 +26,27 @@ module Pocolog
                 refute logfile.has_stream?('does_not_exist')
             end
         end
+
+        describe "#initialize" do
+            it "builds the index if one does not exist" do
+                flexmock(Pocolog::Logfiles).new_instances.
+                    should_receive(:rebuild_and_load_index).once.pass_thru
+                open_logfile 'test.0.log'
+                assert File.exist?(logfile_path('test.0.idx'))
+                # Verify that the index is valid by reading it
+                File.open(logfile_path('test.0.idx')) do |io|
+                    Format::Current.read_index(io)
+                end
+            end
+            it "does not rebuild an index if one exists" do
+                open_logfile 'test.0.log'
+                flexmock(Pocolog::Logfiles).new_instances.
+                    should_receive(:rebuild_and_load_index).never
+                logfile = open_logfile 'test.0.log'
+                # Check that the loaded index is valid
+                assert_equal stream_all_samples, logfile.stream('all').samples.to_a
+            end
+        end
     end
 end
 
