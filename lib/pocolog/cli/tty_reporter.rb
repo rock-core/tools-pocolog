@@ -7,7 +7,15 @@ module Pocolog
             attr_reader :progress_bar
             attr_reader :c_warn
             attr_reader :c_error
+
+            # Base value for {#current}
+            #
+            # It works as an offset between the reporter's current value and the
+            # underlying progress handler
+            attr_accessor :base
+
             def initialize(format, **options)
+                @base = 0
                 @progress_bar = TTY::ProgressBar.new(format, **options)
                 progress_bar.resize(60)
                 pastel = Pastel.new
@@ -17,6 +25,14 @@ module Pocolog
 
             def log(msg)
                 progress_bar.log(msg)
+            end
+
+            def current
+                progress_bar.current - base
+            end
+
+            def current=(value)
+                progress_bar.current = value + base
             end
 
             def advance(step = 1)
