@@ -221,19 +221,18 @@ module Pocolog
             before do
                 @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
 
-                int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
-                file = Pocolog::Logfiles.create('file-sequence.0.log')
-                stream = file.create_stream 'test', int_t
-                stream.write base_time + 0, base_time + 10, 0
-                stream.write base_time + 1, base_time + 11, 1
-                file.close
-                file = Pocolog::Logfiles.create('file-sequence.1.log')
-                stream = file.create_stream 'test', int_t
-                stream.write base_time + 2, base_time + 12, 2
-                stream.write base_time + 3, base_time + 13, 3
-                file.close
+                create_logfile 'file-sequence.0.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                end
+                create_logfile 'file-sequence.1.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 2, base_time + 12, 2
+                    stream.write base_time + 3, base_time + 13, 3
+                end
 
-                ios = ['file-sequence.0.log', 'file-sequence.1.log'].map do |path|
+                ios = [logfile_path('file-sequence.0.log'), logfile_path('file-sequence.1.log')].map do |path|
                     File.open(path)
                 end
                 @files = Pocolog::Logfiles.new(*ios)

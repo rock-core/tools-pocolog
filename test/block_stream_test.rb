@@ -2,18 +2,6 @@ require 'test_helper'
 
 module Pocolog
     describe BlockStream do
-        def create_fixture
-            registry = Typelib::Registry.new
-            int_t = registry.create_numeric '/int', 4, :sint
-            logfile = Pocolog::Logfiles.create('test')
-            all_values = logfile.create_stream('all', int_t, 'test' => 'value', 'test2' => 'value2')
-            @expected_data = Array.new
-            100.times do |i|
-                all_values.write(Time.at(i), Time.at(i * 100), i)
-                expected_data << i
-            end
-        end
-
         describe "#skip" do
             attr_reader :block_stream
             before do
@@ -35,36 +23,36 @@ module Pocolog
 
         describe "#read_next_block_header" do
             before do
-                open_logfile
-                s0 = create_log_stream 's0'
-                s1 = create_log_stream 's1'
-                s0.write(Time.now, Time.now, 0)
-                s1.write(Time.now, Time.now, 0)
-                close_logfile
+                create_logfile 'test.0.log' do
+                    stream0 = create_logfile_stream 's0'
+                    stream1 = create_logfile_stream 's1'
+                    stream0.write Time.now, Time.now, 0
+                    stream1.write Time.now, Time.now, 0
+                end
             end
 
             it "skips to the next block" do
-                block_stream = BlockStream.new(File.open('test.0.log'))
+                block_stream = BlockStream.open(logfile_path('test.0.log'))
                 block_stream.read_prologue
                 assert_equal 0, block_stream.read_next_block_header.stream_index
                 assert_equal 1, block_stream.read_next_block_header.stream_index
             end
             it "takes into account skipped bytes" do
-                block_stream = BlockStream.new(File.open('test.0.log'))
+                block_stream = BlockStream.open(logfile_path('test.0.log'))
                 block_stream.read_prologue
                 assert_equal 0, block_stream.read_next_block_header.stream_index
                 block_stream.skip 1
                 assert_equal 1, block_stream.read_next_block_header.stream_index
             end
             it "takes into account read_payload bytes" do
-                block_stream = BlockStream.new(File.open('test.0.log'))
+                block_stream = BlockStream.open(logfile_path('test.0.log'))
                 block_stream.read_prologue
                 assert_equal 0, block_stream.read_next_block_header.stream_index
                 block_stream.read_payload 1
                 assert_equal 1, block_stream.read_next_block_header.stream_index
             end
             it "raises NotEnoughData if there is not enough data left to read a full header" do
-                io = File.open('test.0.log', 'a+')
+                io = File.open(logfile_path('test.0.log'), 'a+')
                 block_stream = BlockStream.new(io)
                 block_stream.read_prologue
                 io.truncate(Format::Current::PROLOGUE_SIZE + 1)
@@ -78,13 +66,13 @@ module Pocolog
             attr_reader :io
             attr_reader :block_stream
             before do
-                open_logfile
-                s0 = create_log_stream 's0', metadata: Hash['test' => 10]
-                s1 = create_log_stream 's1'
-                s0.write(Time.now, Time.now, 0)
-                s1.write(Time.now, Time.now, 0)
-                close_logfile
-                @io = File.open('test.0.log', 'a+')
+                create_logfile 'test.0.log' do
+                    create_logfile_stream 's0', metadata: Hash['test' => 10]
+                    write_logfile_sample Time.now, Time.now, 0
+                    create_logfile_stream 's1'
+                    write_logfile_sample Time.now, Time.now, 0
+                end
+                @io = File.open(logfile_path('test.0.log'), 'a+')
                 @block_stream = BlockStream.new(io)
                 block_stream.read_prologue
             end
@@ -92,8 +80,8 @@ module Pocolog
                 block_stream.read_next_block_header
                 stream_block = block_stream.read_stream_block
                 assert_equal 's0', stream_block.name
-                assert_equal '/double', stream_block.typename
-                assert_equal double_t.to_xml, stream_block.registry_xml
+                assert_equal '/int32_t', stream_block.typename
+                assert_equal int32_t.to_xml, stream_block.registry_xml
                 assert_equal YAML.dump('test' => 10), stream_block.metadata_yaml
             end
             it "raises NotEnoughData if the file is truncated" do
@@ -108,7 +96,7 @@ module Pocolog
                 it "resolves the type" do
                     block_stream.read_next_block_header
                     stream_block = block_stream.read_stream_block
-                    assert_equal double_t, stream_block.type
+                    assert_equal int32_t, stream_block.type
                     assert_same stream_block.type, stream_block.type
                 end
                 it "resolves the metadata" do

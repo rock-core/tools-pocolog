@@ -2,30 +2,29 @@ require 'test_helper'
 
 module Pocolog
     describe Logfiles do
-        attr_reader :logfile
-
-        def create_fixture
-            logfile = Pocolog::Logfiles.create('test')
-            int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
-            all_values = logfile.create_stream('all', int_t, 'test' => 'value', 'test2' => 'value2')
-            100.times do |i|
-                all_values.write(Time.at(i), Time.at(i * 100), i)
+        attr_reader :stream_all_samples
+        before do
+            @stream_all_samples = Array.new
+            create_logfile 'test.0.log' do
+                create_logfile_stream 'all'
+                100.times do |i|
+                    stream_all_samples << [Time.at(i), Time.at(i * 100), i]
+                    write_logfile_sample Time.at(i), Time.at(i * 100), i
+                end
             end
-            logfile.close
         end
 
-        def setup
-            create_fixture
-            @logfile = Pocolog::Logfiles.open('test.0.log')
-        end
-
-        def teardown
-            FileUtils.rm_f 'test.0.log'
-            FileUtils.rm_f 'test.0.idx'
-        end
-
-        def test_has_stream
-            assert(logfile.has_stream?('all'))
+        describe "#has_stream?" do
+            attr_reader :logfile
+            before do
+                @logfile = open_logfile 'test.0.log'
+            end
+            it "returns true for a stream with that name" do
+                assert(logfile.has_stream?('all'))
+            end
+            it "returns false for a non existent stream" do
+                refute logfile.has_stream?('does_not_exist')
+            end
         end
     end
 end
