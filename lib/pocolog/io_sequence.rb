@@ -33,15 +33,22 @@ module Pocolog
         end
 
         def flush
-            ios.each(&:flush)
+            each_io(&:flush)
         end
 
         def closed?
-            ios.any?(&:flush)
+            each_io.any?(&:flush)
         end
 
         def close
-            ios.each(&:close)
+            each_io(&:close)
+        end
+
+        def each_io
+            return enum_for(__method__) if !block_given?
+            ios.each do |io, _io_size|
+                yield(io)
+            end
         end
 
         def eof?
