@@ -56,7 +56,7 @@ module Pocolog
                 end
                 it "links the type to known types of the same name that are valid deep casts" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 8, :sint
-                    flexmock(Upgrade).should_receive(:build_deep_cast, relax: false).
+                    flexmock(Upgrade).should_receive(:build_deep_cast).
                         with(base_time - 1, eq_int_t, int_t, registry, Hash[relax: false]).
                         and_return(deep_cast_op = flexmock)
                     v, _ = registry.compute_source_conversions(graph, base_time - 1, eq_int_t)
