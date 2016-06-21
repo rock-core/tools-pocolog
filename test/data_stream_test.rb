@@ -234,6 +234,93 @@ module Pocolog
             end
         end
 
+        describe "#raw_data" do
+            attr_reader :base_time, :logfile, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile 'test.0.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                end
+                @logfile = open_logfile 'test.0.log'
+                @stream = logfile.stream('test')
+            end
+
+            it "returns the unmarshalled block data" do
+                data_header = stream.seek(1, false)
+                assert_equal Typelib.from_ruby(1, int32_t), stream.raw_data(data_header)
+            end
+
+            it "resets the given sample if there is one" do
+                data_header = stream.seek(1, false)
+                sample = int32_t.new
+                stream.raw_data(data_header, sample)
+                assert_equal Typelib.from_ruby(1, int32_t), sample
+            end
+
+            it "passes through an interrupt" do
+                data_header = stream.seek(1, false)
+                flexmock(logfile).should_receive(:data).and_raise(Interrupt)
+                error = assert_raises(Interrupt) do
+                    stream.raw_data(data_header)
+                end
+                refute_match(/failed to unmarshal sample in block at position #{data_header.block_pos}/, error.message)
+            end
+
+            it "augments the error message with the file's position" do
+                data_header = stream.seek(1, false)
+                flexmock(logfile).should_receive(:data).and_raise(RuntimeError)
+                error = assert_raises(RuntimeError) do
+                    stream.raw_data(data_header)
+                end
+                assert_match(/failed to unmarshal sample in block at position #{data_header.block_pos}/, error.message)
+            end
+        end
+
+        describe "#read_one_raw_data_sample" do
+            attr_reader :base_time, :logfile, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile 'test.0.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                end
+                @logfile = open_logfile 'test.0.log'
+                @stream = logfile.stream('test')
+            end
+
+            it "returns the sample at the given position" do
+                assert_equal Typelib.from_ruby(1, int32_t), stream.read_one_raw_data_sample(1)
+            end
+
+            it "reuses a sample object if given one" do
+                sample = int32_t.new
+                stream.read_one_raw_data_sample(1, sample)
+                assert_equal Typelib.from_ruby(1, int32_t), sample
+            end
+
+            it "passes through an interrupt" do
+                flexmock(logfile).should_receive(:read_one_data_payload).and_raise(Interrupt)
+                block_pos = stream.stream_index.file_position_by_sample_number(1)
+                error = assert_raises(Interrupt) do
+                    stream.read_one_raw_data_sample(1)
+                end
+                refute_match(/failed to unmarshal sample in block at position #{block_pos}/, error.message)
+            end
+
+            it "augments the error message with the file's position" do
+                data_header = stream.seek(1, false)
+                block_pos = stream.stream_index.file_position_by_sample_number(1)
+                flexmock(logfile).should_receive(:read_one_data_payload).and_raise(RuntimeError)
+                error = assert_raises(RuntimeError) do
+                    stream.read_one_raw_data_sample(1)
+                end
+                assert_match(/failed to unmarshal sample in block at position #{block_pos}/, error.message)
+            end
+        end
+
         describe "file sequences" do
             attr_reader :files
             attr_reader :base_time
