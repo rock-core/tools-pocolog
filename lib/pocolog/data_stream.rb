@@ -74,8 +74,7 @@ module Pocolog
 
 	# Returns the +sample_index+ sample of this stream
 	def [](sample_index)
-	    samples.between(sample_index, nil).
-		find { true }
+            seek(sample_index)
 	end
 
         attr_accessor :time_getter

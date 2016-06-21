@@ -215,6 +215,25 @@ end
 
 module Pocolog
     describe DataStream do
+        describe "#[]" do
+            attr_reader :base_time, :logfile, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile 'test.0.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                end
+                @logfile = open_logfile 'test.0.log'
+                @stream = logfile.stream('test')
+            end
+
+            it "returns the sample at the given index" do
+                assert_equal [base_time + 1, base_time + 11, 1],
+                    stream[1]
+            end
+        end
+
         describe "file sequences" do
             attr_reader :files
             attr_reader :base_time
