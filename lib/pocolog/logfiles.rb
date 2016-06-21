@@ -163,7 +163,7 @@ module Pocolog
 	# files are named
 	def new_file(filename = nil)
 	    name = filename || "#{basename}.#{num_io}.log"
-	    io = File.new(name, 'w')
+	    io = File.new(name, 'w+')
 	    Format::Current.write_prologue(io)
 	    streams.each_with_index do |s, i|
                 Logfiles.write_stream_declaration(io, i, s.name, s.type.name, s.type.to_xml, s.metadata)
