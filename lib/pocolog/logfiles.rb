@@ -233,7 +233,7 @@ module Pocolog
         #
         # @param [String] path the log file's path
         # @return [String] the index file name
-        def default_index_filename(path)
+        def self.default_index_filename(path)
             path.gsub(/\.log$/, '.idx')
         end
 
@@ -276,14 +276,14 @@ module Pocolog
         # @return [Array<StreamInfo>] list of
         #   streams in the given file
         def load_stream_info_from_file(io)
-            index_filename = default_index_filename(io.path)
+            index_filename = self.class.default_index_filename(io.path)
             if File.exist?(index_filename)
                 Pocolog.info "loading file info from #{index_filename}... "
                 begin
                     streams_info = File.open(index_filename) do |index_io|
                         Format::Current.read_index(index_io)
                     end
-                    initialize_from_stream_info(io, streams_info)
+                    return initialize_from_stream_info(io, streams_info)
                 rescue InvalidIndex => e
                     Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
                 end
@@ -326,7 +326,7 @@ module Pocolog
 
         # Go through the whole file to extract index information, and write the
         # index file
-        def rebuild_and_load_index(io, index_path = self.default_index_filename(io))
+        def rebuild_and_load_index(io, index_path = self.class.default_index_filename(io))
             # No index file. Compute it.
             Pocolog.info "building index #{io.path} ..."
             io.rewind
