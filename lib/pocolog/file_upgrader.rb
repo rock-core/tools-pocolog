@@ -59,6 +59,11 @@ module Pocolog
                 stream_pos[index] = wio.tell
                 stream_index_map[index] = Array.new
                 stream_types[index] = [in_stream.type.new, copy_info.out_type]
+                if copy_info.ops.identity?
+                    reporter.log "copying #{in_stream.name}"
+                else
+                    reporter.log "updating #{in_stream.name}"
+                end
                 Logfiles.write_stream_declaration(
                     wio, index, in_stream.name, copy_info.out_type,
                     nil, in_stream.metadata)
