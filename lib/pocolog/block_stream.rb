@@ -208,7 +208,7 @@ module Pocolog
                     @type
                 else
                     registry = Typelib::Registry.from_xml(registry_xml)
-                    @type = registry.get(typename)
+                    @type = registry.build(typename)
                 end
             end
 

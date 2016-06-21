@@ -47,19 +47,21 @@ module Pocolog
 	# compressed form
 	COMPRESSION_THRESHOLD = 0.3
 
+        # Whether the data stored in this logfile is in big endian or little
+        # endian
+	attr_predicate :big_endian?
+
 	# Whether or not data bigger than COMPRESSION_MIN_SIZE should be
 	# compressed using Zlib when written to this log file. Defaults to true
 	attr_predicate :compress?, true
 
-        # The format version of this file
-	attr_reader :format_version
+        # Whether the endianness of the data stored in the file matches the
+        # host's (false) or not (true)
+        def endian_swap; big_endian? ^ Pocolog.big_endian? end
 
         # Returns true if +file+ is a valid, up-to-date, pocolog file
         def self.valid_file?(file)
-            Logfiles.new(file)
-            true
-        rescue
-            false
+            Format::Current.valid_file?(file)
         end
 
         # The underlying IO object
@@ -101,6 +103,7 @@ module Pocolog
                     IOSequence.new(*io)
                 end
             @block_stream = BlockStream.new(@io)
+            @big_endian = block_stream.big_endian?
 
             @data = nil
 	    @streams     = nil
@@ -350,10 +353,6 @@ module Pocolog
 	def declared_stream?(index)
 	    @streams && (@streams.size > index && @streams[index]) 
 	end
-
-	# True if the host byte order is not the same than the file byte
-	# order
-	attr_reader :endian_swap
 
         # Read the block information for the block at a certain position in the
         # IO

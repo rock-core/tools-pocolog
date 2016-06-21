@@ -56,6 +56,15 @@ module Pocolog
                 return format_version, big_endian
             end
 
+            def self.valid_file?(file)
+                File.open(file) do |io|
+                    read_prologue(io)
+                    true
+                end
+            rescue InvalidFile
+                false
+            end
+
             # Write a v2 file prologue
             def self.write_prologue(io, big_endian = Pocolog.big_endian?)
                 io.write(MAGIC)
