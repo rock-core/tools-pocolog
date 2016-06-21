@@ -1,4 +1,4 @@
-module LogTools
+module Pocolog
     module Upgrade
         module Ops
             # A class that applies a list of operations in sequence

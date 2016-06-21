@@ -1,5 +1,5 @@
-require 'log_tools/test'
-require 'log_tools/upgrade'
+require 'test_helper'
+require 'pocolog/upgrade'
 
 module Pocolog
     describe Upgrade do
@@ -226,7 +226,6 @@ module Pocolog
                 it "raises InvalidCast if trying to convert to a non-enum" do
                     target_t = registry.create_numeric '/int', 2, :sint
                     assert_raises(Upgrade::InvalidCast) do
-                        source_t == target_t
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end
@@ -273,8 +272,6 @@ module Pocolog
                     end
                 end
                 it "ignores fields in the source that are not in the target" do
-                    double_array_t = registry.create_array double_t, 3
-                    seq_array_t = registry.create_container '/std/vector', double_t
                     target_t = registry.create_compound '/target' do |c|
                         c.add 'a', double_t
                     end

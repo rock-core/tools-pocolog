@@ -1,5 +1,7 @@
 require 'utilrb/logger'
-require 'log_tools/cp_cow'
+require 'pocolog/cli/null_reporter'
+require 'pocolog/cp_cow'
+require 'pocolog/upgrade'
 
 module Pocolog
     # Class that encapsulates the logic of upgrading a file or a set of file(s)
@@ -42,7 +44,7 @@ module Pocolog
             end
 
             out_logfile = Pocolog::Logfiles.new(Typelib::Registry.new)
-            out_logfile.new_file(out_path.to_s)
+            out_logfile.new_file(out_path)
 
             copied_samples = 0
             raw_stream_info = stream_copy.map do |copy|
@@ -67,16 +69,15 @@ module Pocolog
 
             block_stream = Pocolog::BlockStream.open(out_path)
             stream_info = Pocolog.create_index_from_raw_info(block_stream, raw_stream_info)
-            File.open(Pocolog::Logfiles.default_index_filename(out_path.to_s), 'w') do |io|
+            File.open(Pocolog::Logfiles.default_index_filename(out_path), 'w') do |io|
                 Pocolog::Format::Current.write_index(io, block_stream.io, stream_info)
             end
-        rescue Exception => e
+        rescue Exception
             if out_logfile
                 out_logfile.close
-                out_path.unlink
+                FileUtils.rm_f(out_path)
             end
             raise
-        ensure
         end
 
         # @api private
@@ -145,7 +146,7 @@ module Pocolog
             end
 
             in_idx_path  = File.join(File.dirname(in_path), File.basename(in_path, '.0.log') + '.0.idx')
-            out_idx_path = out_path.dirname + "#{out_path.basename('.0.log')}.0.idx"
+            out_idx_path = File.join(File.dirname(out_path), "#{File.basename(out_path, '.0.log')}.0.idx")
             if File.file?(in_idx_path)
                 FileUtils.cp_reflink(in_idx_path, out_idx_path)
             end

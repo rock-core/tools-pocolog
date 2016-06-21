@@ -1,4 +1,4 @@
-require 'log_tools/test'
+require 'test_helper'
 
 module Pocolog
     describe FileUpgrader do
@@ -116,14 +116,14 @@ module Pocolog
                     flexmock(file_upgrader).should_receive(:can_cp?).
                         with(in_logfile, Array).
                         and_return(true)
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: true)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: true)
                 end
                 it "copies the file's index as well" do
                     flexmock(file_upgrader).should_receive(:cp_logfile_and_index).once.pass_thru
                     flexmock(file_upgrader).should_receive(:can_cp?).
                         with(in_logfile, Array).
                         and_return(true)
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: true)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: true)
                     # Make sure that the upgraded file has an index
                     flexmock(Pocolog::Logfiles).new_instances.should_receive(:rebuild_and_load_index).never
                     open_logfile 'upgraded.0.log'
@@ -133,14 +133,14 @@ module Pocolog
                     flexmock(file_upgrader).should_receive(:can_cp?).
                         with(in_logfile, Array).
                         and_return(true)
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                 end
                 it "does not copy the file if reflink is true but can_cp? returns false" do
                     flexmock(file_upgrader).should_receive(:cp_logfile_and_index).never
                     flexmock(file_upgrader).should_receive(:can_cp?).
                         with(in_logfile, Array).
                         and_return(false)
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: true)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: true)
                 end
             end
 
@@ -161,7 +161,7 @@ module Pocolog
                 end
                 it "creates a stream of the same name and metadata, but with the target type" do
                     flexmock(file_upgrader).should_receive(:upgrade_stream).once.pass_thru
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     out_stream = open_logfile_stream 'upgraded.0.log', 'test'
                     assert_equal 'test', out_stream.name
                     assert_equal out_t, out_stream.type
@@ -169,7 +169,7 @@ module Pocolog
                 end
                 it "updates the stream samples" do
                     flexmock(file_upgrader).should_receive(:upgrade_stream).once.pass_thru
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     out_stream = open_logfile_stream 'upgraded.0.log', 'test'
                     expected_samples = Array[
                         base_time,     base_time + 10, 1,
@@ -180,7 +180,7 @@ module Pocolog
                 end
                 it "builds the target's index" do
                     # NOTE: the reading test checks that the index is valid
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     flexmock(Pocolog::Logfiles).new_instances.should_receive(:rebuild_and_load_index).never
                     open_logfile 'upgraded.0.log'
                 end
@@ -189,7 +189,7 @@ module Pocolog
                     custom_e = Class.new(Exception)
                     flexmock(file_upgrader).should_receive(:upgrade_stream).and_raise(custom_e)
                     assert_raises(custom_e) do
-                        file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                        file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     end
                     assert !File.file?(logfile_path('upgraded.0.log'))
                     assert !File.file?(logfile_path('upgraded.0.idx'))
@@ -213,7 +213,7 @@ module Pocolog
                 end
                 it "creates a stream of the same name and metadata, but with the target type" do
                     flexmock(file_upgrader).should_receive(:copy_stream).once.pass_thru
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     out_stream = open_logfile_stream 'upgraded.0.log', 'test'
                     assert_equal 'test', out_stream.name
                     assert_equal in_t, out_stream.type
@@ -221,7 +221,7 @@ module Pocolog
                 end
                 it "copies the stream samples" do
                     flexmock(file_upgrader).should_receive(:copy_stream).once.pass_thru
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     out_stream = open_logfile_stream 'upgraded.0.log', 'test'
                     expected_samples = Array[
                         base_time,     base_time + 10, 1,
@@ -232,7 +232,7 @@ module Pocolog
                 end
                 it "builds the target's index" do
                     # NOTE: the reading test checks that the index is valid
-                    file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                    file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     flexmock(Pocolog::Logfiles).new_instances.should_receive(:rebuild_and_load_index).never
                     open_logfile 'upgraded.0.log'
                 end
@@ -241,7 +241,7 @@ module Pocolog
                     custom_e = Class.new(Exception)
                     flexmock(file_upgrader).should_receive(:copy_stream).and_raise(custom_e)
                     assert_raises(custom_e) do
-                        file_upgrader.upgrade(in_logfile, logfile_pathname('upgraded.0.log'), reflink: false)
+                        file_upgrader.upgrade(in_logfile, logfile_path('upgraded.0.log'), reflink: false)
                     end
                     assert !File.file?(logfile_path('upgraded.0.log'))
                     assert !File.file?(logfile_path('upgraded.0.idx'))

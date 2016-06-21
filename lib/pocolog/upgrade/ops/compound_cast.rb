@@ -1,4 +1,4 @@
-module LogTools
+module Pocolog
     module Upgrade
         module Ops
             # Casts a field in a compound

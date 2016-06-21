@@ -1,4 +1,4 @@
-module LogTools
+module Pocolog
     module Upgrade
         module Ops
             # Definition of a custom conversion of a given type to another

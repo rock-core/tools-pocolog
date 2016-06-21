@@ -1,4 +1,4 @@
-module LogTools
+module Pocolog
     module Upgrade
         module Ops
             class Identity < Base

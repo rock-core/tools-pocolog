@@ -1,4 +1,4 @@
-module LogTools
+module Pocolog
     module Upgrade
         module Ops
             # Converts to an array

@@ -1,5 +1,5 @@
-require 'log_tools/test'
-require 'log_tools/upgrade'
+require 'test_helper'
+require 'pocolog/upgrade'
 
 module Pocolog
     module Upgrade
@@ -16,7 +16,7 @@ module Pocolog
                 it "ignores converters that are not valid for the given time" do
                     minus_05 = registry.add(base_time - 05, int_t, int_t) {}
                     minus_10 = registry.add(base_time - 10, int_t, int_t) {}
-                    minus_15 = registry.add(base_time - 15, int_t, int_t) {}
+                    _minus_15 = registry.add(base_time - 15, int_t, int_t) {}
 
                     graph = registry.build_converter_graph(Time.now - 12)
                     edges = graph.enum_for(:each_edge).to_a
@@ -126,7 +126,7 @@ module Pocolog
                 end
                 it "returns identity for equivalent types that are known to the registry" do
                     eq_int_t = Typelib::Registry.new.create_numeric '/int', 4, :sint
-                    converter = registry.add base_time, int_t, double_t
+                    registry.add base_time, int_t, double_t
                     ops, _ = registry.find_converter_chain(base_time - 1, int_t, eq_int_t)
                     assert_equal 1, ops.size
                     assert_kind_of Ops::Identity, ops.first
@@ -138,8 +138,8 @@ module Pocolog
                     assert_equal [converter_0, converter_1], ops
                 end
                 it "returns nil if both types have converters but no chain exists" do
-                    converter_0 = registry.add base_time, int_t, int_t
-                    converter_1 = registry.add base_time + 1, double_t, double_t
+                    registry.add base_time, int_t, int_t
+                    registry.add base_time + 1, double_t, double_t
                     ops, failures = registry.find_converter_chain(base_time - 1, int_t, double_t)
                     assert !ops
                     assert failures.empty?

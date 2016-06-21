@@ -43,3 +43,5 @@ module Pocolog
     CONTROL_SET_TIMEOFFSET = 1
 end
 
+require 'pocolog/file_upgrader'
+

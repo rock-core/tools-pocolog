@@ -1,4 +1,6 @@
-require 'log_tools/test'
+require 'test_helper'
+require 'pocolog/upgrade/dsl'
+
 module Pocolog
     module Upgrade
         describe DSL do

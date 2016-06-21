@@ -1,18 +1,18 @@
 require 'rgl/adjacency'
 require 'rgl/dijkstra'
 
-require 'log_tools/upgrade/exceptions'
-require 'log_tools/upgrade/converter_registry'
+require 'pocolog/upgrade/exceptions'
+require 'pocolog/upgrade/converter_registry'
 
-require 'log_tools/upgrade/ops/base'
-require 'log_tools/upgrade/ops/identity'
-require 'log_tools/upgrade/ops/numeric_cast'
-require 'log_tools/upgrade/ops/array_cast'
-require 'log_tools/upgrade/ops/container_cast'
-require 'log_tools/upgrade/ops/enum_cast'
-require 'log_tools/upgrade/ops/compound_cast'
-require 'log_tools/upgrade/ops/sequence'
-require 'log_tools/upgrade/ops/custom'
+require 'pocolog/upgrade/ops/base'
+require 'pocolog/upgrade/ops/identity'
+require 'pocolog/upgrade/ops/numeric_cast'
+require 'pocolog/upgrade/ops/array_cast'
+require 'pocolog/upgrade/ops/container_cast'
+require 'pocolog/upgrade/ops/enum_cast'
+require 'pocolog/upgrade/ops/compound_cast'
+require 'pocolog/upgrade/ops/sequence'
+require 'pocolog/upgrade/ops/custom'
 
 module Pocolog
     module Upgrade
