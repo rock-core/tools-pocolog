@@ -17,14 +17,14 @@ module Pocolog
         # The stream associated metadata
         attr_reader :metadata
 
-        def initialize(logfile, index, name, type, metadata = Hash.new, info = StreamInfo.new)
+        def initialize(logfile, index, name, stream_type, metadata = Hash.new, info = StreamInfo.new)
             @logfile, @index, @name, @metadata, @info =
                 logfile, index, name, metadata, info
 
             # if we do have a registry, then adapt it to the local machine
             # if needed. Right now, this is required if containers changed
             # size.
-            registry = type.registry
+            registry = stream_type.registry
             resize_containers = Hash.new
             registry.each do |type|
                 if type <= Typelib::ContainerType && type.size != type.natural_size
@@ -32,10 +32,10 @@ module Pocolog
                 end
             end
             if resize_containers.empty?
-                @type = type
+                @type = stream_type
             else
                 registry.resize(resize_containers)
-                @type = registry.get(type.name)
+                @type = registry.get(stream_type.name)
             end
 	    
             @data = nil

@@ -48,9 +48,9 @@ module Pocolog
         end
 
         # Create a stream on the last created logfile
-        def create_logfile_stream(name, rt = Array.new, lg = Array.new, values = Array.new, type: int32_t, metadata: Hash.new)
+        def create_logfile_stream(name, samples_rt = Array.new, samples_lg = Array.new, samples_value = Array.new, type: int32_t, metadata: Hash.new)
             stream = @__current_logfile.create_stream(name, type, metadata)
-            rt.zip(lg, values).each do |rt, lg, v|
+            samples_rt.zip(samples_lg, samples_value).each do |rt, lg, v|
                 stream.write(rt, lg, v)
             end
             @__current_stream = stream

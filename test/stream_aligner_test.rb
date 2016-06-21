@@ -373,7 +373,7 @@ module Pocolog
 
         describe "#stream_indeX_for_name" do
             it "returns the index of the matching stream" do
-                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                aligner, _s0, _s1 = create_aligner([1, 2, 3], [1.5, 3.5])
                 assert_equal 1, aligner.stream_index_for_name('s1')
             end
             it "returns nil if there is no match" do
@@ -402,7 +402,7 @@ module Pocolog
 
         describe "#next" do
             it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
-                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
                 assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.next
                 assert_equal [Time.at(20), Time.at(20), [1, 2]], aligner.next
             end
@@ -413,13 +413,13 @@ module Pocolog
         end
         describe "#previous" do
             it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
-                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
                 aligner.next
                 aligner.next
                 assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.previous
             end
             it "returns nil at the beginning of file" do
-                aligner, s0, s1 = create_aligner([1, 3], [2, 4])
+                aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
                 assert_equal [Time.at(10), Time.at(10), [0, 1]], aligner.next
                 assert_nil aligner.previous
             end

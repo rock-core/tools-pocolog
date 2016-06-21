@@ -48,10 +48,10 @@ module Pocolog
     #   needed to build the index
     # @return [Array<StreamInfo,nil>]
     def self.create_index_from_raw_info(block_stream, raw_info)
-        raw_info.map do |raw_info|
-            next if !raw_info
+        raw_info.map do |stream_info|
+            next if !stream_info
 
-            index_map = raw_info.index_map
+            index_map = stream_info.index_map
             interval_rt = Array.new
             base_time = nil
             # Read the realtime of the first and last samples
@@ -72,7 +72,7 @@ module Pocolog
                     [block_pos, lg_time - base_time, sample_index]
                 end
             end
-            StreamInfo.from_raw_data(raw_info.stream_block_pos, interval_rt, base_time, index_map)
+            StreamInfo.from_raw_data(stream_info.stream_block_pos, interval_rt, base_time, index_map)
         end
     end
 end
