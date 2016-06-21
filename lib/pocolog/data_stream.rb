@@ -119,14 +119,6 @@ module Pocolog
         # True if the size of this stream is zero
         def empty?; size == 0 end
 
-        # Reload the registry. Can be useful if new convertions have been added
-        # to the Typelib system
-        def reload_registry
-            @registry = nil
-            @type = nil
-            registry
-        end
-
 	# Get the Typelib::Registry object for this stream
 	def registry
             type.registry
