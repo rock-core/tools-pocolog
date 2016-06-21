@@ -10,11 +10,12 @@ module Pocolog
         include Logger::Hierarchy
         include Logger::Forward
 
-        attr_reader :loader
         attr_reader :converter_registry
 
-        def initialize(loader)
-            @loader = loader
+        attr_reader :out_type_resolver
+
+        def initialize(out_type_resolver)
+            @out_type_resolver = out_type_resolver
             @converter_registry = Upgrade::ConverterRegistry.new
         end
 
@@ -24,7 +25,7 @@ module Pocolog
 
         # Upgrade the data in the streams of a logfile
         #
-        # @param [Pocolog::Logfiles] in_logfile the logfile whose streams should
+        # @param [Logfiles] in_logfile the logfile whose streams should
         #    be updated
         # @param [String] out_path the path to the file that should be created
         # @param [Boolean] skip_failures if true, streams that cannot be
@@ -35,61 +36,91 @@ module Pocolog
         #   only Linux and btrfs/zfs.
         # @param [CLI::NullReporter] reporter a reporter that allows to display
         #   some progress information
-        def upgrade(in_logfile, out_path, reporter: CLI::NullReporter.new, skip_failures: false, reflink: false)
-            stream_copy = compute_stream_copy(in_logfile)
+        def upgrade(in_path, out_path, reporter: CLI::NullReporter.new, skip_failures: false, reflink: false)
+            stream_copy = compute_stream_copy(in_path)
 
-            if reflink && can_cp?(in_logfile, stream_copy)
-                cp_logfile_and_index(in_logfile, out_path, reporter: reporter)
+            if reflink && can_cp?(stream_copy)
+                cp_logfile_and_index(in_path, out_path, reporter: reporter)
                 return
             end
 
-            out_logfile = Pocolog::Logfiles.new(Typelib::Registry.new)
-            out_logfile.new_file(out_path)
+            wio = File.open(out_path, 'w+')
+            Format::Current.write_prologue(wio)
 
-            copied_samples = 0
-            raw_stream_info = stream_copy.map do |copy|
-                in_stream = copy.in_stream
-                out_stream_pos = out_logfile.io.tell
-                out_stream = out_logfile.create_stream(in_stream.name, copy.out_type, in_stream.metadata)
+            stream_ops = Array.new
+            stream_pos = Array.new
+            stream_types = Array.new
+            stream_index_map = Array.new
 
-                if copy.ops.identity?
-                    reporter.log "copying stream #{in_stream.name}"
-                    copied_samples, index_map =
-                        copy_stream(in_stream, out_stream, reporter: reporter)
-                else
-                    reporter.log "upgrading stream #{in_stream.name}"
-                    copied_samples, index_map =
-                        upgrade_stream(copy.ops, in_stream, out_stream, reporter: reporter)
-                end
-                reporter.base += copied_samples
-                Pocolog::IndexBuilderStreamInfo.new(out_stream_pos, index_map)
+            stream_copy.each do |copy_info|
+                in_stream = copy_info.in_stream
+                index = in_stream.index
+                stream_ops[index] = copy_info.ops
+                stream_pos[index] = wio.tell
+                stream_index_map[index] = Array.new
+                stream_types[index] = [in_stream.type.new, copy_info.out_type]
+                Logfiles.write_stream_declaration(
+                    wio, index, in_stream.name, copy_info.out_type,
+                    nil, in_stream.metadata)
             end
-            out_logfile.flush
-            out_logfile.close
 
-            block_stream = Pocolog::BlockStream.open(out_path)
+            report_period = 0.1
+            last_report = Time.now
+
+            block_stream = BlockStream.open(in_path)
+            block_stream.read_prologue
+            while block = block_stream.read_next_block_header
+                if block.kind == DATA_BLOCK
+                    index = block.stream_index
+                    ops   = stream_ops[index]
+                    block_pos   = wio.tell
+                    payload_header, in_marshalled_sample =
+                        block_stream.read_data_block(uncompress: false)
+                    data_header = BlockStream::DataBlockHeader.parse(payload_header)
+
+                    if ops.identity?
+                        wio.write block.raw_data
+                        wio.write payload_header
+                        wio.write in_marshalled_sample
+                    else
+                        if data_header.compressed?
+                            in_marshalled_sample = Zlib::Inflate.inflate(in_marshalled_sample)
+                        end
+                        in_sample, out_type = stream_types[index]
+                        in_sample.from_buffer_direct(in_marshalled_sample)
+                        out_sample = out_type.new
+                        ops.call(out_sample, in_sample)
+                        out_marshalled_sample = out_sample.to_byte_array
+                        out_payload_size = out_marshalled_sample.size
+                        payload_header[-5, 4] = [out_payload_size].pack("V")
+                        block.raw_data[-4, 4] = [payload_header.size + out_payload_size].pack("V")
+                        wio.write block.raw_data
+                        wio.write payload_header
+                        wio.write out_marshalled_sample
+                    end
+                    stream_index_map[index] << block_pos << data_header.lg_time
+                end
+                if Time.now - last_report > report_period
+                    reporter.current = block_stream.tell
+                    last_report = Time.now
+                end
+            end
+
+            wio.flush
+            wio.rewind
+            block_stream = BlockStream.new(wio)
+            raw_stream_info = stream_pos.each_with_index.map do |block_pos, stream_i|
+                IndexBuilderStreamInfo.new(block_pos, stream_index_map[stream_i])
+            end
             stream_info = Pocolog.create_index_from_raw_info(block_stream, raw_stream_info)
-            File.open(Pocolog::Logfiles.default_index_filename(out_path), 'w') do |io|
-                Pocolog::Format::Current.write_index(io, block_stream.io, stream_info)
+            File.open(Logfiles.default_index_filename(out_path), 'w') do |io|
+                Format::Current.write_index(io, block_stream.io, stream_info)
             end
         rescue Exception
-            if out_logfile
-                out_logfile.close
-                FileUtils.rm_f(out_path)
-            end
+            FileUtils.rm_f(out_path)
             raise
-        end
-
-        # @api private
-        #
-        # Resolve the local version of the given type
-        #
-        # This is the type that will be used as target for a stream upgrade
-        def resolve_local_type(in_type)
-            target_typekit = loader.typekit_for(in_type.name, false)
-            target_typekit.resolve_type(in_type.name)
-        rescue OroGen::NotTypekitType
-            in_stream.type
+        ensure
+            wio.close if wio && !wio.closed?
         end
 
         # @api private
@@ -100,9 +131,10 @@ module Pocolog
         #   upgraded will be ignored. If false, the method raises Upgrade::InvalidCast
         #
         # @return [Array<StreamCopy>]
-        def compute_stream_copy(in_logfile, reporter: CLI::NullReporter.new, skip_failures: false)
+        def compute_stream_copy(in_path, reporter: CLI::NullReporter.new, skip_failures: false)
+            in_logfile = Pocolog::Logfiles.open(in_path)
             in_logfile.streams.map do |in_stream|
-                out_type = resolve_local_type(in_stream.type)
+                out_type = out_type_resolver.call(in_stream.type)
 
                 if in_stream.empty?
                     next(StreamCopy.new(in_stream, out_type, Upgrade::Ops::Identity.new(out_type)))
@@ -113,32 +145,33 @@ module Pocolog
                     ops = Upgrade.compute(stream_ref_time, in_stream.type, out_type, converter_registry)
                 rescue Upgrade::InvalidCast => e
                     if skip_failures
-                        reporter.warn "cannot upgrade #{in_stream.name} of #{in_logfile.path}"
+                        reporter.warn "cannot upgrade #{in_stream.name} of #{in_path}"
                         PP.pp(e, buffer = "")
                         buffer.split("\n").each do |line|
                             reporter.warn line
                         end
                         next
                     else
-                        raise e, "cannot upgrade #{in_stream.name} of #{in_logfile.path}: #{e.message}", e.backtrace
+                        raise e, "cannot upgrade #{in_stream.name} of #{in_path}: #{e.message}", e.backtrace
                     end
                 end
                 StreamCopy.new(in_stream, out_type, ops)
             end.compact
+        ensure
+            in_logfile.close if in_logfile
         end
 
         # @api private
         #
         # Check if the input file can be copied as-is
-        def can_cp?(in_logfile, stream_copy)
-            (in_logfile.num_io == 1) && stream_copy.all? { |s| s.copy? }
+        def can_cp?(stream_copy)
+            stream_copy.all? { |s| s.copy? }
         end
 
         # @api private
         #
         # Copies the logfile and its index to the out path
-        def cp_logfile_and_index(in_logfile, out_path, reporter: CLI::NullReporter.new)
-            in_path = in_logfile.path
+        def cp_logfile_and_index(in_path, out_path, reporter: CLI::NullReporter.new)
             if FileUtils.cp_reflink(in_path, out_path)
                 reporter.log "file dos not require an upgrade, copied (with reflink)"
             else
@@ -150,57 +183,6 @@ module Pocolog
             if File.file?(in_idx_path)
                 FileUtils.cp_reflink(in_idx_path, out_idx_path)
             end
-        end
-
-        # Copy a stream
-        def copy_stream(in_stream, out_stream, reporter: CLI::NullReporter.new, report_period: 0.1)
-            in_logfile = in_stream.logfile
-            sample_i = 0
-            last_report = Time.now
-            index_map = Array.new
-            out_io = out_stream.logfile.io
-            while header = in_stream.advance
-                buffer = in_logfile.data(header)
-                out_pos = out_io.pos
-                out_stream.write_raw(header.rt_time, header.lg_time, buffer)
-                index_map << out_pos << header.lg_time
-
-                now = Time.now
-                if now - last_report > report_period
-                    reporter.current = sample_i
-                    last_report = now
-                end
-                sample_i += 1
-            end
-            return sample_i, index_map
-        end
-
-        # Process a stream through an upgrade operation
-        def upgrade_stream(ops, in_stream, out_stream, reporter: CLI::NullReporter.new, report_period: 0.1)
-            in_type  = in_stream.type
-            out_type = out_stream.type
-
-            sample_i = 0
-            last_report = Time.now
-            index_map = Array.new
-            out_io = out_stream.logfile.io
-            while header = in_stream.advance
-                in_sample  = in_type.new
-                out_sample = out_type.new
-                in_stream.raw_data(header, in_sample)
-                ops.call(out_sample, in_sample)
-                out_pos = out_io.tell
-                out_stream.write_raw(header.rt_time, header.lg_time, out_sample.to_byte_array)
-                index_map << out_pos << header.lg_time
-
-                now = Time.now
-                if now - last_report > report_period
-                    reporter.current = sample_i
-                    last_report = now
-                end
-                sample_i += 1
-            end
-            return sample_i, index_map
         end
     end
 end

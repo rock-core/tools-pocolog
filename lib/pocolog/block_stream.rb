@@ -291,10 +291,25 @@ module Pocolog
             DataBlockHeader.parse(read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE))
         end
 
+        # Read the marshalled version of a data block
+        #
+        # It splits the block into its header and payload part, and optionally
+        # uncompresses the data sample
+        def read_data_block(uncompress: true)
+            raw_header = read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE)
+            raw_data   = read_payload
+            compressed = raw_header[-1, 1].unpack('C').first
+            if uncompress && (compressed != 0)
+                # Payload is compressed
+                raw_data = Zlib::Inflate.inflate(raw_data)
+            end
+            return raw_header, raw_data
+        end
+
         # Read the data payload of a data block, not parsing the header
         #
-        # The IO is assumed to be positioned at the beginning of the block's
-        # payload
+        # The IO is assumed to be positioned just after the block header (i.e.
+        # after read_next_block_header)
         def read_data_block_payload
             skip(Format::Current::DATA_BLOCK_HEADER_SIZE - 1)
             compressed = read_payload(1).unpack('C').first
