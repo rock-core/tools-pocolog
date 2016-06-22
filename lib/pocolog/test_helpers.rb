@@ -1,4 +1,5 @@
 require 'tmpdir'
+require 'pocolog'
 
 module Pocolog
     module TestHelpers
