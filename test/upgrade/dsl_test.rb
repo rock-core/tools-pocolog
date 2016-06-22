@@ -49,6 +49,25 @@ module Pocolog
                     end
                 end
             end
+
+            describe ".load_dir" do
+                attr_reader :converter_registry, :fixture_dir
+                before do
+                    @converter_registry = ConverterRegistry.new
+                    @fixture_dir = File.join(__dir__, 'fixtures')
+                end
+
+                it "loads all the converters present in the given directory" do
+                    converters = DSL.load_dir(fixture_dir, converter_registry)
+                    assert_equal 1, converters.size
+                    assert_equal Time.new(1970, 1, 1), converters[0].time_to
+
+                    source_xml = File.read(File.join(fixture_dir, "1970-01-01:test_t.1.source.tlb"))
+                    assert_equal Typelib::Registry.from_xml(source_xml).get('/test_t'), converters[0].from_type
+                    target_xml = File.read(File.join(fixture_dir, "1970-01-01:test_t.1.target.tlb"))
+                    assert_equal Typelib::Registry.from_xml(target_xml).get('/test_t'), converters[0].to_type
+                end
+            end
         end
     end
 end

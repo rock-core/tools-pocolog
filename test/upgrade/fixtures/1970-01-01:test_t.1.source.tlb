@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<typelib>
+  <numeric name="/test_t" category="sint" size="4" >
+  
+  </numeric>
+</typelib>

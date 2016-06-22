@@ -78,8 +78,8 @@ module Pocolog
             # 'rock-log create-converter'
             def self.load_dir(load_path, converter_registry)
                 converters = Array.new
-                Pathname.glob(load_path + "*") do |path|
-                    next if !path.file?
+                Pathname.glob(Pathname.new(load_path) + "*") do |path|
+                    next if !File.file?(path)
                     source_tlb = path.sub(/$/, '.source.tlb')
                     target_tlb = path.sub(/$/, '.target.tlb')
                     if source_tlb.exist? && target_tlb.exist?
