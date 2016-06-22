@@ -38,6 +38,14 @@ module Pocolog
                     end
                     @deep_cast_ops.call(target, value)
                 end
+
+                def copy(target, value)
+                    ::Typelib.copy(target, ::Typelib.from_ruby(value, target.class))
+                end
+
+                def to_ruby(value)
+                    ::Typelib.to_ruby(value)
+                end
             end
 
             # Create a template converter for given time, source and target
