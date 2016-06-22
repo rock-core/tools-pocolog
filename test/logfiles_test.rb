@@ -47,6 +47,16 @@ module Pocolog
                 assert_equal stream_all_samples, logfile.stream('all').samples.to_a
             end
         end
+        describe ".default_index_filename" do
+            it "returns the path with .log changed into .idx" do
+                assert_equal "/path/to/file.0.idx", Logfiles.default_index_filename("/path/to/file.0.log")
+            end
+            it "raises ArgumentError if the logfile path does not end in .log" do
+                assert_raises(ArgumentError) do
+                    Logfiles.default_index_filename("/path/to/file.0.log.garbage")
+                end
+            end
+        end
     end
 end
 

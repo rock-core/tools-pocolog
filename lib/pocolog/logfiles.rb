@@ -237,7 +237,11 @@ module Pocolog
         # @param [String] path the log file's path
         # @return [String] the index file name
         def self.default_index_filename(path)
-            path.gsub(/\.log$/, '.idx')
+            index_filename = path.gsub(/\.log$/, '.idx')
+            if index_filename == path
+                raise ArgumentError, "#{path} does not end in .log, cannot generate a default index name for it"
+            end
+            index_filename
         end
 
         # Load stream information, either from an existing on-disk index or by

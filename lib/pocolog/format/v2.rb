@@ -161,6 +161,10 @@ module Pocolog
             # @param [Array<StreamInfo>] streams the stream information that
             #   should be stored
             def self.write_index(index_io, file_io, streams)
+                if index_io.path == file_io.path
+                    raise ArgumentError, "attempting to overwrite the file by its index"
+                end
+
                 write_index_prologue(index_io, file_io.size, file_io.stat.mtime)
                 index_io.write([streams.size].pack("Q>"))
 
