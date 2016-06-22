@@ -83,6 +83,10 @@ module Pocolog
                 stream(stream_name)
         end
 
+        def logfiles_dir
+            @__logfiles_dir
+        end
+
         def logfile_path(basename)
             File.expand_path(basename, @__logfiles_dir)
         end
