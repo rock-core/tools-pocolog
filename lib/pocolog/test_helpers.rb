@@ -87,8 +87,8 @@ module Pocolog
             @__logfiles_dir
         end
 
-        def logfile_path(basename)
-            File.expand_path(basename, @__logfiles_dir)
+        def logfile_path(*basename)
+            File.expand_path(File.join(*basename), @__logfiles_dir)
         end
     end
 end
