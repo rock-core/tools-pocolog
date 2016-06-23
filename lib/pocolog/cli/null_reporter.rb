@@ -3,7 +3,7 @@ module Pocolog
         # A null object compatible with TTY::ProgressBar
         class NullReporter
             attr_accessor :base
-            attr_writer :current
+            attr_accessor :current
             def initialize
                 @current = 0
                 @base = 0
