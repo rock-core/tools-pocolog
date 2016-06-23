@@ -46,6 +46,19 @@ module Pocolog
                 # Check that the loaded index is valid
                 assert_equal stream_all_samples, logfile.stream('all').samples.to_a
             end
+            it "rebuilds the index if the file size changed" do
+                open_logfile('test.0.log') {}
+                create_logfile 'test.0.log' do
+                    create_logfile_stream 'all'
+                end
+                flexmock(Pocolog::Logfiles).new_instances.
+                    should_receive(:rebuild_and_load_index).once.
+                    pass_thru
+
+                logfile = open_logfile 'test.0.log'
+                # Check that the loaded index is valid
+                assert_equal [], logfile.stream('all').samples.to_a
+            end
         end
         describe ".default_index_filename" do
             it "returns the path with .log changed into .idx" do
