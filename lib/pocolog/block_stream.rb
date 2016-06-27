@@ -232,15 +232,16 @@ module Pocolog
             StreamBlock.parse(read_payload)
         end
 
-        # Read the payload of the last block returned by {#next}
+        # Read the payload of the last block returned by
+        # {#read_next_block_header}
         def read_payload(count = @payload_size)
             if count > @payload_size
                 raise ArgumentError, "expected read count #{count} greater than remaining payload size #{@payload_size}"
             end
 
             result = read(count)
-            if result.size != count
-                raise NotEnoughData, "expected to read #{count} bytes but got #{result.size}"
+            if !result || result.size != count
+                raise NotEnoughData, "expected to read #{count} bytes but got #{result ? result.size : 'EOF'}"
             end
 
             @payload_size -= count
