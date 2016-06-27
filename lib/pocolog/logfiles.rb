@@ -289,7 +289,7 @@ module Pocolog
                 Pocolog.info "loading file info from #{index_filename}... "
                 begin
                     streams_info = File.open(index_filename) do |index_io|
-                        Format::Current.read_index(index_io, expected_file_size: io.size, expected_mtime: io.stat.mtime)
+                        Format::Current.read_index(index_io, expected_file_size: io.size, expected_mtime: nil)
                     end
                     return initialize_from_stream_info(io, streams_info)
                 rescue InvalidIndex => e
