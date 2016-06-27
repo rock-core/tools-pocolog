@@ -240,7 +240,7 @@ module Pocolog
 
             result = read(count)
             if result.size != count
-                raise NotEnoughData, "expected read #{@payload_size} but got #{result.size}"
+                raise NotEnoughData, "expected to read #{count} bytes but got #{result.size}"
             end
 
             @payload_size -= count

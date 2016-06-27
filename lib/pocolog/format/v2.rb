@@ -138,7 +138,7 @@ module Pocolog
                     index_io.seek(index_pos)
                     index_data = index_io.read(index_size)
                     if index_data.size != index_size
-                        raise InvalidIndex, "not enough data in index"
+                        raise InvalidIndex, "not enough or too much data in index"
                     end
 
                     *interval_rt, base_time = index_data[0, 24].unpack("Q>Q>Q>")
