@@ -14,6 +14,12 @@ module Pocolog
             super
         end
 
+        def move_logfile_path(new_dir)
+            FileUtils.rm_rf(@__logfiles_dir)
+            FileUtils.mkdir_p(new_dir)
+            @__logfiles_dir = new_dir
+        end
+
         def teardown
             FileUtils.rm_rf @__logfiles_dir
             super
@@ -25,8 +31,12 @@ module Pocolog
         # @param [Hash<String,Array<Integer>>] a set of streams that should be
         #   created. All streams are created with a type of /int32_t (32 bit,
         #   integer, signed). A sample time is always 100 * sample_index + value 
-        def create_logfile(basename)
-            @__current_logfile = Pocolog::Logfiles.create(logfile_path(basename))
+        def create_logfile(basename, delete_existing: true)
+            path = logfile_path(basename)
+            if File.exist?(index_path = Logfiles.default_index_filename(path))
+                FileUtils.rm(index_path)
+            end
+            @__current_logfile = Pocolog::Logfiles.create(path)
 
             if block_given?
                 begin yield
