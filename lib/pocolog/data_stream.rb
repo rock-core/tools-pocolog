@@ -101,6 +101,18 @@ module Pocolog
             end
 	end
 
+        # Returns this stream's duration in seconds
+        #
+        # @return [Float]
+        def duration_lg
+            interval = time_interval
+            if interval.empty?
+                0
+            else
+                interval[1] - interval[0]
+            end
+        end
+
         # The data header for the current sample. You can store a copy of this
         # header to retrieve data later on with #data:
         #
