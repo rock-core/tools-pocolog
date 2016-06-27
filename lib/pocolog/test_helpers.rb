@@ -73,12 +73,12 @@ module Pocolog
         end
 
         # Open an existing logfile
-        def open_logfile(path, close_current: true)
+        def open_logfile(path, index_dir: nil, close_current: true)
             if @__current_logfile
                 close_logfile
             end
 
-            logfile = Pocolog::Logfiles.open(logfile_path(path))
+            logfile = Pocolog::Logfiles.open(logfile_path(path), index_dir: index_dir)
             if block_given?
                 begin yield(logfile)
                 ensure close_logfile
@@ -88,8 +88,8 @@ module Pocolog
             end
         end
 
-        def open_logfile_stream(basename, stream_name, close_current: true)
-            open_logfile(basename, close_current: close_current).
+        def open_logfile_stream(basename, stream_name, close_current: true, index_dir: nil)
+            open_logfile(basename, close_current: close_current, index_dir: index_dir).
                 stream(stream_name)
         end
 

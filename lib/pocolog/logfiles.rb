@@ -90,7 +90,7 @@ module Pocolog
         # Providing a type registry guarantees that you get an error if the
         # logfile's types do not match the type definitions found in the
         # registry.
-	def initialize(*io, write_only: false)
+	def initialize(*io, write_only: false, index_dir: nil)
 	    if io.last.kind_of?(Typelib::Registry)
 		@registry = io.pop
 	    end
@@ -110,7 +110,7 @@ module Pocolog
 	    @compress    = true
             @data_header_buffer = ""
             if !write_only
-                @streams = load_stream_info(io)
+                @streams = load_stream_info(io, index_dir: index_dir)
             else
                 @streams = Array.new
             end
@@ -183,13 +183,13 @@ module Pocolog
 
         # Opens a set of file. +pattern+ can be a globbing pattern, in which
         # case all the matching files will be opened as a log sequence
-        def self.open(pattern, registry = Typelib::Registry.new)
+        def self.open(pattern, registry = Typelib::Registry.new, index_dir: nil)
             io = Dir.enum_for(:glob, pattern).sort.map { |name| File.open(name) }
             if io.empty?
                 raise ArgumentError, "no files matching '#{pattern}'"
             end
 
-            new(*io, registry)
+            new(*io, registry, index_dir: index_dir)
         end
 
 	# Create an empty log file using +basename+ to build its name.
@@ -236,21 +236,22 @@ module Pocolog
         #
         # @param [String] path the log file's path
         # @return [String] the index file name
-        def self.default_index_filename(path)
-            index_filename = path.gsub(/\.log$/, '.idx')
-            if index_filename == path
+        def self.default_index_filename(path, index_dir: File.dirname(path))
+            index_filename = File.basename(path).gsub(/\.log$/, '.idx')
+            index_path = File.join(index_dir, index_filename)
+            if index_path == path
                 raise ArgumentError, "#{path} does not end in .log, cannot generate a default index name for it"
             end
-            index_filename
+            index_path
         end
 
         # Load stream information, either from an existing on-disk index or by
         # rebuilding an index
         #
         # @return [Array<DataStream,nil>]
-        def load_stream_info(ios)
+        def load_stream_info(ios, index_dir: nil)
             per_file_stream_info = ios.map do |single_io|
-                load_stream_info_from_file(single_io)
+                load_stream_info_from_file(single_io, index_dir: (index_dir || File.dirname(single_io)))
             end
             stream_count = per_file_stream_info.map(&:size).max || 0
             per_stream = ([nil] * stream_count).zip(*per_file_stream_info)
@@ -282,8 +283,8 @@ module Pocolog
         # @param [File] io the file. It must be a single file
         # @return [Array<StreamInfo>] list of
         #   streams in the given file
-        def load_stream_info_from_file(io)
-            index_filename = self.class.default_index_filename(io.path)
+        def load_stream_info_from_file(io, index_dir: File.dirname(io.path))
+            index_filename = self.class.default_index_filename(io.path, index_dir: index_dir)
             if File.exist?(index_filename)
                 Pocolog.info "loading file info from #{index_filename}... "
                 begin
@@ -340,6 +341,7 @@ module Pocolog
             block_stream = BlockStream.new(io)
             block_stream.read_prologue
             stream_info = Pocolog.file_index_builder(block_stream)
+            FileUtils.mkdir_p(File.dirname(index_path))
             File.open(index_path, 'w') do |index_io|
                 Format::Current.write_index(index_io, io, stream_info)
             end

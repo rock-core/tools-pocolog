@@ -28,6 +28,17 @@ module Pocolog
         end
 
         describe "#initialize" do
+            it "allows to specify the index dir" do
+                flexmock(Pocolog::Logfiles).new_instances.
+                    should_receive(:rebuild_and_load_index).once.pass_thru
+                open_logfile 'test.0.log', index_dir: logfile_path('cache')
+                refute File.exist?(logfile_path('test.0.idx'))
+                assert File.exist?(logfile_path('cache', 'test.0.idx'))
+                # Verify that the index is valid by reading it
+                File.open(logfile_path(logfile_path('cache'), 'test.0.idx')) do |io|
+                    Format::Current.read_index(io)
+                end
+            end
             it "builds the index if one does not exist" do
                 flexmock(Pocolog::Logfiles).new_instances.
                     should_receive(:rebuild_and_load_index).once.pass_thru
@@ -63,6 +74,9 @@ module Pocolog
         describe ".default_index_filename" do
             it "returns the path with .log changed into .idx" do
                 assert_equal "/path/to/file.0.idx", Logfiles.default_index_filename("/path/to/file.0.log")
+            end
+            it "allows to specify the cache directory" do
+                assert_equal "/another/dir/file.0.idx", Logfiles.default_index_filename("/path/to/file.0.log", index_dir: '/another/dir')
             end
             it "raises ArgumentError if the logfile path does not end in .log" do
                 assert_raises(ArgumentError) do
