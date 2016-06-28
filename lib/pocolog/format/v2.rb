@@ -26,6 +26,12 @@ module Pocolog
             # The size of a data header, excluding the generic block header
             DATA_BLOCK_HEADER_SIZE = TIME_SIZE * 2 + 5
 
+            # The size of a stream block declaration header
+            #
+            # Stream declarations contain variable-length strings, we can only
+            # have a min
+            STREAM_BLOCK_DECLARATION_HEADER_SIZE_MIN = 9
+
             # Read a file's prologue
             #
             # @param [IO] io the file from which to read the prologue

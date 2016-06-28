@@ -138,6 +138,97 @@ module Pocolog
             end
 
             describe BlockStream::StreamBlock do
+                describe ".parse" do
+                    it "raises NotEnoughData if the provided buffer is smaller than the name's length" do
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("")
+                        end
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("\x00")
+                        end
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("\x00\x00")
+                        end
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the name" do
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("\x00" + [2].pack("V") + " ")
+                        end
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the type name's length" do
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("\x00" + [0].pack("V") + "\x00")
+                        end
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the type name" do
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse("\x00" + [0, 2].pack("VV") + " ")
+                        end
+                    end
+                    it "returns if only the name and typename are present" do
+                        block = BlockStream::StreamBlock.parse("\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef")
+                        assert_equal "ab", block.name
+                        assert_equal "cdef", block.typename
+                    end
+                    it "sets an empty registry if no registry is present" do
+                        block = BlockStream::StreamBlock.parse("\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef")
+                        registry = Typelib::Registry.from_xml(block.registry_xml)
+                        assert_equal 0, registry.size
+                    end
+                    it "sets an empty metadata hash if no metadata is present" do
+                        block = BlockStream::StreamBlock.parse("\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef")
+                        assert_equal Hash.new, YAML.load(block.metadata_yaml)
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the registry's size" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef"
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse(valid_start + "\x00")
+                        end
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the registry" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef"
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse(valid_start + [4].pack("V") + " ")
+                        end
+                    end
+                    it "returns if there is the name, typename and registry" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef"
+                        block = BlockStream::StreamBlock.parse(valid_start + [4].pack("V") + "ABCD")
+                        assert_equal "ab", block.name
+                        assert_equal "cdef", block.typename
+                        assert_equal "ABCD", block.registry_xml
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the metadata's size" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef" + [4].pack("V") + "ABCD"
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse(valid_start + "\x00")
+                        end
+                    end
+                    it "raises NotEnoughData if the provided buffer is smaller than the metadata" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef" + [4].pack("V") + "ABCD"
+                        assert_raises(NotEnoughData) do
+                            BlockStream::StreamBlock.parse(valid_start + [2].pack("V") + " ")
+                        end
+                    end
+                    it "returns if there is the name, typename, registry and metadata" do
+                        valid_start = "\x00" + [2].pack("V") + "ab" + [4].pack("V") + "cdef" + [4].pack("V") + "ABCD"
+                        block = BlockStream::StreamBlock.parse(valid_start + [2].pack("V") + "EF")
+                        assert_equal "ab", block.name
+                        assert_equal "cdef", block.typename
+                        assert_equal "ABCD", block.registry_xml
+                        assert_equal "EF", block.metadata_yaml
+                    end
+                    it "raises InvalidBlockFound if there is more data than expected" do
+                        marshalled = "\x00" +
+                            [2].pack("V") + "ab" +
+                            [4].pack("V") + "cdef" +
+                            [4].pack("V") + "ABCD" + 
+                            [2].pack("V") + "EF"
+                        assert_raises(InvalidBlockFound) do
+                            BlockStream::StreamBlock.parse(marshalled + " ")
+                        end
+                    end
+                end
                 it "resolves the type" do
                     block_stream.read_next_block_header
                     stream_block = block_stream.read_stream_block
@@ -149,6 +240,14 @@ module Pocolog
                     stream_block = block_stream.read_stream_block
                     assert_equal Hash['test' => 10], stream_block.metadata
                     assert_same stream_block.metadata, stream_block.metadata
+                end
+            end
+
+            describe BlockStream::DataBlockHeader do
+                it "raises NotEnoughData if the buffer is smaller than the expected data block size" do
+                    assert_raises(NotEnoughData) do
+                        BlockStream::StreamBlock.parse(" ")
+                    end
                 end
             end
         end

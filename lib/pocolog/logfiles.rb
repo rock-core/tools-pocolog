@@ -5,8 +5,8 @@ module Pocolog
     class InternalError < RuntimeError; end
 
     class InvalidFile < RuntimeError; end
-    class NotEnoughData < InvalidFile; end
     class InvalidBlockFound < InvalidFile; end
+    class NotEnoughData < InvalidBlockFound; end
 
     # Low-level access to (consistent) set of logfiles.
     #

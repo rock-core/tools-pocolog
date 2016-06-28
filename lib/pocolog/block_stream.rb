@@ -170,26 +170,35 @@ module Pocolog
             attr_reader :registry_xml
             attr_reader :metadata_yaml
 
-            def self.parse(raw_data)
-                name_size = raw_data[1, 4].unpack('V').first
-                name      = raw_data[5, name_size]
-                typename_size = raw_data[5 + name_size, 4].unpack('V').first
-                typename  = raw_data[9 + name_size, typename_size]
+            def self.read(raw_data, offset, count)
+                if raw_data.size < offset + count
+                    raise NotEnoughData, "expected stream block header to be at least of size #{offset + count}, but got only #{raw_data.size}"
+                end
+                raw_data[offset, count]
+            end
 
-                offset = 9 + name_size + typename_size
+            def self.read_string(raw_data, offset)
+                size = read(raw_data, offset, 4).unpack('V').first
+                return read(raw_data, offset + 4, size), (offset + 4 + size)
+            end
+
+            def self.parse(raw_data)
+                name, offset     = read_string(raw_data, 1)
+                typename, offset = read_string(raw_data, offset)
+
                 if raw_data.size > offset
-                    registry_size = raw_data[offset, 4].unpack('V').first 
-                    registry_xml = raw_data[offset + 4, registry_size]
+                    registry_xml, offset = read_string(raw_data, offset)
                 else
                     registry_xml = "<?xml version='1.0'?>\n<typelib></typelib>"
                 end
 
-                offset += 4 + registry_size
                 if raw_data.size > offset
-                    metadata_size = raw_data[offset, 4].unpack('V').first
-                    metadata_yaml = raw_data[offset + 4, metadata_size]
+                    metadata_yaml, offset = read_string(raw_data, offset)
                 else
                     metadata_yaml = "--- {}\n"
+                end
+                if offset != raw_data.size
+                    raise InvalidBlockFound, "#{raw_data.size - offset} bytes unclaimed in stream declaration block"
                 end
 
                 new(name, typename, registry_xml, metadata_yaml)
@@ -260,6 +269,10 @@ module Pocolog
             def compressed?; @compressed end
 
             def self.parse(raw_data)
+                if raw_data.size < Format::Current::DATA_BLOCK_HEADER_SIZE
+                    raise NotEnoughData, "expected #{Format::Current::DATA_BLOCK_HEADER_SIZE} bytes for a data block header, but got only #{raw_data.size}"
+                end
+
 		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
                     raw_data.unpack('VVVVVC')
                 new(rt_sec * 1_000_000 + rt_usec,
