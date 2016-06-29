@@ -15,9 +15,13 @@ module Pocolog
             # changing index version will only cause rebuilding the index
             #
             # (i.e. this can change without changing the overall format version)
-            INDEX_VERSION = 2
+            INDEX_VERSION = 3
             # Size of the index prologue
             INDEX_PROLOGUE_SIZE = INDEX_MAGIC.size + 20
+            # Size of a stream description in the index
+            INDEX_STREAM_DESCRIPTION_SIZE = 8 * 8
+            # Size of an entry in the index table
+            INDEX_STREAM_ENTRY_SIZE = 8 * 3
 
             # The size of the generic block header
             BLOCK_HEADER_SIZE = 8
@@ -121,40 +125,100 @@ module Pocolog
             end
 
             # Read the information contained in a file index
+            #
+            # @return [Array<StreamInfo>] the information contained in the index
+            #   file
             def self.read_index(index_io, expected_file_size: nil, expected_mtime: nil)
-                read_index_prologue(index_io, validate_version: true,
-                                    expected_mtime: expected_mtime,
-                                    expected_file_size: expected_file_size)
-                if index_io.size < INDEX_PROLOGUE_SIZE + 8
-                    raise InvalidIndex, "index file too small"
-                end
+                minimal_stream_info = read_index_stream_info(
+                    index_io,
+                    expected_file_size: expected_file_size,
+                    expected_mtime: expected_mtime)
 
-                stream_count = index_io.read(8).unpack("Q>").first
-                if index_io.size < INDEX_PROLOGUE_SIZE + 8 + (24 + 24) * stream_count
-                    raise InvalidIndex, "index file too small"
-                end
-
-                streams = Array.new
-                stream_count.times do
-                    # This is (declaration_pos, index_pos, index_size)
-                    streams << index_io.read(24).unpack("Q>Q>Q>")
-                end
-
-                streams = streams.map do |declaration_pos, index_pos, index_size|
-                    index_io.seek(index_pos)
+                minimal_stream_info.map do |info|
+                    index_size = info.stream_size * INDEX_STREAM_ENTRY_SIZE
+                    index_io.seek(info.index_pos)
                     index_data = index_io.read(index_size)
                     if index_data.size != index_size
                         raise InvalidIndex, "not enough or too much data in index"
                     end
 
-                    *interval_rt, base_time = index_data[0, 24].unpack("Q>Q>Q>")
-                    index_data = index_data[24, index_size - 24].unpack("Q>*").
+                    index_data = index_data.unpack("Q>*").
                         each_slice(3).to_a
-                    if index_data.empty?
-                        interval_rt = []
+                    StreamInfo.from_raw_data(info.declaration_pos, info.interval_rt, info.base_time, index_data)
+                end
+            end
+
+            # @!method declaration_pos
+            #   @return [Integer] the position in the pocolog file of the stream
+            #     declaration block
+            #
+            # @!method index_pos
+            #   @return [Integer] the position in the index file of the stream
+            #     index data
+            #
+            # @!method stream_size
+            #   @return [Integer] the number of samples in the stream
+            IndexStreamInfo = Struct.new :declaration_pos, :index_pos, :base_time, :stream_size,
+                :interval_rt, :interval_lg
+
+            # Read basic stream information from an index file
+            #
+            # @param [IO] index_io the index IO
+            # @return [Array<IndexStreamInfo>] the information contained in the index
+            #   file
+            def self.read_index_stream_info(index_io, expected_file_size: nil, expected_mtime: nil)
+                read_index_prologue(index_io,
+                                    validate_version: true,
+                                    expected_mtime: expected_mtime,
+                                    expected_file_size: expected_file_size)
+
+                index_size = index_io.size
+                if index_size < INDEX_PROLOGUE_SIZE + 8
+                    raise InvalidIndex, "index file too small"
+                end
+
+                stream_count = index_io.read(8).unpack("Q>").first
+                if index_size < INDEX_PROLOGUE_SIZE + 8 + INDEX_STREAM_DESCRIPTION_SIZE * stream_count
+                    raise InvalidIndex, "index file too small"
+                end
+
+                streams = Array.new
+                stream_count.times do
+                    values = index_io.read(INDEX_STREAM_DESCRIPTION_SIZE).unpack("Q>*")
+                    # This is (declaration_pos, index_pos, stream_size)
+                    declaration_pos, index_pos, base_time, stream_size,
+                        interval_rt_min, interval_rt_max,
+                        interval_lg_min, interval_lg_max = *values
+
+                    if stream_size == 0
                         base_time = nil
+                        interval_rt = []
+                        interval_lg = []
+                    else
+                        interval_rt = [interval_rt_min, interval_rt_max]
+                        interval_lg = [interval_lg_min, interval_lg_max]
                     end
-                    StreamInfo.from_raw_data(declaration_pos, interval_rt, base_time, index_data)
+                    streams << IndexStreamInfo.new(declaration_pos, index_pos, base_time, stream_size, interval_rt, interval_lg)
+                end
+                streams
+            end
+
+            # Read the stream information, but not the actual block index, from
+            # an index file
+            #
+            # @return [Array<(BlockStream::StreamBlock,IndexStreamInfo)>]
+            def self.read_minimal_stream_info(index_io, file_io)
+                index_stream_info = read_index_stream_info(
+                    index_io,
+                    expected_file_size: file_io.size)
+
+                index_stream_info.map do |info|
+                    index_size = info.stream_size * 3
+                    file_io.seek(info.declaration_pos)
+                    block_stream = BlockStream.new(file_io)
+                    block_stream.read_next_block_header
+                    stream_block = block_stream.read_stream_block
+                    [stream_block, info]
                 end
             end
 
@@ -175,20 +239,27 @@ module Pocolog
                 index_io.write([streams.size].pack("Q>"))
 
                 index_list_pos = index_io.tell
-                index_data_pos = 24 * streams.size + index_list_pos
+                index_data_pos = INDEX_STREAM_DESCRIPTION_SIZE * streams.size + index_list_pos
 
                 streams.each_with_index do |stream_info, stream_index|
                     interval_rt = stream_info.interval_rt.dup
+                    interval_lg = stream_info.interval_lg.dup
                     base_time   = stream_info.index.base_time
-                    index_data = [interval_rt[0] || 0, interval_rt[1] || 0, base_time || 0].pack("Q>Q>Q>") +
-                        stream_info.index.index_map.flatten.pack("Q>*")
+                    index_stream_info = [
+                        stream_info.declaration_blocks.first,
+                        index_data_pos,
+                        base_time || 0,
+                        stream_info.size,
+                        interval_rt[0] || 0, interval_rt[1] || 0,
+                        interval_lg[0] || 0, interval_lg[1] || 0]
+                    index_data = stream_info.index.index_map.flatten
 
                     index_io.seek(index_list_pos)
-                    index_io.write([stream_info.declaration_blocks.first, index_data_pos, index_data.size].pack("Q>*"))
+                    index_io.write(index_stream_info.pack("Q>*"))
                     index_io.seek(index_data_pos)
-                    index_io.write(index_data)
+                    index_io.write(index_data.pack("Q>*"))
 
-                    index_list_pos += 24
+                    index_list_pos += INDEX_STREAM_DESCRIPTION_SIZE
                     index_data_pos += index_data.size
                 end
             end

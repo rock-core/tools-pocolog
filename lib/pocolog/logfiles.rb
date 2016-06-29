@@ -257,10 +257,12 @@ module Pocolog
             per_stream = ([nil] * stream_count).zip(*per_file_stream_info)
 
             streams = Array.new
-            per_stream.each_with_index do |(_, *stream_info), stream_index|
+            per_stream.each_with_index do |stream_info, stream_index|
                 combined_info = StreamInfo.new
                 file_pos_offset = 0
                 stream_block = nil
+                # We used an array of nil to initialize the zip. Remove it.
+                stream_info.shift
                 stream_info.each_with_index do |(block, info), file_index|
                     stream_block ||= block
                     if info
@@ -299,18 +301,21 @@ module Pocolog
             return rebuild_and_load_index(io, index_filename, silent: silent)
         end
 
-        # @api privat
+        # @api private
         #
         # Initialize self by loading information from an index file
         def initialize_from_stream_info(io, stream_info)
             block_stream = BlockStream.new(io)
 
-            streams = Array.new
-            stream_info.each_with_index do |info, idx|
+            stream_info.each_with_index.map do |info, idx|
                 pos = info.declaration_blocks.first
                 block_stream.seek(pos)
-                if block_stream.read_next_block_header.kind != STREAM_BLOCK
-                    raise InvalidIndex, "invalid declaration_block reference in index"
+
+                block_header = block_stream.read_next_block_header
+                if block_header.kind != STREAM_BLOCK
+                    raise InvalidIndex, "invalid stream declaration position in index: block is not a stream declaration block"
+                elsif block_header.stream_index != idx
+                    raise InvalidIndex, "invalid stream declaration position in index: stream index mismatch between block header (#{block_header.stream_index}) and expected index #{idx}"
                 end
                 stream_block = block_stream.read_stream_block
 
@@ -321,15 +326,14 @@ module Pocolog
                     block_stream.seek(pos)
                     block_info = block_stream.read_next_block_header
                     if block_info.kind != DATA_BLOCK
-                        raise InvalidIndex, "invalid start IO reference in index"
+                        raise InvalidIndex, "invalid stream interval_io in index: block is not a data block"
                     elsif block_info.stream_index != idx
-                        raise InvalidIndex, "invalid interval_io: stream index mismatch"
+                        raise InvalidIndex, "invalid stream interval_io in index: stream index mismatch"
                     end
                 end
 
-                streams[idx] = [stream_block, info]
+                [stream_block, info]
             end
-            streams
         end
 
         # Go through the whole file to extract index information, and write the
