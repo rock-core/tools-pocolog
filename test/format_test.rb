@@ -53,6 +53,25 @@ module Pocolog
                     end
                 end
             end
+
+            describe "#read_index_stream_info" do
+                it "raises InvalidIndex if the file is smaller than the expected file size" do
+                    index_real_size = index_io.size
+                    flexmock(index_io).should_receive(:size).and_return(index_real_size - 1)
+                    e = assert_raises(InvalidIndex) do
+                        Format::Current.read_index_stream_info(index_io)
+                    end
+                    assert_equal "index file should be of size #{index_real_size} but is of size #{index_io.size}", e.message
+                end
+                it "raises InvalidIndex if the file is bigger than the expected file size" do
+                    index_real_size = index_io.size
+                    flexmock(index_io).should_receive(:size).and_return(index_real_size + 1)
+                    e = assert_raises(InvalidIndex) do
+                        Format::Current.read_index_stream_info(index_io)
+                    end
+                    assert_equal "index file should be of size #{index_real_size} but is of size #{index_io.size}", e.message
+                end
+            end
         end
     end
 end

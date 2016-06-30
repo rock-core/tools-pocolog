@@ -182,6 +182,8 @@ module Pocolog
                     raise InvalidIndex, "index file too small"
                 end
 
+                expected_file_size = Array.new
+
                 streams = Array.new
                 stream_count.times do
                     values = index_io.read(INDEX_STREAM_DESCRIPTION_SIZE).unpack("Q>*")
@@ -189,6 +191,10 @@ module Pocolog
                     declaration_pos, index_pos, base_time, stream_size,
                         interval_rt_min, interval_rt_max,
                         interval_lg_min, interval_lg_max = *values
+
+                    index_size = stream_size * INDEX_STREAM_ENTRY_SIZE
+                    expected_file_size << index_size + index_pos
+
 
                     if stream_size == 0
                         base_time = nil
@@ -198,8 +204,14 @@ module Pocolog
                         interval_rt = [interval_rt_min, interval_rt_max]
                         interval_lg = [interval_lg_min, interval_lg_max]
                     end
+
                     streams << IndexStreamInfo.new(declaration_pos, index_pos, base_time, stream_size, interval_rt, interval_lg)
                 end
+                expected_file_size = expected_file_size.max
+                if index_io.size != expected_file_size
+                    raise InvalidIndex, "index file should be of size #{expected_file_size} but is of size #{index_io.size}"
+                end
+
                 streams
             end
 
