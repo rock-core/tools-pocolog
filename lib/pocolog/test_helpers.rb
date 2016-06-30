@@ -14,8 +14,10 @@ module Pocolog
             super
         end
 
-        def move_logfile_path(new_dir)
-            FileUtils.rm_rf(@__logfiles_dir)
+        def move_logfile_path(new_dir, delete_current: true)
+            if delete_current
+                FileUtils.rm_rf(@__logfiles_dir)
+            end
             FileUtils.mkdir_p(new_dir)
             @__logfiles_dir = new_dir
         end
