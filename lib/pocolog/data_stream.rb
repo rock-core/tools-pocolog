@@ -89,15 +89,32 @@ module Pocolog
             end
 	end
 
+        # Return the realtime of the first and last samples in this stream
+        #
+        # @return [(Time,Time),()] the interval, or an empty array if the stream
+        #   is empty
+        def interval_rt
+            info.interval_rt.map { |t| StreamIndex.time_from_internal(t, 0) }
+        end
+
+        # Return the logical time of the first and last samples in this stream
+        #
+        # @return [(Time,Time),()] the interval, or an empty array if the stream
+        #   is empty
+        def interval_lg
+            info.interval_lg.map { |t| StreamIndex.time_from_internal(t, 0) }
+        end
+
 	# Get the logical time of first and last samples in this stream. If
 	# +rt+ is true, returns the interval for the wall-clock time
         #
         # Returns nil if the stream is empty
 	def time_interval(rt = false)
+            Pocolog.warn_deprecated "Pocolog::DataStream#time_interval is deprecated, use #interval_lg or #interval_rt instead"
 	    if rt
-                info.interval_rt.map { |t| StreamIndex.time_from_internal(t, 0) }
+                interval_rt
             else
-                info.interval_lg.map { |t| StreamIndex.time_from_internal(t, 0) }
+                interval_lg
             end
 	end
 
@@ -105,10 +122,10 @@ module Pocolog
         #
         # @return [Float]
         def duration_lg
-            interval = time_interval
-            if interval.empty?
+            if empty?
                 0
             else
+                interval = interval_lg
                 interval[1] - interval[0]
             end
         end
@@ -250,7 +267,8 @@ module Pocolog
         # nil otherwise
 	def seek(pos, decode_data = true)
 	    if pos.kind_of?(Time)
-                return nil if(time_interval.empty? || time_interval[0] > pos || time_interval[1] < pos)
+                interval_lg = self.interval_lg
+                return nil if interval_lg.empty? || interval_lg[0] > pos || interval_lg[1] < pos
 		@sample_index = stream_index.sample_number_by_time(pos)
 	    else
 		@sample_index = pos
@@ -327,8 +345,9 @@ module Pocolog
         #
         # The given interval is automatically truncated if it is too big
         def copy_to(start_index = 0, end_index = size, stream, &block)
-            interval = time_interval
-            return unless interval.first
+            return if empty?
+
+            interval = interval_lg
             start_index = if start_index.is_a? Time
                               if interval.first > start_index
                                   0
@@ -376,12 +395,20 @@ module Pocolog
         #
         # returns true if stream samples lies insight the given time or position interval
         def samples?(start_index,end_index)
-            if start_index.is_a? Time
-                interval = time_interval
-                return unless interval.first
-                start_index <= interval.last && start_index <= end_index && end_index >= interval.first
+            if end_index < start_index
+                raise ArgumentError, "end bound in sample interval smaller than start bound"
+            elsif start_index.is_a? Time
+                if start_index > end_index
+                    raise ArgumentError, "end bound in sample interval smaller than start bound"
+                elsif empty?
+                    return
+                end
+                start_t, end_t = interval_lg
+                start_index <= end_t && start_t <= end_index
+            elsif start_index < 0
+                raise ArgumentError, "negative start index"
             else
-                start_index < size && start_index <= end_index && end_index >= 0
+                start_index < size
             end
         end
 

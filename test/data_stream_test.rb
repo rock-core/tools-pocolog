@@ -172,18 +172,6 @@ class TC_DataStream < Minitest::Test
         assert_equal expected_data, data.map(&:last)
     end
 
-    def test_samples?
-        assert_equal(true,stream.samples?(0,100))
-        assert_equal(false,stream.samples?(-10,-1))
-        assert_equal(true,stream.samples?(-10,0))
-        assert_equal(true,stream.samples?(10,90))
-        assert_equal(true,stream.samples?(99,120))
-        assert_equal(true,stream.samples?(Time.at(0),Time.at(99*100)))
-        assert_equal(true,stream.samples?(Time.at(0),Time.at(200*100)))
-        assert_equal(true,stream.samples?(Time.at(99*100),Time.at(200*100)))
-        assert_equal(false,stream.samples?(Time.at(100*100),Time.at(200*100)))
-    end
-
     def test_copy_to
         output = Pocolog::Logfiles.new(Typelib::Registry.new)
         output.new_file("copy_test.log")
@@ -366,5 +354,65 @@ module Pocolog
                 assert_equal 1, stream.read_one_data_sample(1)
             end
         end
+        describe "#samples?" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile 'test.0.log' do
+                    stream = create_logfile_stream 'test'
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                end
+                @stream = open_logfile_stream 'test.0.log', 'test'
+            end
+
+            it "returns true if provided with samples indexes within the stream" do
+                assert stream.samples?(1, 1)
+            end
+            it "accepts zero as a start bound" do
+                assert stream.samples?(0, 1)
+            end
+            it "accepts an end-bound that is past the end" do
+                assert stream.samples?(1, 10)
+            end
+            it "returns false if the start index is past the end" do
+                refute stream.samples?(2, 10)
+            end
+            it "raises ArgumentError if the start index is negative" do
+                assert_raises(ArgumentError) do
+                    stream.samples?(-1, 10)
+                end
+            end
+            it "raises ArgumentError if the start and end indexes are not ordered properly" do
+                assert_raises(ArgumentError) do
+                    stream.samples?(1, 0)
+                end
+            end
+
+            it "returns true if provided with sample times within the stream" do
+                assert stream.samples?(base_time + 10.1, base_time + 10.9)
+            end
+            it "returns true if the start time is before the stream and the end is within" do
+                assert stream.samples?(base_time + 9, base_time + 10.9)
+            end
+            it "returns true if the start time is within the stream and the end is after" do
+                assert stream.samples?(base_time + 10.1, base_time + 12)
+            end
+            it "returns true if the start time is before the stream and the end is after" do
+                assert stream.samples?(base_time + 9, base_time + 12)
+            end
+            it "raises ArgumentError if the start and end bound are not ordered properly" do
+                assert_raises(ArgumentError) do
+                    stream.samples?(base_time + 10.9, base_time + 10.1)
+                end
+            end
+            it "returns false if the start bound is after the end time" do
+                refute stream.samples?(base_time + 11.1, base_time + 12.1)
+            end
+            it "returns false if the end bound is before the start time" do
+                refute stream.samples?(base_time + 9, base_time + 9.2)
+            end
+        end
+
     end
 end

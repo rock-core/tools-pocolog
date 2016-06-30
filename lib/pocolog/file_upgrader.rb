@@ -145,7 +145,7 @@ module Pocolog
                     next(StreamCopy.new(in_stream, out_type, Upgrade::Ops::Identity.new(out_type)))
                 end
 
-                stream_ref_time = in_stream.time_interval(true).first
+                stream_ref_time = in_stream.interval_rt.first
                 begin
                     ops = Upgrade.compute(stream_ref_time, in_stream.type, out_type, converter_registry)
                 rescue Upgrade::InvalidCast => e

@@ -101,7 +101,7 @@ module Pocolog
 
             it "updates the time interval" do
                 aligner.add_streams(s0)
-                assert_equal [Time.at(10), Time.at(32)], aligner.time_interval
+                assert_equal [Time.at(10), Time.at(32)], aligner.interval_lg
             end
 
             it "updates the current position" do
@@ -157,7 +157,7 @@ module Pocolog
                 aligner.remove_streams(s1)
                 aligner.remove_streams(s0)
                 assert_equal 0, aligner.size
-                assert_equal [], aligner.time_interval
+                assert_equal [], aligner.interval_lg
                 assert aligner.global_pos_first_sample.empty?
                 assert aligner.global_pos_last_sample.empty?
             end
@@ -177,7 +177,7 @@ module Pocolog
 
             it "updates the time interval" do
                 aligner.remove_streams(s1)
-                assert_equal [Time.at(10), Time.at(30)], aligner.time_interval
+                assert_equal [Time.at(10), Time.at(30)], aligner.interval_lg
             end
 
             it "leaves the position at past-the-end" do
@@ -472,7 +472,7 @@ class TC_StreamAligner < Minitest::Test
     def test_properties
         assert !stream.eof?
         assert_equal 200, stream.size
-        assert_equal [Time.at(0),Time.at(99,500)], stream.time_interval
+        assert_equal [Time.at(0),Time.at(99,500)], stream.interval_lg
     end
 
     def test_eof_is_a_valid_loop_termination_condition

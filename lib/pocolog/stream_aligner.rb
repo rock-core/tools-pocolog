@@ -48,10 +48,15 @@ module Pocolog
         # @return [Array<IndexEntry>]
         attr_reader :full_index
 
-        # The time of the first and last samples in the stream
+        # The time of the first and last samples in the stream, in logical time
         #
         # @return [(Time,Time)]
-        attr_reader :time_interval
+        attr_reader :interval_lg
+
+        def time_interval
+            Pocolog.warn_deprecated "StreamAligner#time_interval is deprecated in favor of #interval_lg"
+            interval_lg
+        end
 	
         def initialize(use_rt = false, *streams)
             @use_sample_time = use_rt == :use_sample_time
@@ -60,7 +65,7 @@ module Pocolog
             @global_pos_last_sample = Array.new
 
             @size = 0
-            @time_interval = Array.new
+            @interval_lg = Array.new
             @base_time = nil
             @stream_state = Array.new
             @streams = Array.new
@@ -152,7 +157,7 @@ module Pocolog
                 position_global += 1
             end
             @streams = all_streams
-            update_time_interval
+            update_interval_lg
             Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
 
             if current_entry
@@ -234,7 +239,7 @@ module Pocolog
                 s = @streams.delete_at(i)
                 @size -= s.size
             end
-            update_time_interval
+            update_interval_lg
 
             if sample_info && changed_sample && (sample_index != full_index.size)
                 return *sample_info, single_data(sample_info[0])
@@ -243,13 +248,13 @@ module Pocolog
 
         # @api private
         #
-        # Update {#time_interval} based on the information currently in
+        # Update {#interval_lg} based on the information currently in
         # {#full_index}
-        def update_time_interval
+        def update_interval_lg
             if full_index.empty?
-                @time_interval = []
+                @interval_lg = []
             else
-                @time_interval = [
+                @interval_lg = [
                     StreamIndex.time_from_internal(full_index.first.time, base_time),
                     StreamIndex.time_from_internal(full_index.last.time, base_time)
                 ]
@@ -279,8 +284,8 @@ module Pocolog
 	def seek_to_time(time, read_data = true)
             if empty?
                 raise RangeError, "#{time} is out of bounds, the stream is empty"
-            elsif time < time_interval[0] || time > time_interval[1]
-                raise RangeError, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
+            elsif time < interval_lg[0] || time > interval_lg[1]
+                raise RangeError, "#{time} is out of bounds valid interval #{interval_lg[0]} to #{interval_lg[1]}"
             end
 	    
             target_time = StreamIndex.time_to_internal(time, base_time)

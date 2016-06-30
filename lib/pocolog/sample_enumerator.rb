@@ -72,7 +72,7 @@ module Pocolog
             min_time  = self.min_time
 
             if min_index || min_time
-                if min_time && stream.time_interval[0] > min_time
+                if min_time && stream.interval_lg.first > min_time
                     min_time = nil
                 else
                     stream.seek(min_index || min_time)
