@@ -234,6 +234,23 @@ module Pocolog
                 end
             end
 
+            # Rebuild a pocolog file's index and saves it to file
+            #
+            # @param [File] io the pocolog file IO
+            # @param [String] index_path the path into which the index should be
+            #   saved
+            # @return (see Pocolog.file_index_builder)
+            def self.rebuild_index_file(io, index_path)
+                block_stream = BlockStream.new(io)
+                block_stream.read_prologue
+                stream_info = Pocolog.file_index_builder(block_stream)
+                FileUtils.mkdir_p(File.dirname(index_path))
+                File.open(index_path, 'w') do |index_io|
+                    write_index(index_io, io, stream_info)
+                end
+                stream_info
+            end
+
             # Write an index file for a given file
             #
             # @param [File] file_io the file that is being indexed. It cannot

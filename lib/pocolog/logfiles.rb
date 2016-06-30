@@ -342,13 +342,7 @@ module Pocolog
             # No index file. Compute it.
             Pocolog.info "building index #{io.path} ..." if !silent
             io.rewind
-            block_stream = BlockStream.new(io)
-            block_stream.read_prologue
-            stream_info = Pocolog.file_index_builder(block_stream)
-            FileUtils.mkdir_p(File.dirname(index_path))
-            File.open(index_path, 'w') do |index_io|
-                Format::Current.write_index(index_io, io, stream_info)
-            end
+            stream_info = Format::Current.rebuild_index_file(io, index_path)
             io.rewind
             Pocolog.info "done" if !silent
             initialize_from_stream_info(io, stream_info)
