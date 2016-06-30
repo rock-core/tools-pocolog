@@ -39,6 +39,10 @@ module Pocolog
                 progress_bar.advance(step)
             end
 
+            def info(msg)
+                log(msg)
+            end
+
             def warn(msg)
                 log(c_warn.(msg))
             end

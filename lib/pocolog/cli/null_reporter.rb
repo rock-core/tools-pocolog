@@ -13,6 +13,8 @@ module Pocolog
             def advance(value)
                 @current += value
             end
+            def info(msg)
+            end
             def warn(msg)
             end
             def error(msg)
