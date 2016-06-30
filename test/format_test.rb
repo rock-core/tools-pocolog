@@ -31,6 +31,28 @@ module Pocolog
                 assert_equal [base_time_internal + 1_000_000, base_time_internal + 20_000_000],
                     stream_info.interval_lg
             end
+
+            it "raises ObsoleteIndexVersion if the index is of a version older than the library's" do
+                File.open(logfile_path('idx'), 'w') do |io|
+                    Format::Current.write_index(io, flexmock(stat: flexmock(size: 0, mtime: Time.now), path: nil), [], version: 0)
+                end
+                assert_raises(ObsoleteIndexVersion) do
+                    File.open(logfile_path('idx')) do |io|
+                        Format::Current.read_index_prologue(io)
+                    end
+                end
+            end
+
+            it "raises IndexVersion if the index is of a version newer than the library's" do
+                File.open(logfile_path('idx'), 'w') do |io|
+                    Format::Current.write_index(io, flexmock(stat: flexmock(size: 0, mtime: Time.now), path: nil), [], version: Format::Current::INDEX_VERSION + 1)
+                end
+                assert_raises(InvalidIndex) do
+                    File.open(logfile_path('idx')) do |io|
+                        Format::Current.read_index_prologue(io)
+                    end
+                end
+            end
         end
     end
 end

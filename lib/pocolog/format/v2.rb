@@ -103,9 +103,9 @@ module Pocolog
                 index_version = Integer(header[INDEX_MAGIC.size, 4].unpack("L>").first)
                 if validate_version
                     if index_version < INDEX_VERSION
-                        raise ObsoleteIndexVersion, "old format #{format_version}, current format is #{VERSION}. Convert it using the --to-new-format of pocolog"
+                        raise ObsoleteIndexVersion, "old format #{index_version}, current format is #{INDEX_VERSION}. Convert it using the --to-new-format of pocolog"
                     elsif index_version > INDEX_VERSION
-                        raise InvalidIndex, "old format #{format_version}, current format is #{VERSION}. Convert it using the --to-new-format of pocolog"
+                        raise InvalidIndex, "old format #{index_version}, current format is #{INDEX_VERSION}. Convert it using the --to-new-format of pocolog"
                     end
                 end
                 file_size, file_mtime = index_io.read(16).unpack("Q>Q>")
@@ -119,9 +119,9 @@ module Pocolog
             end
 
             # Write a prologue on an index file
-            def self.write_index_prologue(index_io, size, mtime)
+            def self.write_index_prologue(index_io, size, mtime, version: INDEX_VERSION)
                 index_io.write(INDEX_MAGIC)
-                index_io.write([INDEX_VERSION, size, StreamIndex.time_to_internal(mtime, 0)].pack("L>Q>Q>"))
+                index_io.write([version, size, StreamIndex.time_to_internal(mtime, 0)].pack("L>Q>Q>"))
             end
 
             # Read the information contained in a file index
@@ -230,12 +230,12 @@ module Pocolog
             #   written
             # @param [Array<StreamInfo>] streams the stream information that
             #   should be stored
-            def self.write_index(index_io, file_io, streams)
+            def self.write_index(index_io, file_io, streams, version: INDEX_VERSION)
                 if index_io.path == file_io.path
                     raise ArgumentError, "attempting to overwrite the file by its index"
                 end
 
-                write_index_prologue(index_io, file_io.size, file_io.stat.mtime)
+                write_index_prologue(index_io, file_io.stat.size, file_io.stat.mtime, version: version)
                 index_io.write([streams.size].pack("Q>"))
 
                 index_list_pos = index_io.tell
