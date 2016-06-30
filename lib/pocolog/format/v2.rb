@@ -103,9 +103,9 @@ module Pocolog
                 index_version = Integer(header[INDEX_MAGIC.size, 4].unpack("L>").first)
                 if validate_version
                     if index_version < INDEX_VERSION
-                        raise ObsoleteIndexVersion, "old format #{index_version}, current format is #{INDEX_VERSION}. Convert it using the --to-new-format of pocolog"
+                        raise ObsoleteIndexVersion, "old format #{index_version}, current format is #{INDEX_VERSION}"
                     elsif index_version > INDEX_VERSION
-                        raise InvalidIndex, "old format #{index_version}, current format is #{INDEX_VERSION}. Convert it using the --to-new-format of pocolog"
+                        raise InvalidIndex, "old format #{index_version}, current format is #{INDEX_VERSION}"
                     end
                 end
                 file_size, file_mtime = index_io.read(16).unpack("Q>Q>")
