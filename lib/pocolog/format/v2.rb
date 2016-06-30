@@ -161,6 +161,23 @@ module Pocolog
             IndexStreamInfo = Struct.new :declaration_pos, :index_pos, :base_time, :stream_size,
                 :interval_rt, :interval_lg
 
+            # Tests whether the index whose path is given is valid for the given
+            # log file
+            def self.index_file_valid?(index_path, file_path)
+                stat = file_path.stat
+                begin
+                    File.open(index_path) do |index_io|
+                        read_index_stream_info(index_io, expected_file_size: stat.size)
+                    end
+                    true
+                rescue Errno::ENOENT
+                    false
+                end
+            rescue InvalidIndex
+                false
+            end
+
+
             # Read basic stream information from an index file
             #
             # @param [IO] index_io the index IO
