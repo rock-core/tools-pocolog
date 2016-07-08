@@ -7,6 +7,8 @@ module Pocolog
             attr_reader :progress_bar
             attr_reader :c_warn
             attr_reader :c_error
+            attr_reader :c_title
+            attr_reader :c_info
 
             # Base value for {#current}
             #
@@ -20,7 +22,9 @@ module Pocolog
                 progress_bar.resize(60)
                 pastel = Pastel.new
                 @c_warn = pastel.yellow.detach
+                @c_info = pastel.yellow.detach
                 @c_error = pastel.bright_red.detach
+                @c_title = pastel.bold.detach
             end
 
             def log(msg)
@@ -39,8 +43,12 @@ module Pocolog
                 progress_bar.advance(step)
             end
 
+            def title(msg)
+                log(c_title.(msg))
+            end
+
             def info(msg)
-                log(msg)
+                log(c_info.(msg))
             end
 
             def warn(msg)
