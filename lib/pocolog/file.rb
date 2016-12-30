@@ -82,9 +82,6 @@ module Pocolog
 
         # An array of IO objects representing the underlying files
 	attr_reader :io
-        # The streams encountered so far. It is initialized the first time
-        # #streams gets called
-	attr_reader :streams
         # The type registry for these logfiles, as a Typelib::Registry instance
 	attr_reader :registry
 
@@ -192,7 +189,7 @@ module Pocolog
         # Opens a set of file. +pattern+ can be a globbing pattern, in which
         # case all the matching files will be opened as a log sequence
         def self.open(pattern, registry = nil)
-            io = Dir.enum_for(:glob, pattern).map { |name| File.open(name) }
+            io = Dir.enum_for(:glob, pattern).sort.map { |name| File.open(name) }
             if io.empty?
                 raise ArgumentError, "no files matching '#{pattern}'"
             end
@@ -511,7 +508,7 @@ module Pocolog
             if file_info.size != @io.size
                 raise InvalidIndex, "invalid index file: file set changed"
             end
-            coherent = file_info.enum_for(:each_with_index).all? do |(size, time), idx|
+            coherent = file_info.enum_for(:each_with_index).all? do |(size, _time), idx|
                 size == File.size(@io[idx].path)
             end
             if !coherent
@@ -674,7 +671,7 @@ module Pocolog
 
             io_index      = @rio
 	    block_start   = rio.tell
-	    type          = rio.read(1)
+	    _type         = rio.read(1)
 	    name_size     = rio.read(4).unpack('V').first
 	    name          = rio.read(name_size)
 	    typename_size = rio.read(4).unpack('V').first
@@ -828,14 +825,22 @@ module Pocolog
             return Logfiles.write_block(wio,type,index,payload)
         end
 
+        def self.normalize_metadata(metadata)
+            result = Hash.new
+            metadata.each do |k, v|
+                result[k.to_str] = v
+            end
+            result
+        end
+
         # Encodes and writes a stream declaration block to +wio+
         def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil, metadata = Hash.new)
-
             if type_name.respond_to?(:name)
                 type_registry ||= type_name.registry.minimal(type_name.name).to_xml
                 type_name  = type_name.name
             end
 
+            metadata = normalize_metadata(metadata)
             metadata = YAML.dump(metadata)
             payload = [DATA_STREAM, name.size, name, 
                 type_name.size, type_name,

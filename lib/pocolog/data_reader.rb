@@ -23,6 +23,7 @@ module Pocolog
             @logfile, @index, @name, @type_name, @marshalled_registry, @metadata =
                 logfile, index, name, type_name, marshalled_registry, metadata
 	    
+            @data = nil
             @registry = nil
             @sample_index = -1
             @raw_data_buffer = ""
