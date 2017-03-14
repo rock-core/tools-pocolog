@@ -229,7 +229,7 @@ module Pocolog
     end
 
 
-    class DisplaySpec < Struct.new(:samples, :fields, :filter, :filter_out, :remove_prefix, :time, :expr)
+    class DisplaySpec < Struct.new(:samples, :fields, :filter, :filter_out, :remove_prefix, :time, :user_readable_time, :expr)
         def display_fields(v, ops)
             ops = ops.dup
 
@@ -331,11 +331,19 @@ module Pocolog
 
 	    samples.raw_each do |rt, lg, data|
 		if time
-		    if samples.use_rt
-			print "%i.%06i " % [rt.tv_sec, rt.tv_usec]
-		    else
-			print "%i.%06i " % [lg.tv_sec, lg.tv_usec]
-		    end
+                    if user_readable_time
+                        if samples.use_rt
+                            print rt.strftime("%H:%M:%S.%6N ")
+                        else
+                            print lg.strftime("%H:%M:%S.%6N ")
+                        end
+                    else
+                        if samples.use_rt
+                            print "%i.%06i " % [rt.tv_sec, rt.tv_usec]
+                        else
+                            print "%i.%06i " % [lg.tv_sec, lg.tv_usec]
+                        end
+                    end
 		end
 
                 if expr
@@ -604,6 +612,9 @@ parser = OptionParser.new do |opts|
     end
     opts.on('-t', '--time', 'display time of samples') do
 	config.time = true
+    end
+    opts.on('-h', '--human', 'display time in a human-readable form') do
+	config.user_readable_time = true
     end
     opts.on('--expr=EXPR', String, "a Ruby expression to evaluate for each sample. In the code, 'sample' refers to the current stream value") do |spec|
         config.eval_expr(spec)
