@@ -388,8 +388,11 @@ module Pocolog
         # It updates the @block_info and @next_block_pos instance variable
         # accordingly.
         def read_block_header # :nodoc:
-            unless header = rio.read(BLOCK_HEADER_SIZE)
+            header = rio.read(BLOCK_HEADER_SIZE)
+            if !header
                 return
+            elsif header.size != BLOCK_HEADER_SIZE
+                raise InvalidBlockFound, "truncated block header (got #{header.size} bytes, expected #{BLOCK_HEADER_SIZE})"
             end
 
             type, index, payload_size = header.unpack('CxvV')
