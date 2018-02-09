@@ -177,16 +177,13 @@ module Pocolog
         #
         # Copies the logfile and its index to the out path
         def cp_logfile_and_index(in_path, out_path, reporter: CLI::NullReporter.new)
-            if FileUtils.cp_reflink(in_path, out_path)
-                reporter.log "file dos not require an upgrade, copied (with reflink)"
-            else
-                reporter.log "file dos not require an upgrade, copied (without reflink)"
-            end
+            strategy = FileUtils.cp_cow(in_path, out_path)
+            reporter.log "file dos not require an upgrade, copied (#{strategy})"
 
             in_idx_path  = File.join(File.dirname(in_path), File.basename(in_path, '.0.log') + '.0.idx')
             out_idx_path = File.join(File.dirname(out_path), "#{File.basename(out_path, '.0.log')}.0.idx")
             if File.file?(in_idx_path)
-                FileUtils.cp_reflink(in_idx_path, out_idx_path)
+                FileUtils.cp_cow(in_idx_path, out_idx_path)
             end
         end
     end

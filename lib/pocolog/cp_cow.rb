@@ -64,6 +64,8 @@ module FileUtils
                 raise ReflinkUnsupported, "cannot reflink while crossing filesystem boundaries (from #{from_path} to #{to_path})"
             rescue Errno::ENOTTY
                 raise ReflinkUnsupported, "the backing filesystem of #{from_path} does not support reflinks"
+            rescue Errno::EOPNOTSUPP
+                raise ReflinkUnsupported, "reflinks are not supported on this platform"
             end
         else
             raise ReflinkUnsupported, "reflinks are not supported on this platform"
@@ -80,19 +82,22 @@ module FileUtils
             case s
             when :reflink
                 begin
-                    return cp_reflink(from_path, to_path)
+                    cp_reflink(from_path, to_path)
+                    return :reflink
                 rescue ReflinkUnsupported
                 end
             when :hardlink
                 begin
-                    return FileUtils.ln from_path, to_path
+                    FileUtils.ln from_path, to_path
+                    return :hardlink
                 rescue Errno::EPERM
                     # This is what we get on filesystems that do not support
                     # hardlinks
                 end
             when :cp
                 # We assume that 'cp' should always work
-                return FileUtils.cp from_path, to_path
+                FileUtils.cp from_path, to_path
+                return :cp
             else
                 raise ArgumentError, "unknown strategy for cp_cow #{s}, expected one of :reflink, :hardlink or :cp"
             end
