@@ -153,12 +153,14 @@ module Pocolog
                 skip(@payload_size)
             end
 
-            return if !(raw_header = read(Format::Current::BLOCK_HEADER_SIZE))
-            if raw_header.size != Format::Current::BLOCK_HEADER_SIZE
-                raise NotEnoughData, "not enought data while reading header at position the end of file"
+            header = read(BLOCK_HEADER_SIZE)
+            if !header
+                return
+            elsif header.size != BLOCK_HEADER_SIZE
+                raise NotEnoughData, "truncated block header (got #{header.size} bytes, expected #{BLOCK_HEADER_SIZE})"
             end
 
-            block = BlockHeader.parse(raw_header)
+            block = BlockHeader.parse(header)
             @payload_size = block.payload_size
             block
         end
