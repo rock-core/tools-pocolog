@@ -411,7 +411,7 @@ module Pocolog
             end
 
 	    streams.each do |stream|
-		first_sample, last_sample = stream.time_interval
+		first_sample, last_sample = stream.interval_lg
 		count = stream.size
 
 		if count == 0
