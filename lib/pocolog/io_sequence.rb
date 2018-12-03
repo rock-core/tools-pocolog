@@ -56,7 +56,7 @@ module Pocolog
         end
         
         def open
-	    @io = io.map do |file|
+            @io = io.map do |file|
                 if file.closed?
                     File.open(file.path)
                 else file

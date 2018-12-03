@@ -476,29 +476,29 @@ class TC_StreamAligner < Minitest::Test
     end
 
     def test_eof_is_a_valid_loop_termination_condition
-	while !@stream.eof?
-	    index = stream.step
+        while !@stream.eof?
+            index = stream.step
             assert index, "failed at #{stream.sample_index}"
         end
     end
 
     def test_time_advancing
-	cnt = 0
+        cnt = 0
         last_time = nil
-	while !@stream.eof?
-	    index, time, data = stream.step
+        while !@stream.eof?
+            index, time, data = stream.step
             assert(!last_time || last_time < time)
             last_time = time
-	    cnt = cnt + 1
-	end
+            cnt = cnt + 1
+        end
         last_time = nil
         stream.step
-	while cnt > 0
-	    index, time, data = stream.step_back()
-	    assert(!last_time || last_time > time)
-	    cnt = cnt - 1
-	    last_time = time
-	end	
+        while cnt > 0
+            index, time, data = stream.step_back()
+            assert(!last_time || last_time > time)
+            cnt = cnt - 1
+            last_time = time
+        end     
     end
     
     def test_step_by_step_all_the_way
@@ -524,7 +524,7 @@ class TC_StreamAligner < Minitest::Test
                 sample_indexes << stream.sample_index
                 all_data << data[2]
             end
-	    
+            
             assert_equal interleaved_data, all_data.reverse
             assert_equal [[0, 2, 0, 1]].to_set, stream_indexes.reverse.each_slice(4).to_set
             assert_equal (0...200).to_a, sample_indexes.reverse
@@ -616,7 +616,7 @@ class TC_StreamAligner2 < Minitest::Test
         # case in #test_past_the_end_does_not_read_whole_file
         other_stream = logfile.create_stream('other', int_t)
         100.times do |i|
-	    i = i + 100
+            i = i + 100
             other_stream.write(Time.at(i), Time.at(i * 100), i)
             expected_data << i
         end
@@ -642,58 +642,58 @@ class TC_StreamAligner2 < Minitest::Test
 
 
     def test_start_of_stream
-	index, time, data = stream.step
-	assert_equal index, 0
-	assert_equal data, expected_data[0]
-	assert_equal time, Time.at(expected_data[0] * 100)
+        index, time, data = stream.step
+        assert_equal index, 0
+        assert_equal data, expected_data[0]
+        assert_equal time, Time.at(expected_data[0] * 100)
     end
 
     def test_full_replay
-	cnt = 0
-	while(!stream.eof?)
-	    stream_index, time, data = stream.step()
-	    if(cnt < 100)
-		assert_equal stream_index, 0
-	    else
-		assert_equal stream_index, 1
-	    end
-	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt] * 100)
-	    cnt = cnt + 1
-	end
-	
-	assert_equal cnt, 200
+        cnt = 0
+        while(!stream.eof?)
+            stream_index, time, data = stream.step()
+            if(cnt < 100)
+                assert_equal stream_index, 0
+            else
+                assert_equal stream_index, 1
+            end
+            assert_equal data, expected_data[cnt]
+            assert_equal time, Time.at(expected_data[cnt] * 100)
+            cnt = cnt + 1
+        end
+        
+        assert_equal cnt, 200
     end
 
     def test_forward_backward
-	cnt = 0
-	while(!stream.eof?)
-	    stream_index, time, data = stream.step()
-	    if(cnt < 100)
-		assert_equal stream_index, 0
-	    else
-		assert_equal stream_index, 1
-	    end
-	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt] * 100)
-	    cnt = cnt + 1
-	end
-	
-	assert_equal cnt, 200
-	cnt = cnt - 1
-	
-	while(cnt > 1)
-	    cnt = cnt - 1
-	    stream_index, time, data = stream.step_back()
-	    if(cnt < 100)
-		assert_equal stream_index, 0
-	    else
-		assert_equal stream_index, 1
-	    end
-	    assert_equal data, expected_data[cnt]
-	    assert_equal time, Time.at(expected_data[cnt] * 100)
-	end	    
-	
+        cnt = 0
+        while(!stream.eof?)
+            stream_index, time, data = stream.step()
+            if(cnt < 100)
+                assert_equal stream_index, 0
+            else
+                assert_equal stream_index, 1
+            end
+            assert_equal data, expected_data[cnt]
+            assert_equal time, Time.at(expected_data[cnt] * 100)
+            cnt = cnt + 1
+        end
+        
+        assert_equal cnt, 200
+        cnt = cnt - 1
+        
+        while(cnt > 1)
+            cnt = cnt - 1
+            stream_index, time, data = stream.step_back()
+            if(cnt < 100)
+                assert_equal stream_index, 0
+            else
+                assert_equal stream_index, 1
+            end
+            assert_equal data, expected_data[cnt]
+            assert_equal time, Time.at(expected_data[cnt] * 100)
+        end         
+        
     end
 
     def test_export_to_file
@@ -716,17 +716,17 @@ class TC_StreamAligner2 < Minitest::Test
         assert_equal 20, stream2.size
 
         cnt = 0
-	while(!stream2.eof?)
-	    stream_index, time, data = stream2.step()
-	    if(cnt < 10)
-		assert_equal stream_index, 0
-	    else
-		assert_equal stream_index, 1
-	    end
-	    assert_equal data, expected_data[cnt+90]
-	    assert_equal time, Time.at(expected_data[cnt+90] * 100)
-	    cnt = cnt + 1
-	end
+        while(!stream2.eof?)
+            stream_index, time, data = stream2.step()
+            if(cnt < 10)
+                assert_equal stream_index, 0
+            else
+                assert_equal stream_index, 1
+            end
+            assert_equal data, expected_data[cnt+90]
+            assert_equal time, Time.at(expected_data[cnt+90] * 100)
+            cnt = cnt + 1
+        end
         logfile2.close
 
     ensure

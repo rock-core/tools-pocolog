@@ -4,15 +4,15 @@ module Pocolog
         FORMAT_VERSION = Format::Current::VERSION
 
         # The size of the generic block header
-	BLOCK_HEADER_SIZE = Format::Current::BLOCK_HEADER_SIZE
+        BLOCK_HEADER_SIZE = Format::Current::BLOCK_HEADER_SIZE
         # The size of a time in a block header
-	TIME_SIZE = Format::Current::TIME_SIZE
+        TIME_SIZE = Format::Current::TIME_SIZE
 
         # Magic code at the beginning of the log file
-	MAGIC = Format::Current::MAGIC
+        MAGIC = Format::Current::MAGIC
 
-        # Read by 1MB chunks
-        DEFAULT_BUFFER_READ = 1024 * 1024
+        # Read by 4kB chunks by default
+        DEFAULT_BUFFER_READ = 4 * 1024
 
         # The underlying IO
         attr_reader :io
@@ -109,7 +109,7 @@ module Pocolog
             end
             if remaining > 0
                 @buffer_io = StringIO.new(io.read([buffer_read, remaining].max) || "")
-                if buffer_data = @buffer_io.read(remaining) 
+                if buffer_data = @buffer_io.read(remaining)
                     (data || "") + buffer_data
                 else
                     data
@@ -125,13 +125,13 @@ module Pocolog
         # Raises MissingPrologue if no prologue is found, or ObsoleteVersion if
         # the file format is not up-to-date (in which case one has to run
         # pocolog --to-new-format).
-	def read_prologue # :nodoc:
+        def read_prologue # :nodoc:
             big_endian = Format::Current.read_prologue(io)
             @format_version = Format::Current::VERSION
             @big_endian = big_endian
             @native_endian = ((big_endian != 0) ^ Pocolog.big_endian?)
             @payload_size = 0
-	end
+        end
 
         BlockHeader = Struct.new :kind, :stream_index, :payload_size, :raw_data do
             def self.parse(raw_header)
@@ -275,7 +275,7 @@ module Pocolog
                     raise NotEnoughData, "expected #{Format::Current::DATA_BLOCK_HEADER_SIZE} bytes for a data block header, but got only #{raw_data.size}"
                 end
 
-		rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
+                rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
                     raw_data.unpack('VVVVVC')
                 new(rt_sec * 1_000_000 + rt_usec,
                     lg_sec * 1_000_000 + lg_usec,

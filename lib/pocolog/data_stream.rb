@@ -37,7 +37,7 @@ module Pocolog
                 registry.resize(resize_containers)
                 @type = registry.get(stream_type.name)
             end
-	    
+
             @data = nil
             @sample_index = -1
         end
@@ -58,11 +58,11 @@ module Pocolog
             logfile.close
         end
 
-	# Returns a SampleEnumerator object for this stream
-	def samples(read_data = true); SampleEnumerator.new(self, read_data) end
+        # Returns a SampleEnumerator object for this stream
+        def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 
-	# Enumerates the blocks of this stream
-	def each_block(rewind = true)
+        # Enumerates the blocks of this stream
+        def each_block(rewind = true)
             if rewind
                 self.rewind
             end
@@ -70,24 +70,24 @@ module Pocolog
             while advance
                 yield if block_given?
             end
-	end
+        end
 
-	# Returns the +sample_index+ sample of this stream
-	def [](sample_index)
+        # Returns the +sample_index+ sample of this stream
+        def [](sample_index)
             seek(sample_index)
-	end
+        end
 
         attr_accessor :time_getter
 
         # Returns the time of the current sample
-	def time
+        def time
             header = logfile.data_header
             if !time_getter
                 [header.rt, header.lg]
             else
                 [header.rt, time_getter[data(header)]]
             end
-	end
+        end
 
         # Return the realtime of the first and last samples in this stream
         #
@@ -105,18 +105,18 @@ module Pocolog
             info.interval_lg.map { |t| StreamIndex.time_from_internal(t, 0) }
         end
 
-	# Get the logical time of first and last samples in this stream. If
-	# +rt+ is true, returns the interval for the wall-clock time
+        # Get the logical time of first and last samples in this stream. If
+        # +rt+ is true, returns the interval for the wall-clock time
         #
         # Returns nil if the stream is empty
-	def time_interval(rt = false)
+        def time_interval(rt = false)
             Pocolog.warn_deprecated "Pocolog::DataStream#time_interval is deprecated, use #interval_lg or #interval_rt instead"
-	    if rt
+            if rt
                 interval_rt
             else
                 interval_lg
             end
-	end
+        end
 
         # Returns this stream's duration in seconds
         #
@@ -137,68 +137,68 @@ module Pocolog
         #   stored_header = stream.data_header.dup
         #   ...
         #   data = stream.data(stored_header)
-	def data_header; logfile.data_header end
+        def data_header; logfile.data_header end
 
-	# The size, in samples, of data in this stream
-	def size; info.size end
+        # The size, in samples, of data in this stream
+        def size; info.size end
 
         # True if we read past the last sample
         def eof?; size == sample_index end
         # True if the size of this stream is zero
         def empty?; size == 0 end
 
-	# Get the Typelib::Registry object for this stream
-	def registry
+        # Get the Typelib::Registry object for this stream
+        def registry
             type.registry
-	end
+        end
 
-	#Returns the decoded subfield specified by 'fieldname'
-	#for the given data header. If no header is given, the
-	#current last read data header is used
-	def sub_field(fieldname, data_header = nil)
-	    header = data_header || logfile.data_header
-	    if( header.compressed )
-		data(data_header).send(fieldname)
-	    elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
-		offset = type.offset_of(fieldname)
-		subtype = type[fieldname]
-		rawData = logfile.sub_field(offset, subtype.size, data_header)
-		wrappedType = subtype.wrap(rawData)
-		rubyType = Typelib.to_ruby(wrappedType)
-		rubyType
-	    else
-		nil
-	    end
-	end
-	    
-	# Returns the decoded data sample associated with the given block
+        #Returns the decoded subfield specified by 'fieldname'
+        #for the given data header. If no header is given, the
+        #current last read data header is used
+        def sub_field(fieldname, data_header = nil)
+            header = data_header || logfile.data_header
+            if( header.compressed )
+                data(data_header).send(fieldname)
+            elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
+                offset = type.offset_of(fieldname)
+                subtype = type[fieldname]
+                rawData = logfile.sub_field(offset, subtype.size, data_header)
+                wrappedType = subtype.wrap(rawData)
+                rubyType = Typelib.to_ruby(wrappedType)
+                rubyType
+            else
+                nil
+            end
+        end
+
+        # Returns the decoded data sample associated with the given block
         # header.
         #
-        # Block headers are returned by #rewind 
-	def raw_data(data_header = nil, sample = nil)
-	    if(@data && !data_header) then @data
-	    else
+        # Block headers are returned by #rewind
+        def raw_data(data_header = nil, sample = nil)
+            if(@data && !data_header) then @data
+            else
                 data_header ||= logfile.data_header
                 marshalled_data = logfile.data(data_header)
-		data = sample || type.new
+                data = sample || type.new
                 data.from_buffer_direct(marshalled_data)
-		if logfile.endian_swap
-		    data = data.endian_swap
-		end
+                if logfile.endian_swap
+                    data = data.endian_swap
+                end
                 data
-	    end
+            end
         rescue Interrupt
             raise
         rescue Exception => e
             raise e, "failed to unmarshal sample in block at position #{data_header.block_pos}: #{e.message}", e.backtrace
-	end
+        end
 
         def read_one_data_sample(position)
             Typelib.to_ruby(read_one_raw_data_sample(position))
         end
 
         def read_one_raw_data_sample(position, sample = nil)
-	    block_pos = stream_index.file_position_by_sample_number(position)
+            block_pos = stream_index.file_position_by_sample_number(position)
             marshalled_data = logfile.read_one_data_payload(block_pos)
             data = sample || type.new
             data.from_buffer_direct(marshalled_data)
@@ -223,24 +223,24 @@ module Pocolog
         # Returns nil if the stream is empty.
         #
         # It differs from #first as it does not decode the data payload.
-	def rewind
+        def rewind
             # The first sample in the file has index 0, so set sample_index to
             # -1 so that (@sample_index += 1) sets the index to 0 for the first
             # sample
             @sample_index = -1
             nil
-	end
+        end
 
         # call-seq:
         #   first => [time_rt, time_lg, data]
         #
-	# Returns the first sample in the stream, or nil if the stream is empty
+        # Returns the first sample in the stream, or nil if the stream is empty
         #
         # It differs from #rewind as it always decodes the data payload.
         #
         # After a call to #first, #sample_index is 0
-	def first
-	    rewind
+        def first
+            rewind
             self.next
         end
 
@@ -265,60 +265,60 @@ module Pocolog
         #
         # Returns [rt, lg, data] for the current sample (if there is one), and
         # nil otherwise
-	def seek(pos, decode_data = true)
-	    if pos.kind_of?(Time)
+        def seek(pos, decode_data = true)
+            if pos.kind_of?(Time)
                 interval_lg = self.interval_lg
                 return nil if interval_lg.empty? || interval_lg[0] > pos || interval_lg[1] < pos
-		@sample_index = stream_index.sample_number_by_time(pos)
-	    else
-		@sample_index = pos
-	    end
+                @sample_index = stream_index.sample_number_by_time(pos)
+            else
+                @sample_index = pos
+            end
 
-	    file_pos = stream_index.file_position_by_sample_number(@sample_index)
-	    block_info = logfile.read_one_block(file_pos)
+            file_pos = stream_index.file_position_by_sample_number(@sample_index)
+            block_info = logfile.read_one_block(file_pos)
             if block_info.stream_index != self.index
                 raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.stream_index).name} while we were expecting #{name}"
             end
 
             if header = self.data_header
                 header = header.dup
-		if decode_data
-		    data = self.data(header)
-		    return [header.rt, header.lg, data]
-		else
-		    header
-		end
+                if decode_data
+                    data = self.data(header)
+                    return [header.rt, header.lg, data]
+                else
+                    header
+                end
             end
-	end
+        end
 
         # Reads the next sample in the file, and returns its header. Returns nil
         # if the end of file has been reached. Unlike +next+, it does not
         # decodes the data payload.
-	def advance
+        def advance
             if sample_index < size-1
                 @sample_index += 1
-		file_pos = stream_index.file_position_by_sample_number(@sample_index)
-		logfile.read_one_block(file_pos)
-		return logfile.data_header
+                file_pos = stream_index.file_position_by_sample_number(@sample_index)
+                logfile.read_one_block(file_pos)
+                return logfile.data_header
             else
                 @sample_index = size
             end
-	    nil
-	end
+            nil
+        end
 
-	# call-seq:
+        # call-seq:
         #   next => [time_rt, time_lg, data]
         #
         # Reads the next sample in the file, and returns it. It differs from
         # +advance+ as it always decodes the data sample.
-	def next
-	    header = advance
+        def next
+            header = advance
             if header
                 return [header.rt, header.lg, data]
             end
-	end
+        end
 
-	# call-seq:
+        # call-seq:
         #   previous => [time_rt, time_lg, data]
         #
         # Reads the previous sample in the file, and returns it.
@@ -329,19 +329,19 @@ module Pocolog
             elsif sample_index == 0
                 # Beginning of file reached
                 rewind
-                return nil 
+                return nil
             else
                 seek(sample_index - 1)
             end
         end
 
-	# call-seq:
-        #   copy_to(index1,index2,stream) => true 
-        #   copy_to(time1,time2,stream) => true 
+        # call-seq:
+        #   copy_to(index1,index2,stream) => true
+        #   copy_to(time1,time2,stream) => true
         #
         # copies all blocks from start_index/time to end_index/time to the given stream
         # for each block the given code block is called. If the code block returns 1
-        # the copy process will be canceled and the method returns false 
+        # the copy process will be canceled and the method returns false
         #
         # The given interval is automatically truncated if it is too big
         def copy_to(start_index = 0, end_index = size, stream, &block)
@@ -374,7 +374,7 @@ module Pocolog
                                 end_index
                             end
                         end
-            
+
             counter = 0
             data_header = seek(start_index, false)
             while sample_index < end_index
@@ -389,9 +389,9 @@ module Pocolog
             counter
         end
 
-	# call-seq:
-        #   samples?(pos1,pos2) => true 
-        #   samples?(time1,time2) => true 
+        # call-seq:
+        #   samples?(pos1,pos2) => true
+        #   samples?(time1,time2) => true
         #
         # returns true if stream samples lies insight the given time or position interval
         def samples?(start_index,end_index)
@@ -412,19 +412,19 @@ module Pocolog
             end
         end
 
-	# Write a sample in this stream, with the +rt+ and +lg+
-	# timestamps. +data+ can be either a Typelib::Type object of the
-	# right type, or a String (in which case we consider that it is
-	# the raw data)
-	def write(rt, lg, data)
+        # Write a sample in this stream, with the +rt+ and +lg+
+        # timestamps. +data+ can be either a Typelib::Type object of the
+        # right type, or a String (in which case we consider that it is
+        # the raw data)
+        def write(rt, lg, data)
             data = Typelib.from_ruby(data, type)
             write_raw(rt, lg, data.to_byte_array)
-	end
+        end
 
         # Write an already marshalled sample. +data+ is supposed to be a
         # typelib-marshalled value of the stream type
         def write_raw(rt, lg, data)
-	    logfile.write_data_block(self, rt, lg, data)
+            logfile.write_data_block(self, rt, lg, data)
         end
     end
 end

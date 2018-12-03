@@ -1,11 +1,11 @@
 module Pocolog
     class StreamAligner
-	attr_reader :use_rt
-	attr_reader :use_sample_time
+        attr_reader :use_rt
+        attr_reader :use_sample_time
 
         attr_reader :base_time
 
-	attr_reader :streams
+        attr_reader :streams
 
         # Provided for backward compatibility only
         def count_samples
@@ -57,7 +57,7 @@ module Pocolog
             Pocolog.warn_deprecated "StreamAligner#time_interval is deprecated in favor of #interval_lg"
             interval_lg
         end
-	
+        
         def initialize(use_rt = false, *streams)
             @use_sample_time = use_rt == :use_sample_time
             @use_rt  = use_rt
@@ -74,7 +74,7 @@ module Pocolog
             add_streams(*streams)
         end
 
-	# Returns the time of the last played back sample
+        # Returns the time of the last played back sample
         #
         # @return [Time]
         def time
@@ -83,19 +83,19 @@ module Pocolog
             end
         end
 
-	# Tests whether reading the next sample will return something
+        # Tests whether reading the next sample will return something
         #
         # If {eof?} returns true, {#advance} and {#step} are guaranteed to return
         # nil if called.
         def eof?
-	    sample_index >= size - 1
+            sample_index >= size - 1
         end
 
         # Rewinds the stream aligner to the position before the first sample
         #
         # I.e. calling {#next} after {#rewind} would read the first sample
-	def rewind
-	    @sample_index = -1
+        def rewind
+            @sample_index = -1
             nil
         end
 
@@ -115,8 +115,8 @@ module Pocolog
             end
 
             streams_size = streams.inject(0) { |s, stream| s + stream.size }
-	    size = (@size += streams_size)
-	    Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
+            size = (@size += streams_size)
+            Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
 
             tic = Time.now
             if !base_time
@@ -267,31 +267,31 @@ module Pocolog
         #   (see seek_to_pos)
         # @overload seek(time, read_data = true)
         #   (see seek_to_time)
-	def seek(pos, read_data = true)
-	    if pos.kind_of?(Time)
-		seek_to_time(pos, read_data)
-	    else
-		seek_to_pos(pos, read_data)
-	    end
-	end
-	
+        def seek(pos, read_data = true)
+            if pos.kind_of?(Time)
+                seek_to_time(pos, read_data)
+            else
+                seek_to_pos(pos, read_data)
+            end
+        end
+        
         # Seek to the first sample after the given time
         #
         # @param [Time] time the reference time
         # @param [Boolean] read_data whether the sample itself should be read or not
         # @return [(Integer,Time[,Typelib::Type])] the stream index, sample time
         #   and the sample itself if read_data is true
-	def seek_to_time(time, read_data = true)
+        def seek_to_time(time, read_data = true)
             if empty?
                 raise RangeError, "#{time} is out of bounds, the stream is empty"
             elsif time < interval_lg[0] || time > interval_lg[1]
                 raise RangeError, "#{time} is out of bounds valid interval #{interval_lg[0]} to #{interval_lg[1]}"
             end
-	    
+            
             target_time = StreamIndex.time_to_internal(time, base_time)
-	    entry = @full_index.bsearch { |e| e.time >= target_time }
+            entry = @full_index.bsearch { |e| e.time >= target_time }
             seek_to_index_entry(entry, read_data)
-	end
+        end
 
         # Seeks to the sample whose global position is pos
         #
@@ -398,11 +398,11 @@ module Pocolog
         # @return [(Integer,Time)]
         # @see step
         def advance
-	    if eof?
-		@sample_index = size
-		return
-	    end
-	    
+            if eof?
+                @sample_index = size
+                return
+            end
+            
             seek_to_pos(@sample_index + 1, false)
         end
 
@@ -411,12 +411,12 @@ module Pocolog
         #
         # @return [(Integer,Time,Typelib::Type)]
         def step_back
-	    if @sample_index == 0
-		@sample_index = -1
-		return nil
-	    end
-	    
-	    seek_to_pos(sample_index - 1)
+            if @sample_index == 0
+                @sample_index = -1
+                return nil
+            end
+            
+            seek_to_pos(sample_index - 1)
         end
 
         # Defined for compatibility with DataStream#next
@@ -601,14 +601,14 @@ module Pocolog
         #       stream.read_one_raw_data_sample(position)
         #    end
         def sample_info(stream_idx)
-	    if state = @stream_state[stream_idx]
-		return streams[stream_idx], state.position_in_stream
-	    end
+            if state = @stream_state[stream_idx]
+                return streams[stream_idx], state.position_in_stream
+            end
         end
 
         # Returns the current data sample for the given stream index
-	# note stream index is the index of the data stream, not the 
-	# search index !
+        # note stream index is the index of the data stream, not the 
+        # search index !
         #
         # @param [Integer] index index of the stream
         # @param [Typelib::Type,nil] sample if given, the sample will be decoded
@@ -621,8 +621,8 @@ module Pocolog
         end
 
         # Returns the current raw data sample for the given stream index
-	# note stream index is the index of the data stream, not the 
-	# search index !
+        # note stream index is the index of the data stream, not the 
+        # search index !
         #
         # @param [Integer] index index of the stream
         # @param [Typelib::Type,nil] sample if given, the sample will be decoded
@@ -632,7 +632,7 @@ module Pocolog
             stream, position = sample_info(index)
             if stream
                 stream.read_one_raw_data_sample(position)
-	    end
+            end
         end
 
         # Enumerate all samples in this stream

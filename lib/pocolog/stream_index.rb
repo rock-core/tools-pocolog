@@ -28,7 +28,7 @@ module Pocolog
         def initialize(base_time: nil)
             @base_time = base_time
             @index_map = Array.new
-	end
+        end
 
         def initialize_copy(copy)
             raise NotImplementedError, "StreamInfo is non-copyable"
@@ -79,17 +79,17 @@ module Pocolog
                               sample_index + sample_index_offset]
             end
         end
-	
+
         # Append a new sample to the index
-	def add_sample(pos, time)
+        def add_sample(pos, time)
             add_raw_sample(pos, time)
-	end
-	
+        end
+
         # Append a new sample to the index
-	def add_raw_sample(pos, time)
+        def add_raw_sample(pos, time)
             @base_time ||= time
             @index_map << [pos, time - @base_time, @index_map.size]
-	end
+        end
 
         # Create a Time object from the index' own internal Time representation
         def self.time_from_internal(time, base_time)
@@ -107,7 +107,7 @@ module Pocolog
         # the given time
         #
         # @param [Time]
-	def sample_number_by_time(sample_time)
+        def sample_number_by_time(sample_time)
             sample_time = StreamIndex.time_to_internal(sample_time, base_time)
             sample_number_by_internal_time(sample_time)
         end
@@ -119,16 +119,16 @@ module Pocolog
         def sample_number_by_internal_time(sample_time)
             _pos_, _time, idx = @index_map.bsearch { |_, t, _| t >= sample_time }
             idx || size
-	end
-	
-	# Returns the IO position of a sample
+        end
+
+        # Returns the IO position of a sample
         #
         # @param [Integer] sample_number the sample index in the stream
         # @return [Integer] the sample's position in the backing IO
         # @raise IndexError if the sample number is out of bounds
-	def file_position_by_sample_number(sample_number)
+        def file_position_by_sample_number(sample_number)
             @index_map.fetch(sample_number)[0]
-	end
+        end
 
         # Returns the time of a sample
         #
@@ -146,6 +146,6 @@ module Pocolog
         # @raise (see internal_time_by_sample_number)
         def time_by_sample_number(sample_number)
             StreamIndex.time_from_internal(internal_time_by_sample_number(sample_number), base_time)
-	end
+        end
     end
 end
