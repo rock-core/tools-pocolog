@@ -8,6 +8,8 @@ module Pocolog
                 @current = 0
                 @base = 0
             end
+            def reset_progressbar(format, **options)
+            end
             def log(msg)
             end
             def advance(value)

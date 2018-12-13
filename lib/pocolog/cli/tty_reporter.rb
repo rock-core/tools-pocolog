@@ -18,8 +18,7 @@ module Pocolog
 
             def initialize(format, **options)
                 @base = 0
-                @progress_bar = TTY::ProgressBar.new(format, **options)
-                progress_bar.resize(60)
+                reset_progressbar(format, **options)
                 pastel = Pastel.new
                 @c_warn = pastel.yellow.detach
                 @c_info = pastel.yellow.detach
@@ -27,8 +26,18 @@ module Pocolog
                 @c_title = pastel.bold.detach
             end
 
+            def reset_progressbar(format, **options)
+                progress_bar.reset if @progress_bar
+                @progress_bar = TTY::ProgressBar.new(format, **options)
+                progress_bar.resize(60)
+            end
+
             def log(msg)
-                progress_bar.log(msg)
+                if progress_bar.send(:tty?)
+                    progress_bar.log(msg)
+                else
+                    $stdout.puts(msg)
+                end
             end
 
             def current
