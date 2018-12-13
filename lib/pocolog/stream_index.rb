@@ -62,6 +62,16 @@ module Pocolog
             @index_map.empty?
         end
 
+        # Iterate over the index
+        #
+        # @yieldparam [Integer] file_pos the position in the file
+        # @yieldparam [Integer] time the time since {#base_time}
+        def raw_each
+            @index_map.each do |file_pos, time, _|
+                yield(file_pos, time)
+            end
+        end
+
         # Concatenates followup information for the same stream
         #
         # @param [StreamIndex] stream_index the index to concatenate
