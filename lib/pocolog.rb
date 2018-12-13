@@ -1,4 +1,5 @@
 require 'utilrb/time/to_hms'
+require 'date'
 require 'set'
 require 'typelib'
 require 'tempfile'
