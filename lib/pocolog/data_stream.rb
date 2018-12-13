@@ -17,6 +17,14 @@ module Pocolog
         # The stream associated metadata
         attr_reader :metadata
 
+        def typename
+            type.name
+        end
+
+        def type_name
+            type.name
+        end
+
         def initialize(logfile, index, name, stream_type, metadata = Hash.new, info = StreamInfo.new)
             @logfile, @index, @name, @metadata, @info =
                 logfile, index, name, metadata, info
