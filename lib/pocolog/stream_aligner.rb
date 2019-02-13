@@ -560,6 +560,14 @@ module Pocolog
             return search_pos + 1
         end
 
+        private def validate_stream_index_from_stream(stream)
+            unless stream_idx = streams.index(stream)
+                raise ArgumentError, "#{stream.name} (#{stream}) is not aligned in "\
+                    "#{self}. Aligned streams are: #{streams.map(&:name).sort.join(", ")}"
+            end
+            stream_idx
+        end
+
         # Returns the global sample position of the first sample
         # of the given stream
         #
@@ -567,7 +575,7 @@ module Pocolog
         # @return [nil,Integer]
         def first_sample_pos(stream)
             if stream.kind_of?(DataStream)
-                stream = streams.index(stream)
+                stream = validate_stream_index_from_stream(stream)
             end
             @global_pos_first_sample[stream]
         end
@@ -579,7 +587,7 @@ module Pocolog
         # @return [nil,Integer]
         def last_sample_pos(stream)
             if stream.kind_of?(DataStream)
-                stream = streams.index(stream)
+                stream = validate_stream_index_from_stream(stream)
             end
             @global_pos_last_sample[stream]
         end

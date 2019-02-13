@@ -269,6 +269,16 @@ module Pocolog
                 assert_equal 0, aligner.first_sample_pos(s0)
                 assert_equal 1, aligner.first_sample_pos(s1)
             end
+            it "raises if given an unknown stream" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                open_logfile
+                invalid_stream = create_log_stream "invalid_stream", []
+                e = assert_raises(ArgumentError) do
+                    aligner.first_sample_pos(invalid_stream)
+                end
+                assert_equal "invalid_stream (#{invalid_stream}) is not aligned in "\
+                    "#{aligner}. Aligned streams are: s0, s1", e.message
+            end
         end
 
         describe "#last_sample_pos" do
@@ -281,6 +291,16 @@ module Pocolog
                 aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
                 assert_equal 3, aligner.last_sample_pos(s0)
                 assert_equal 4, aligner.last_sample_pos(s1)
+            end
+            it "raises if given an unknown stream" do
+                aligner, s0, s1 = create_aligner([1, 2, 3], [1.5, 3.5])
+                open_logfile
+                invalid_stream = create_log_stream "invalid_stream", []
+                e = assert_raises(ArgumentError) do
+                    aligner.last_sample_pos(invalid_stream)
+                end
+                assert_equal "invalid_stream (#{invalid_stream}) is not aligned in "\
+                    "#{aligner}. Aligned streams are: s0, s1", e.message
             end
         end
 
