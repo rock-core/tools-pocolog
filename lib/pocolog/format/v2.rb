@@ -242,7 +242,6 @@ module Pocolog
                     expected_file_size: file_io.size)
 
                 index_stream_info.map do |info|
-                    index_size = info.stream_size * 3
                     file_io.seek(info.declaration_pos)
                     block_stream = BlockStream.new(file_io)
                     block_stream.read_next_block_header
