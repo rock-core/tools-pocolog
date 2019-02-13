@@ -107,7 +107,7 @@ module Pocolog
 
             @data = nil
             @streams     = nil
-            @compress    = true
+            @compress    = false
             @data_header_buffer = ""
             if !write_only
                 @streams = load_stream_info(io, index_dir: index_dir, silent: silent)
