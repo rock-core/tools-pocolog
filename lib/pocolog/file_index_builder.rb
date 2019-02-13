@@ -4,7 +4,7 @@ module Pocolog
     #
     # @!method stream_block_pos
     #   @return [Integer] the position of the stream definition in the IO
-    # 
+    #
     # @!method index_map
     #   @return [Array<(Integer,Integer,Integer)>] at list of
     #   (block_pos,lg_time,sample_index) tuples. The logical time is in

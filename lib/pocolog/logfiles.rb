@@ -23,7 +23,7 @@ module Pocolog
     # == Format
     #
     # Pocolog files are made of:
-    # 
+    #
     # * a prologue
     # * a sequence of generic blocks, each block pointing to the next block
     # * blocks can either be stream blocks, control blocks or data blocks.
@@ -272,7 +272,7 @@ module Pocolog
                 end
 
                 if stream_block
-                    streams[stream_index] = 
+                    streams[stream_index] =
                         DataStream.new(self, stream_index, stream_block.name, stream_block.type,
                                        stream_block.metadata, combined_info)
                 end
@@ -326,9 +326,13 @@ module Pocolog
                     block_stream.seek(pos)
                     block_info = block_stream.read_next_block_header
                     if block_info.kind != DATA_BLOCK
-                        raise InvalidIndex, "invalid stream interval_io in index: block is not a data block"
+                        raise InvalidIndex, "invalid stream interval_io in index "\
+                            "for stream #{idx}: expected first block at #{pos}, but this "\
+                            "is not a data block"
                     elsif block_info.stream_index != idx
-                        raise InvalidIndex, "invalid stream interval_io in index: stream index mismatch"
+                        raise InvalidIndex, "invalid stream interval_io in index "\
+                            "for stream #{idx}: first block at #{pos} found, but it "\
+                            "is a block of stream #{block_info.stream_index}"
                     end
                 end
 
@@ -355,7 +359,7 @@ module Pocolog
 
         # True if there is a stream +index+
         def declared_stream?(index)
-            @streams && (@streams.size > index && @streams[index]) 
+            @streams && (@streams.size > index && @streams[index])
         end
 
         # Read the block information for the block at a certain position in the
@@ -460,7 +464,7 @@ module Pocolog
 
             metadata = normalize_metadata(metadata)
             metadata = YAML.dump(metadata)
-            payload = [DATA_STREAM, name.size, name, 
+            payload = [DATA_STREAM, name.size, name,
                 type_name.size, type_name,
                 type_registry.size, type_registry,
                 metadata.size, metadata

@@ -212,7 +212,6 @@ module Pocolog
                     index_size = stream_size * INDEX_STREAM_ENTRY_SIZE
                     expected_file_size << index_size + index_pos
 
-
                     if stream_size == 0
                         base_time = nil
                         interval_rt = []

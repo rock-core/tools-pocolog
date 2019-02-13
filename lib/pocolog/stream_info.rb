@@ -18,7 +18,7 @@ module Pocolog
         # The number of samples in this stream
         attr_reader :size
 
-        # The index data itself. 
+        # The index data itself.
         # This is a instance of StreamIndex
         attr_reader :index
 

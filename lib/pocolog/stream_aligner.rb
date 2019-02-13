@@ -57,7 +57,7 @@ module Pocolog
             Pocolog.warn_deprecated "StreamAligner#time_interval is deprecated in favor of #interval_lg"
             interval_lg
         end
-        
+
         def initialize(use_rt = false, *streams)
             @use_sample_time = use_rt == :use_sample_time
             @use_rt  = use_rt
@@ -274,7 +274,7 @@ module Pocolog
                 seek_to_pos(pos, read_data)
             end
         end
-        
+
         # Seek to the first sample after the given time
         #
         # @param [Time] time the reference time
@@ -287,7 +287,7 @@ module Pocolog
             elsif time < interval_lg[0] || time > interval_lg[1]
                 raise RangeError, "#{time} is out of bounds valid interval #{interval_lg[0]} to #{interval_lg[1]}"
             end
-            
+
             target_time = StreamIndex.time_to_internal(time, base_time)
             entry = @full_index.bsearch { |e| e.time >= target_time }
             seek_to_index_entry(entry, read_data)
@@ -344,7 +344,7 @@ module Pocolog
         def stream_index_for_stream(stream)
             streams.index(stream)
         end
-            
+
         # Returns the stream index of the stream with this name
         #
         # @param [String] name
@@ -352,7 +352,7 @@ module Pocolog
         def stream_index_for_name(name)
             streams.index { |s| s.name == name }
         end
-        
+
         # Returns the stream index of the stream whose type has this name
         #
         # @param [String] name
@@ -402,7 +402,7 @@ module Pocolog
                 @sample_index = size
                 return
             end
-            
+
             seek_to_pos(@sample_index + 1, false)
         end
 
@@ -415,7 +415,7 @@ module Pocolog
                 @sample_index = -1
                 return nil
             end
-            
+
             seek_to_pos(sample_index - 1)
         end
 
@@ -456,10 +456,10 @@ module Pocolog
             end
         end
 
-        # exports all streams to a new log file 
+        # exports all streams to a new log file
         # if no start and end index is given all data are exported
-        # otherwise the data are truncated according to the given global indexes 
-        # 
+        # otherwise the data are truncated according to the given global indexes
+        #
         # the block is called for each sample to update a custom progress bar if the block
         # returns 1 the export is canceled
         def export_to_file(file,start_index=0,end_index=size,&block)
@@ -475,7 +475,7 @@ module Pocolog
 
                 stream_start_index = [start_index, stream_start_index].max
                 stream_end_index   = [end_index, stream_end_index].min
-                
+
                 first_stream_pos = find_first_stream_sample_at_or_after(
                     stream_start_index, s)
                 last_stream_pos  = find_first_stream_sample_at_or_after(
@@ -488,7 +488,7 @@ module Pocolog
                 result = s.copy_to(first_stream_pos,last_stream_pos,stream_output) do |i|
                     if block
                         index +=1
-                        block.call(index,number_of_samples) 
+                        block.call(index,number_of_samples)
                     end
                 end
                 break if !result
@@ -569,7 +569,7 @@ module Pocolog
             if stream.kind_of?(DataStream)
                 stream = streams.index(stream)
             end
-            @global_pos_first_sample[stream] 
+            @global_pos_first_sample[stream]
         end
 
         # Returns the global sample position of the last sample of the given
@@ -607,7 +607,7 @@ module Pocolog
         end
 
         # Returns the current data sample for the given stream index
-        # note stream index is the index of the data stream, not the 
+        # note stream index is the index of the data stream, not the
         # search index !
         #
         # @param [Integer] index index of the stream
@@ -621,7 +621,7 @@ module Pocolog
         end
 
         # Returns the current raw data sample for the given stream index
-        # note stream index is the index of the data stream, not the 
+        # note stream index is the index of the data stream, not the
         # search index !
         #
         # @param [Integer] index index of the stream
