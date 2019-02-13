@@ -8,18 +8,27 @@ module Pocolog
                 write_logfile_sample Time.at(10, 100), Time.at(100, 10), 1
                 write_logfile_sample Time.at(20, 200), Time.at(200, 20), 2
                 write_logfile_sample Time.at(30, 300), Time.at(300, 30), 3
+
+                create_logfile_stream 'stream1'
+                write_logfile_sample Time.at(10, 100), Time.at(100, 10), 1
+                write_logfile_sample Time.at(20, 200), Time.at(200, 20), 2
+                write_logfile_sample Time.at(30, 300), Time.at(300, 30), 3
             end
         end
         def pocolog_bin
             File.expand_path(File.join('..', 'bin', 'pocolog'), __dir__)
         end
 
-        def assert_run_successful(*command)
+        def assert_run_successful(*command, filter_output: true)
             output = IO.popen([pocolog_bin, *command]) do |io|
                 io.readlines.map(&:chomp)
             end
             assert $?.success?
-            output.find_all { |line| line !~ /pocolog.rb\[INFO\]: (?:building index|loading file info|done)/ }
+            if filter_output
+                output.find_all { |line| line !~ /pocolog.rb\[INFO\]: (?:building index|loading file info|done)/ }
+            else
+                output
+            end
         end
 
         describe 'without arguments' do

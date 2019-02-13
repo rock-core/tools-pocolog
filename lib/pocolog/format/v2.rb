@@ -304,7 +304,7 @@ module Pocolog
                     index_io.write(index_data.pack("Q>*"))
 
                     index_list_pos += INDEX_STREAM_DESCRIPTION_SIZE
-                    index_data_pos += index_data.size
+                    index_data_pos += index_data.size * 8
                 end
             end
         end

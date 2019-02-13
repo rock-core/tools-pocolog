@@ -70,6 +70,20 @@ module Pocolog
                 # Check that the loaded index is valid
                 assert_equal [], logfile.stream('all').samples.to_a
             end
+            it "generates a valid index" do
+                create_logfile 'test.0.log' do
+                    10.times do |stream_i|
+                        create_logfile_stream "s#{stream_i}"
+                        10.times do |i|
+                            write_logfile_sample Time.at(i), Time.at(i * 100), i
+                        end
+                    end
+                end
+                assert_run_successful(logfile_path('test.0.log'))
+                10.times do |stream_i|
+                    assert_run_successful(logfile_path('test.0.log'), "-s", "s#{stream_i}")
+                end
+            end
         end
         describe ".default_index_filename" do
             it "returns the path with .log changed into .idx" do

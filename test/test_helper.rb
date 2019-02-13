@@ -48,6 +48,20 @@ module Pocolog
     #
     module SelfTest
         include Pocolog::TestHelpers
+
+        def pocolog_bin
+            File.expand_path(File.join('..', 'bin', 'pocolog'), __dir__)
+        end
+
+        def assert_run_successful(*command)
+            output = IO.popen([pocolog_bin, *command]) do |io|
+                io.readlines.map(&:chomp)
+            end
+            assert $?.success?
+            output.find_all do |line|
+                line !~ /pocolog.rb\[INFO\]: (?:building index|loading file info|done)/
+            end
+        end
     end
 end
 
