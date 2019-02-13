@@ -206,6 +206,17 @@ module Pocolog
             assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
         end
 
+        it "successfully aligns empty streams" do
+            aligner, _s0, s1 = create_aligner([1, 2], [])
+            assert aligner.stream_index_for_stream(s1)
+        end
+
+        it "successfully aligns a set of completely empty streams" do
+            aligner, s0, s1 = create_aligner([], [])
+            assert aligner.stream_index_for_stream(s0)
+            assert aligner.stream_index_for_stream(s1)
+        end
+
         describe "#find_first_stream_sample_after" do
 
             it "returns the stream-local position of the next sample if the global positition points to a sample of the expected stream" do

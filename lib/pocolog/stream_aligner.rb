@@ -105,7 +105,7 @@ module Pocolog
 
             full_index = Array.new
             streams.each_with_index do |stream, i|
-                stream.stream_index.base_time = base_time
+                stream.stream_index.base_time = base_time if base_time
                 stream.stream_index.time_to_position_map.each do |time, position|
                     full_index << [time, i, position]
                 end
