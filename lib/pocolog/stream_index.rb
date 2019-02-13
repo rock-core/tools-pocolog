@@ -40,26 +40,26 @@ module Pocolog
             @base_time = nil
             @time_to_position_map = Array.new()
             @nr_to_rio = Array.new()
-	end
-	
-	#adds a given sample header (and thus the sample) to
-	#the index
-	def add_sample_to_index(rio, pos, time)
-	    #store the posiiton of the header of the data sample
-	    @nr_to_rio << rio
-	    @nr_to_position_map << pos 
+        end
+        
+        #adds a given sample header (and thus the sample) to
+        #the index
+        def add_sample_to_index(rio, pos, time)
+            #store the posiiton of the header of the data sample
+            @nr_to_rio << rio
+            @nr_to_position_map << pos 
             internal_time = time.tv_sec * 1_000_000 + time.tv_usec
             @base_time ||= internal_time
             @time_to_position_map << [(internal_time - @base_time), time_to_position_map.size]
-	end
+        end
 
-	# sanity check for the index, which gets called after
-	# marshalling, to see if the index needs rebuilding
-	def sane?
-	    @nr_to_rio && @nr_to_position_map && @time_to_position_map &&
-	    @nr_to_rio.size == @nr_to_position_map.size &&
-	    @nr_to_rio.size == @time_to_position_map.size
-	end
+        # sanity check for the index, which gets called after
+        # marshalling, to see if the index needs rebuilding
+        def sane?
+            @nr_to_rio && @nr_to_position_map && @time_to_position_map &&
+            @nr_to_rio.size == @nr_to_position_map.size &&
+            @nr_to_rio.size == @time_to_position_map.size
+        end
 
         def self.time_from_internal(time, base_time)
             time = time + base_time
@@ -75,7 +75,7 @@ module Pocolog
         # the given time
         #
         # @param [Time]
-	def sample_number_by_time(sample_time)
+        def sample_number_by_time(sample_time)
             sample_time = StreamIndex.time_to_internal(sample_time, base_time)
             sample_number_by_internal_time(sample_time)
         end
@@ -87,26 +87,26 @@ module Pocolog
         def sample_number_by_internal_time(sample_time)
             _, idx = @time_to_position_map.bsearch { |t, _| t >= sample_time }
             idx || size
-	end
-	
-	# Expects the number of the sample that needs to be accessed 
-	# and returns the position of the sample in the file
-	def file_position_by_sample_number(sample_nr)
-	    return @nr_to_rio[sample_nr], @nr_to_position_map[sample_nr]
-	end
+        end
+        
+        # Expects the number of the sample that needs to be accessed 
+        # and returns the position of the sample in the file
+        def file_position_by_sample_number(sample_nr)
+            return @nr_to_rio[sample_nr], @nr_to_position_map[sample_nr]
+        end
 
         def internal_time_by_sample_number(sample_nr)
-	    if(sample_nr < 0 || sample_nr >= size)
-		raise ArgumentError, "#{sample_nr} out of bounds"
-	    end
+            if(sample_nr < 0 || sample_nr >= size)
+                raise ArgumentError, "#{sample_nr} out of bounds"
+            end
             @time_to_position_map[sample_nr].first
         end
 
-	# expects a sample nr and returns the time
-	# of the sample
+        # expects a sample nr and returns the time
+        # of the sample
         def time_by_sample_number(sample_nr)
-	    StreamIndex.time_from_internal(internal_time_by_sample_number(sample_nr), base_time)
-	end
+            StreamIndex.time_from_internal(internal_time_by_sample_number(sample_nr), base_time)
+        end
 
         def marshal_dump
             [@nr_to_rio.pack("n*"),

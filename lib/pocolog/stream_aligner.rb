@@ -1,12 +1,12 @@
 module Pocolog
     class OutOfBounds < Exception;end
     class StreamAligner
-	attr_reader :use_rt
-	attr_reader :use_sample_time
+        attr_reader :use_rt
+        attr_reader :use_sample_time
 
         attr_reader :base_time
 
-	attr_reader :streams
+        attr_reader :streams
 
         # Provided for backward compatibility only
         def count_samples
@@ -48,7 +48,7 @@ module Pocolog
         #
         # @return [(Time,Time)]
         attr_reader :time_interval
-	
+
         def initialize(use_rt = false, *streams)
             @use_sample_time = use_rt == :use_sample_time
             @use_rt  = use_rt
@@ -62,7 +62,7 @@ module Pocolog
             rewind
         end
 
-	# Returns the time of the last played back sample
+        # Returns the time of the last played back sample
         #
         # @return [Time]
         def time
@@ -71,19 +71,19 @@ module Pocolog
             end
         end
 
-	# Tests whether reading the next sample will return something
+        # Tests whether reading the next sample will return something
         #
         # If {eof?} returns true, {#advance} and {#step} are guaranteed to return
         # nil if called.
         def eof?
-	    sample_index >= size - 1
+            sample_index >= size - 1
         end
 
         # Rewinds the stream aligner to the position before the first sample
         #
         # I.e. calling {#next} after {#rewind} would read the first sample
-	def rewind
-	    @sample_index = -1
+        def rewind
+            @sample_index = -1
             nil
         end
 
@@ -95,8 +95,8 @@ module Pocolog
         # attributes based on the information contained in the underlying
         # streams
         def build_index(streams)
-	    @size = streams.inject(0) { |s, stream| s + stream.size }
-	    Pocolog.info("got #{streams.size} streams with #{size} samples")
+            @size = streams.inject(0) { |s, stream| s + stream.size }
+            Pocolog.info("got #{streams.size} streams with #{size} samples")
             tic = Time.now
             @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
 
@@ -125,36 +125,36 @@ module Pocolog
 
             Pocolog.info "built index in #{"%.2f" % [Time.now - tic]} seconds"
         end
-	
+
         # Seek at the given position or time
         #
         # @overload seek(pos, read_data = true)
         #   (see seek_to_pos)
         # @overload seek(time, read_data = true)
         #   (see seek_to_time)
-	def seek(pos, read_data = true)
-	    if pos.kind_of?(Time)
-		seek_to_time(pos, read_data)
-	    else
-		seek_to_pos(pos, read_data)
-	    end
-	end
-	
+        def seek(pos, read_data = true)
+            if pos.kind_of?(Time)
+                seek_to_time(pos, read_data)
+            else
+                seek_to_pos(pos, read_data)
+            end
+        end
+
         # Seek to the first sample after the given time
         #
         # @param [Time] time the reference time
         # @param [Boolean] read_data whether the sample itself should be read or not
         # @return [(Integer,Time[,Typelib::Type])] the stream index, sample time
         #   and the sample itself if read_data is true
-	def seek_to_time(time, read_data = true)
-            if(time < time_interval[0] || time > time_interval[1]) 
+        def seek_to_time(time, read_data = true)
+            if(time < time_interval[0] || time > time_interval[1])
                 raise RangeError, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
             end
-	    
+
             target_time = StreamIndex.time_to_internal(time, base_time)
-	    entry = @full_index.bsearch { |e| e.time >= target_time }
+            entry = @full_index.bsearch { |e| e.time >= target_time }
             seek_to_index_entry(entry, read_data)
-	end
+        end
 
         # Seeks to the sample whose global position is pos
         #
@@ -205,7 +205,7 @@ module Pocolog
         def stream_index_for_stream(stream)
             streams.index(stream)
         end
-            
+
         # Returns the stream index of the stream with this name
         #
         # @param [String] name
@@ -216,9 +216,9 @@ module Pocolog
                     return i
                 end
             end
-            return nil 
+            return nil
         end
-        
+
         # Returns the stream index of the stream whose type has this name
         #
         # @param [String] name
@@ -260,11 +260,11 @@ module Pocolog
         # @return [(Integer,Time)]
         # @see step
         def advance
-	    if eof?
-		@sample_index = size
-		return
-	    end
-	    
+            if eof?
+                @sample_index = size
+                return
+            end
+
             seek_to_pos(@sample_index + 1, false)
         end
 
@@ -273,12 +273,12 @@ module Pocolog
         #
         # @return [(Integer,Time,Typelib::Type)]
         def step_back
-	    if @sample_index == 0
-		@sample_index = -1
-		return nil
-	    end
-	    
-	    seek_to_pos(sample_index - 1)
+            if @sample_index == 0
+                @sample_index = -1
+                return nil
+            end
+
+            seek_to_pos(sample_index - 1)
         end
 
         # Defined for compatibility with DataStream#next
@@ -311,9 +311,9 @@ module Pocolog
             pp.text "next_samples:"
             pp.nest(2) do
                 pp.breakable
-		
+
                 pp.seplist(streams.each_index) do |i|
-		    ih = @stream_index_to_index_helpers[i]
+                    ih = @stream_index_to_index_helpers[i]
                     if ih
                         pp.text "#{i} #{ih.time.to_f}"
                     else
@@ -335,10 +335,10 @@ module Pocolog
             end
         end
 
-        # exports all streams to a new log file 
+        # exports all streams to a new log file
         # if no start and end index is given all data are exported
-        # otherwise the data are truncated according to the given global indexes 
-        # 
+        # otherwise the data are truncated according to the given global indexes
+        #
         # the block is called for each sample to update a custom progress bar if the block
         # returns 1 the export is canceled
         def export_to_file(file,start_index=0,end_index=size,&block)
@@ -354,7 +354,7 @@ module Pocolog
 
                 stream_start_index = [start_index, stream_start_index].max
                 stream_end_index   = [end_index, stream_end_index].min
-                
+
                 first_stream_pos = find_first_stream_sample_at_or_after(
                     stream_start_index, s)
                 last_stream_pos  = find_first_stream_sample_at_or_after(
@@ -367,7 +367,7 @@ module Pocolog
                 result = s.copy_to(first_stream_pos,last_stream_pos,stream_output) do |i|
                     if block
                         index +=1
-                        block.call(index,number_of_samples) 
+                        block.call(index,number_of_samples)
                     end
                 end
                 break if !result
@@ -448,7 +448,7 @@ module Pocolog
             if stream.kind_of?(DataStream)
                 stream = streams.index(stream)
             end
-            @global_pos_first_sample[stream] 
+            @global_pos_first_sample[stream]
         end
 
         # Returns the global sample position of the last sample of the given
@@ -480,14 +480,14 @@ module Pocolog
         #       stream.read_one_raw_data_sample(position)
         #    end
         def sample_info(stream_idx)
-	    if state = @stream_state[stream_idx]
-		return streams[stream_idx], state.position_in_stream
-	    end
+            if state = @stream_state[stream_idx]
+                return streams[stream_idx], state.position_in_stream
+            end
         end
 
         # Returns the current data sample for the given stream index
-	# note stream index is the index of the data stream, not the 
-	# search index !
+        # note stream index is the index of the data stream, not the
+        # search index !
         #
         # @param [Integer] index index of the stream
         # @param [Typelib::Type,nil] sample if given, the sample will be decoded
@@ -500,8 +500,8 @@ module Pocolog
         end
 
         # Returns the current raw data sample for the given stream index
-	# note stream index is the index of the data stream, not the 
-	# search index !
+        # note stream index is the index of the data stream, not the
+        # search index !
         #
         # @param [Integer] index index of the stream
         # @param [Typelib::Type,nil] sample if given, the sample will be decoded
@@ -511,7 +511,7 @@ module Pocolog
             stream, position = sample_info(index)
             if stream
                 stream.read_one_raw_data_sample(position)
-	    end
+            end
         end
 
         # Enumerate all samples in this stream

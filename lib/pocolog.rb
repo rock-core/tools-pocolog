@@ -21,7 +21,7 @@ module Pocolog
 
     # true if this machine is big endian
     def self.big_endian?
-	"LAAS".unpack('L').pack('N') == "LAAS"
+        "LAAS".unpack('L').pack('N') == "LAAS"
     end
 
     STREAM_BLOCK           = 1
