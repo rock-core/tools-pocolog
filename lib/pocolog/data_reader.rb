@@ -22,7 +22,7 @@ module Pocolog
         def initialize(logfile, index, name, type_name, marshalled_registry, metadata)
             @logfile, @index, @name, @type_name, @marshalled_registry, @metadata =
                 logfile, index, name, type_name, marshalled_registry, metadata
-	    
+            
             @data = nil
             @registry = nil
             @sample_index = -1
@@ -45,11 +45,11 @@ module Pocolog
             logfile.close
         end
 
-	# Returns a SampleEnumerator object for this stream
-	def samples(read_data = true); SampleEnumerator.new(self, read_data) end
+        # Returns a SampleEnumerator object for this stream
+        def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 
-	# Enumerates the blocks of this stream
-	def each_block(rewind = true)
+        # Enumerates the blocks of this stream
+        def each_block(rewind = true)
             if rewind
                 self.rewind
             end
@@ -57,35 +57,35 @@ module Pocolog
             while advance
                 yield if block_given?
             end
-	end
+        end
 
-	# Returns the +sample_index+ sample of this stream
-	def [](sample_index)
-	    samples.between(sample_index, nil).
-		find { true }
-	end
+        # Returns the +sample_index+ sample of this stream
+        def [](sample_index)
+            samples.between(sample_index, nil).
+                find { true }
+        end
 
         attr_accessor :time_getter
 
         # Returns the time of the current sample
-	def time
+        def time
             header = logfile.data_header
             if !time_getter
                 [header.rt, Time.at(header.lg - logfile.time_base)]
             else
                 [header.rt, time_getter[data(header)]]
             end
-	end
+        end
 
-	# Get the logical time of first and last samples in this stream. If
-	# +rt+ is true, returns the interval for the wall-clock time
+        # Get the logical time of first and last samples in this stream. If
+        # +rt+ is true, returns the interval for the wall-clock time
         #
         # Returns nil if the stream is empty
-	def time_interval(rt = false)
-	    if rt then info.interval_rt
-	    else info.interval_lg
-	    end
-	end
+        def time_interval(rt = false)
+            if rt then info.interval_rt
+            else info.interval_lg
+            end
+        end
 
         # The data header for the current sample. You can store a copy of this
         # header to retrieve data later on with #data:
@@ -94,18 +94,18 @@ module Pocolog
         #   stored_header = stream.data_header.dup
         #   ...
         #   data = stream.data(stored_header)
-	def data_header; logfile.data_header end
+        def data_header; logfile.data_header end
 
-	# The size, in samples, of data in this stream
-	def size; info.size end
+        # The size, in samples, of data in this stream
+        def size; info.size end
 
         # True if we read past the last sample
         def eof?; size == sample_index end
         # True if the size of this stream is zero
         def empty?; size == 0 end
 
-	# True if this data stream has a Typelib::Registry object associated
-	def has_type?; !marshalled_registry.empty? end
+        # True if this data stream has a Typelib::Registry object associated
+        def has_type?; !marshalled_registry.empty? end
 
         # Reload the registry. Can be useful if new convertions have been added
         # to the Typelib system
@@ -115,14 +115,14 @@ module Pocolog
             registry
         end
 
-	# Get the Typelib::Registry object for this stream
-	def registry
-	    if !@registry
-		@registry = logfile.registry || Typelib::Registry.new
+        # Get the Typelib::Registry object for this stream
+        def registry
+            if !@registry
+                @registry = logfile.registry || Typelib::Registry.new
 
-		stream_registry = Typelib::Registry.new
+                stream_registry = Typelib::Registry.new
 
-		if has_type?
+                if has_type?
                     begin
                         stream_registry.merge_xml(marshalled_registry)
                     rescue ArgumentError
@@ -150,56 +150,56 @@ module Pocolog
                             raise e, e.message + ". Are you mixing 32 and 64 bit data ?", e.backtrace
                         end
                     end
-		end
-	    end
-	    @registry
-	end
+                end
+            end
+            @registry
+        end
 
-	# Get a Typelib object describing the type of this data stream
-	def type; @type ||= registry.get(typename) end
+        # Get a Typelib object describing the type of this data stream
+        def type; @type ||= registry.get(typename) end
 
-	#Returns the decoded subfield specified by 'fieldname'
-	#for the given data header. If no header is given, the
-	#current last read data header is used
-	def sub_field(fieldname, data_header = nil)
-	    header = data_header || logfile.data_header
-	    if( header.compressed )
-		data(data_header).send(fieldname)
-	    elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
-		offset = type.offset_of(fieldname)
-		subtype = type[fieldname]
-		rawData = logfile.sub_field(offset, subtype.size, data_header)
-		wrappedType = subtype.wrap(rawData)
-		rubyType = Typelib.to_ruby(wrappedType)
-		rubyType
-	    else
-		nil
-	    end
-	end
-	    
-	# Returns the decoded data sample associated with the given block
+        #Returns the decoded subfield specified by 'fieldname'
+        #for the given data header. If no header is given, the
+        #current last read data header is used
+        def sub_field(fieldname, data_header = nil)
+            header = data_header || logfile.data_header
+            if( header.compressed )
+                data(data_header).send(fieldname)
+            elsif(type.is_a?(Typelib::CompoundType) and type.has_field?(fieldname))
+                offset = type.offset_of(fieldname)
+                subtype = type[fieldname]
+                rawData = logfile.sub_field(offset, subtype.size, data_header)
+                wrappedType = subtype.wrap(rawData)
+                rubyType = Typelib.to_ruby(wrappedType)
+                rubyType
+            else
+                nil
+            end
+        end
+            
+        # Returns the decoded data sample associated with the given block
         # header.
         #
         # Block headers are returned by #rewind 
-	def raw_data(data_header = nil, sample = nil)
-	    if(@data && !data_header) then @data
-	    else
+        def raw_data(data_header = nil, sample = nil)
+            if(@data && !data_header) then @data
+            else
                 marshalled_data = logfile.data(data_header, @raw_data_buffer)
-		data = sample || type.new
+                data = sample || type.new
                 data.from_buffer_direct(marshalled_data)
-		if logfile.endian_swap
-		    data = data.endian_swap
-		end
+                if logfile.endian_swap
+                    data = data.endian_swap
+                end
                 data
-	    end
+            end
         rescue Interrupt
             raise
         rescue Exception => e
             raise e, "failed to unmarshal sample at #{(data_header || logfile.data_header).payload_pos}: #{e.message}", e.backtrace
-	end
+        end
 
         def read_one_raw_data_sample(position, sample = nil)
-	    rio, block_pos = stream_index.file_position_by_sample_number(position)
+            rio, block_pos = stream_index.file_position_by_sample_number(position)
             marshalled_data = logfile.read_one_data_payload(rio, block_pos, @raw_data_buffer)
             data = sample || type.new
             data.from_buffer_direct(marshalled_data)
@@ -227,24 +227,24 @@ module Pocolog
         # Returns nil if the stream is empty.
         #
         # It differs from #first as it does not decode the data payload.
-	def rewind
+        def rewind
             # The first sample in the file has index 0, so set sample_index to
             # -1 so that (@sample_index += 1) sets the index to 0 for the first
             # sample
             @sample_index = -1
             nil
-	end
+        end
 
         # call-seq:
         #   first => [time_rt, time_lg, data]
         #
-	# Returns the first sample in the stream, or nil if the stream is empty
+        # Returns the first sample in the stream, or nil if the stream is empty
         #
         # It differs from #rewind as it always decodes the data payload.
         #
         # After a call to #first, #sample_index is 0
-	def first
-	    rewind
+        def first
+            rewind
             self.next
         end
 
@@ -271,59 +271,59 @@ module Pocolog
         #
         # Returns [rt, lg, data] for the current sample (if there is one), and
         # nil otherwise
-	def seek(pos, decode_data = true)
-	    if pos.kind_of?(Time)
+        def seek(pos, decode_data = true)
+            if pos.kind_of?(Time)
                 return nil if(time_interval.empty? || time_interval[0] > pos || time_interval[1] < pos)
-		@sample_index = stream_index.sample_number_by_time(pos)
-	    else
-		@sample_index = pos
-	    end
+                @sample_index = stream_index.sample_number_by_time(pos)
+            else
+                @sample_index = pos
+            end
 
-	    rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
-	    block_info = logfile.read_one_block(file_pos, rio)
+            rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
+            block_info = logfile.read_one_block(file_pos, rio)
             if block_info.index != self.index
                 raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.index).name} while we were expecting #{name}"
             end
             if header = self.data_header
                 header = header.dup
 
-		if(decode_data)
-		    data = self.data(header)
-		    return [header.rt, Time.at(header.lg - logfile.time_base), data]
-		else
-		    header
-		end
+                if(decode_data)
+                    data = self.data(header)
+                    return [header.rt, Time.at(header.lg - logfile.time_base), data]
+                else
+                    header
+                end
             end
-	end
+        end
 
         # Reads the next sample in the file, and returns its header. Returns nil
         # if the end of file has been reached. Unlike +next+, it does not
         # decodes the data payload.
-	def advance
+        def advance
             if sample_index < size-1
                 @sample_index += 1
-		rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
-		logfile.read_one_block(file_pos, rio)
-		return logfile.data_header
+                rio, file_pos = stream_index.file_position_by_sample_number(@sample_index)
+                logfile.read_one_block(file_pos, rio)
+                return logfile.data_header
             else
                 @sample_index = size
             end
-	    nil
-	end
+            nil
+        end
 
-	# call-seq:
+        # call-seq:
         #   next => [time_rt, time_lg, data]
         #
         # Reads the next sample in the file, and returns it. It differs from
         # +advance+ as it always decodes the data sample.
-	def next
-	    header = advance
+        def next
+            header = advance
             if(header) 
               return [header.rt, Time.at(header.lg - logfile.time_base), data]
             end
-	end
+        end
 
-	# call-seq:
+        # call-seq:
         #   previous => [time_rt, time_lg, data]
         #
         # Reads the previous sample in the file, and returns it.
@@ -340,7 +340,7 @@ module Pocolog
             end
         end
 
-	# call-seq:
+        # call-seq:
         #   copy_to(index1,index2,stream) => true 
         #   copy_to(time1,time2,stream) => true 
         #
@@ -397,7 +397,7 @@ module Pocolog
             counter
         end
 
-	# call-seq:
+        # call-seq:
         #   samples?(pos1,pos2) => true 
         #   samples?(time1,time2) => true 
         #
@@ -416,59 +416,59 @@ module Pocolog
     # Sample enumerators are nicer interfaces for data reading built on top of a DataStream
     # object
     class SampleEnumerator
-	include Enumerable
+        include Enumerable
 
-	attr_accessor :use_rt
-	attr_accessor :min_time,  :max_time,  :every_time
-	attr_accessor :min_index, :max_index, :every_index
-	attr_accessor :max_count
-	def setvar(name, val)
-	    time, index = case val
-			  when Integer then [nil, val]
-			  when Time then [val, nil] 
-			  end
+        attr_accessor :use_rt
+        attr_accessor :min_time,  :max_time,  :every_time
+        attr_accessor :min_index, :max_index, :every_index
+        attr_accessor :max_count
+        def setvar(name, val)
+            time, index = case val
+                          when Integer then [nil, val]
+                          when Time then [val, nil] 
+                          end
 
-	    send("#{name}_time=", time)
-	    send("#{name}_index=", index)
-	end
+            send("#{name}_time=", time)
+            send("#{name}_index=", index)
+        end
 
-	attr_reader :stream, :read_data
-	def initialize(stream, read_data)
-	    @stream = stream 
-	    @read_data = read_data
-	end
-	def every(interval)
-	    setvar('every', interval) 
-	    self
-	end
-	def from(from);
-	    setvar("min", from)
-	    self
-	end
-	def to(to)
-	    setvar("max", to)
-	    self
-	end
-	def between(from, to)
-	    self.from(from)
-	    self.to(to)
-	end
-	def at(pos)
-	    from(pos) 
-	    max(1)
-	end
+        attr_reader :stream, :read_data
+        def initialize(stream, read_data)
+            @stream = stream 
+            @read_data = read_data
+        end
+        def every(interval)
+            setvar('every', interval) 
+            self
+        end
+        def from(from);
+            setvar("min", from)
+            self
+        end
+        def to(to)
+            setvar("max", to)
+            self
+        end
+        def between(from, to)
+            self.from(from)
+            self.to(to)
+        end
+        def at(pos)
+            from(pos) 
+            max(1)
+        end
 
-	def realtime(use_rt = true)
-	    @use_rt = use_rt 
-	    self
-	end
-	def max(count)
-	    @max_count = count
-	    self
-	end
+        def realtime(use_rt = true)
+            @use_rt = use_rt 
+            self
+        end
+        def max(count)
+            @max_count = count
+            self
+        end
 
-	attr_accessor :next_sample
-	attr_accessor :sample_count
+        attr_accessor :next_sample
+        attr_accessor :sample_count
 
         def each(&block)
             raw_each do |rt, lg, raw_data|
@@ -476,11 +476,11 @@ module Pocolog
             end
         end
 
-	def raw_each(&block)
-	    self.sample_count = 0
-	    self.next_sample = nil
+        def raw_each(&block)
+            self.sample_count = 0
+            self.next_sample = nil
 
-	    last_data_block = nil
+            last_data_block = nil
 
             min_index = self.min_index
             min_time  = self.min_time
@@ -492,58 +492,58 @@ module Pocolog
                     stream.seek(min_index || min_time)
                 end
             end
-	    stream.each_block(!(min_index || min_time)) do
+            stream.each_block(!(min_index || min_time)) do
                 sample_index = stream.sample_index
-		return self if max_index && max_index < sample_index
-		return self if max_count && max_count <= sample_count
+                return self if max_index && max_index < sample_index
+                return self if max_count && max_count <= sample_count
 
-		rt, lg = stream.time
-		sample_time = if use_rt then rt
-			      else lg
-			      end
+                rt, lg = stream.time
+                sample_time = if use_rt then rt
+                              else lg
+                              end
 
-		if min_time
-		    if sample_time < min_time
-			last_data_block = stream.data_header.dup
-			next
-		    elsif last_data_block
-			last_data_time = if use_rt then last_data_block.rt
-					 else last_data_block.lg
-					 end
-			yield_sample(last_data_time, sample_index - 1, last_data_block, &block)
-			last_data_block = nil
-		    end
-		end
-		return self if max_time && max_time < sample_time
+                if min_time
+                    if sample_time < min_time
+                        last_data_block = stream.data_header.dup
+                        next
+                    elsif last_data_block
+                        last_data_time = if use_rt then last_data_block.rt
+                                         else last_data_block.lg
+                                         end
+                        yield_sample(last_data_time, sample_index - 1, last_data_block, &block)
+                        last_data_block = nil
+                    end
+                end
+                return self if max_time && max_time < sample_time
 
-		yield_sample(sample_time, sample_index, stream.data_header, &block)
-	    end
-	    self
-	end
+                yield_sample(sample_time, sample_index, stream.data_header, &block)
+            end
+            self
+        end
 
-	# Yield the given sample if required by our configuration
-	def yield_sample(sample_time, sample_index, data_block = nil)
-	    do_display = !next_sample
-	    if every_time 
-		self.next_sample ||= sample_time
-		while self.next_sample <= sample_time
-		    do_display = true
-		    self.next_sample += every_time.to_f
-		end
-	    elsif every_index
-		self.next_sample ||= sample_index
-		if self.next_sample <= sample_index
-		    do_display = true
-		    self.next_sample += every_index
-		end
-	    end
+        # Yield the given sample if required by our configuration
+        def yield_sample(sample_time, sample_index, data_block = nil)
+            do_display = !next_sample
+            if every_time 
+                self.next_sample ||= sample_time
+                while self.next_sample <= sample_time
+                    do_display = true
+                    self.next_sample += every_time.to_f
+                end
+            elsif every_index
+                self.next_sample ||= sample_index
+                if self.next_sample <= sample_index
+                    do_display = true
+                    self.next_sample += every_index
+                end
+            end
 
-	    if do_display
-		self.sample_count += 1
-		yield(data_block.rt, data_block.lg, (stream.raw_data(data_block) if read_data))
-		last_data_block = nil
-	    end
-	end
+            if do_display
+                self.sample_count += 1
+                yield(data_block.rt, data_block.lg, (stream.raw_data(data_block) if read_data))
+                last_data_block = nil
+            end
+        end
     end
 end
 
