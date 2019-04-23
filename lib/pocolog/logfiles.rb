@@ -41,6 +41,9 @@ module Pocolog
         BLOCK_HEADER_SIZE = Format::Current::BLOCK_HEADER_SIZE
         TIME_SIZE         = Format::Current::TIME_SIZE
 
+        # For backward compatibility
+        MissingPrologue = Pocolog::MissingPrologue
+
         # Data blocks of less than COMPRESSION_MIN_SIZE are never compressed
         COMPRESSION_MIN_SIZE = 60 * 1024
         # If the size gained by compressing is below this value, do not save in
