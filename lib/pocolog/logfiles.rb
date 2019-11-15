@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'utilrb/module/attr_predicate'
 require 'yaml'
 require 'fileutils'
@@ -60,7 +62,9 @@ module Pocolog
 
         # Whether the endianness of the data stored in the file matches the
         # host's (false) or not (true)
-        def endian_swap; big_endian? ^ Pocolog.big_endian? end
+        def endian_swap
+            big_endian? ^ Pocolog.big_endian?
+        end
 
         # Returns true if +file+ is a valid, up-to-date, pocolog file
         def self.valid_file?(file)
@@ -94,11 +98,9 @@ module Pocolog
         # logfile's types do not match the type definitions found in the
         # registry.
         def initialize(*io, write_only: false, index_dir: nil, silent: false)
-            if io.last.kind_of?(Typelib::Registry)
-                @registry = io.pop
-            end
+            @registry = io.pop if io.last.kind_of?(Typelib::Registry)
 
-            @path = io.first.path if !io.empty?
+            @path = io.first.path unless io.empty?
             @io =
                 if io.size == 1
                     io.first
@@ -109,14 +111,15 @@ module Pocolog
             @big_endian = block_stream.big_endian?
 
             @data = nil
-            @streams     = nil
-            @compress    = false
-            @data_header_buffer = ""
-            if !write_only
-                @streams = load_stream_info(io, index_dir: index_dir, silent: silent)
-            else
-                @streams = Array.new
-            end
+            @streams = nil
+            @compress = false
+            @data_header_buffer = ''
+            @streams =
+                if write_only
+                    []
+                else
+                    load_stream_info(io, index_dir: index_dir, silent: silent)
+                end
         end
 
         attr_reader :path
@@ -172,7 +175,9 @@ module Pocolog
             io = File.new(name, 'w+')
             Format::Current.write_prologue(io)
             streams.each_with_index do |s, i|
-                Logfiles.write_stream_declaration(io, i, s.name, s.type.name, s.type.to_xml, s.metadata)
+                Logfiles.write_stream_declaration(
+                    io, i, s.name, s.type.name, s.type.to_xml, s.metadata
+                )
             end
             if num_io == 0
                 @io = io
@@ -186,11 +191,12 @@ module Pocolog
 
         # Opens a set of file. +pattern+ can be a globbing pattern, in which
         # case all the matching files will be opened as a log sequence
-        def self.open(pattern, registry = Typelib::Registry.new, index_dir: nil, silent: false)
+        def self.open(
+            pattern, registry = Typelib::Registry.new,
+            index_dir: nil, silent: false
+        )
             io = Dir.enum_for(:glob, pattern).sort.map { |name| File.open(name) }
-            if io.empty?
-                raise ArgumentError, "no files matching '#{pattern}'"
-            end
+            raise ArgumentError, "no files matching '#{pattern}'" if io.empty?
 
             new(*io, registry, index_dir: index_dir, silent: silent)
         end
@@ -218,9 +224,7 @@ module Pocolog
                 i += 1
             end
 
-            if io.empty?
-                return create(basename)
-            end
+            return create(basename) if io.empty?
 
             file = Logfiles.new(*io)
             file.basename = basename
@@ -230,9 +234,9 @@ module Pocolog
         def initialize_copy(from) # :nodoc:
             super
 
-            @io          = from.io.dup
+            @io = from.io.dup
             @block_stream = BlockStream.new(@io)
-            @registry    = from.registry.dup
+            @registry = from.registry.dup
         end
 
         # Returns the default index file for a given file
@@ -243,7 +247,9 @@ module Pocolog
             index_filename = File.basename(path).gsub(/\.log$/, '.idx')
             index_path = File.join(index_dir, index_filename)
             if index_path == path
-                raise ArgumentError, "#{path} does not end in .log, cannot generate a default index name for it"
+                raise ArgumentError,
+                      "#{path} does not end in .log, cannot generate a "\
+                      'default index name for it'
             end
             index_path
         end
@@ -254,12 +260,16 @@ module Pocolog
         # @return [Array<DataStream,nil>]
         def load_stream_info(ios, index_dir: nil, silent: false)
             per_file_stream_info = ios.map do |single_io|
-                load_stream_info_from_file(single_io, index_dir: (index_dir || File.dirname(single_io)), silent: silent)
+                load_stream_info_from_file(
+                    single_io,
+                    index_dir: (index_dir || File.dirname(single_io)),
+                    silent: silent
+                )
             end
             stream_count = per_file_stream_info.map(&:size).max || 0
             per_stream = ([nil] * stream_count).zip(*per_file_stream_info)
 
-            streams = Array.new
+            streams = []
             per_stream.each_with_index do |stream_info, stream_index|
                 combined_info = StreamInfo.new
                 file_pos_offset = 0
@@ -268,15 +278,14 @@ module Pocolog
                 stream_info.shift
                 stream_info.each_with_index do |(block, info), file_index|
                     stream_block ||= block
-                    if info
-                        combined_info.concat(info, file_pos_offset)
-                    end
+                    combined_info.concat(info, file_pos_offset) if info
                     file_pos_offset += ios[file_index].size
                 end
 
                 if stream_block
                     streams[stream_index] =
-                        DataStream.new(self, stream_index, stream_block.name, stream_block.type,
+                        DataStream.new(self, stream_index, stream_block.name,
+                                       stream_block.type,
                                        stream_block.metadata, combined_info)
                 end
             end
@@ -288,20 +297,27 @@ module Pocolog
         # @param [File] io the file. It must be a single file
         # @return [Array<StreamInfo>] list of
         #   streams in the given file
-        def load_stream_info_from_file(io, index_dir: File.dirname(io.path), silent: false)
-            index_filename = self.class.default_index_filename(io.path, index_dir: index_dir)
+        def load_stream_info_from_file(
+            io, index_dir: File.dirname(io.path), silent: false
+        )
+            index_filename =
+                self.class.default_index_filename(io.path, index_dir: index_dir)
             if File.exist?(index_filename)
-                Pocolog.info "loading file info from #{index_filename}... " if !silent
+                Pocolog.info "loading file info from #{index_filename}... " unless silent
                 begin
                     streams_info = File.open(index_filename) do |index_io|
-                        Format::Current.read_index(index_io, expected_file_size: io.size, expected_mtime: nil)
+                        Format::Current.read_index(
+                            index_io, expected_file_size: io.size, expected_mtime: nil
+                        )
                     end
                     return initialize_from_stream_info(io, streams_info)
                 rescue InvalidIndex => e
-                    Pocolog.warn "invalid index file #{index_filename}: #{e.message}" if !silent
+                    unless silent
+                        Pocolog.warn "invalid index file #{index_filename}: #{e.message}"
+                    end
                 end
             end
-            return rebuild_and_load_index(io, index_filename, silent: silent)
+            rebuild_and_load_index(io, index_filename, silent: silent)
         end
 
         # @api private
@@ -316,26 +332,33 @@ module Pocolog
 
                 block_header = block_stream.read_next_block_header
                 if block_header.kind != STREAM_BLOCK
-                    raise InvalidIndex, "invalid stream declaration position in index: block is not a stream declaration block"
+                    raise InvalidIndex,
+                          'invalid stream declaration position in index: block '\
+                          'is not a stream declaration block'
                 elsif block_header.stream_index != idx
-                    raise InvalidIndex, "invalid stream declaration position in index: stream index mismatch between block header (#{block_header.stream_index}) and expected index #{idx}"
+                    raise InvalidIndex,
+                          'invalid stream declaration position in index: '\
+                          'stream index mismatch between block header '\
+                          "(#{block_header.stream_index}) and expected index #{idx}"
                 end
                 stream_block = block_stream.read_stream_block
 
                 # Read the stream declaration block and then update the
                 # info attribute of the stream object
-                if !info.empty?
+                unless info.empty?
                     pos = info.interval_io[0]
                     block_stream.seek(pos)
                     block_info = block_stream.read_next_block_header
                     if block_info.kind != DATA_BLOCK
-                        raise InvalidIndex, "invalid stream interval_io in index "\
-                            "for stream #{idx}: expected first block at #{pos}, but this "\
-                            "is not a data block"
+                        raise InvalidIndex,
+                              'invalid stream interval_io in index '\
+                              "for stream #{idx}: expected first block at #{pos}, "\
+                              'but this is not a data block'
                     elsif block_info.stream_index != idx
-                        raise InvalidIndex, "invalid stream interval_io in index "\
-                            "for stream #{idx}: first block at #{pos} found, but it "\
-                            "is a block of stream #{block_info.stream_index}"
+                        raise InvalidIndex,
+                              'invalid stream interval_io in index '\
+                              "for stream #{idx}: first block at #{pos} found, "\
+                              "but it is a block of stream #{block_info.stream_index}"
                     end
                 end
 
@@ -345,13 +368,14 @@ module Pocolog
 
         # Go through the whole file to extract index information, and write the
         # index file
-        def rebuild_and_load_index(io, index_path = self.class.default_index_filename(io), silent: false)
+        def rebuild_and_load_index(io, index_path = self.class.default_index_filename(io),
+                                   silent: false)
             # No index file. Compute it.
-            Pocolog.info "building index #{io.path} ..." if !silent
+            Pocolog.info "building index #{io.path} ..." unless silent
             io.rewind
             stream_info = Format::Current.rebuild_index_file(io, index_path)
             io.rewind
-            Pocolog.info "done" if !silent
+            Pocolog.info 'done' unless silent
             initialize_from_stream_info(io, stream_info)
         end
 
@@ -398,10 +422,12 @@ module Pocolog
         #   [do something, including reading the file]
         #   data  = file.data(block)
         def data_header
-            if !@data_header
+            unless @data_header
                 raw_header = block_stream.read_data_block_header
                 h = DataHeader.new(
-                    raw_header.rt_time, raw_header.lg_time, raw_header.data_size, raw_header.compressed?)
+                    raw_header.rt_time, raw_header.lg_time,
+                    raw_header.data_size, raw_header.compressed?
+                )
                 h.block_pos   = @block_pos
                 h.payload_pos = block_stream.tell
                 @data_header = h
@@ -411,47 +437,45 @@ module Pocolog
 
         def sub_field(offset, size, data_header = self.data_header)
             if data_header.compressed
-                raise "field access on compressed files is unsupported"
+                raise 'field access on compressed files is unsupported'
             end
+
             block_stream.seek(data_header.payload_pos + offset)
             block_stream.read(size)
         end
 
         # Returns the raw data payload of the current block
         def data(data_header = nil)
-            if @data && !data_header then @data
-            else
-                data_header ||= self.data_header
-                block_stream.seek(data_header.payload_pos)
-                data = block_stream.read(data_header.data_size)
-                if data_header.compressed?
-                    # Payload is compressed
-                    data = Zlib::Inflate.inflate(data)
-                end
-                if !data_header
-                    @data = data
-                end
-                data
+            return @data if @data && !data_header
+
+            data_header ||= self.data_header
+            block_stream.seek(data_header.payload_pos)
+            data = block_stream.read(data_header.data_size)
+            if data_header.compressed?
+                # Payload is compressed
+                data = Zlib::Inflate.inflate(data)
             end
+            @data = data unless data_header
+            data
         end
 
         # Formats a block and writes it to +io+
         def self.write_block(wio, type, index, payload)
             wio.write [type, index, payload.size].pack('CxvV')
             wio.write payload
-            return wio
+            wio
         end
 
         # Write a raw block. +type+ is the block type (either CONTROL_BLOCK,
         # DATA_BLOCK or STREAM_BLOCK), +index+ the stream index for stream and
         # data blocks and the control block type for control blocs. +payload+ is
         # the block's payload.
-        def write_block(type,index,payload)
-            return Logfiles.write_block(io,type,index,payload)
+        def write_block(type, index, payload)
+            Logfiles.write_block(io, type, index, payload)
         end
 
         def self.normalize_metadata(metadata)
-            result = Hash.new
+            result = {}
             metadata.each do |k, v|
                 result[k.to_str] = v
             end
@@ -459,29 +483,30 @@ module Pocolog
         end
 
         # Encodes and writes a stream declaration block to +wio+
-        def self.write_stream_declaration(wio, index, name, type_name, type_registry = nil, metadata = Hash.new)
+        def self.write_stream_declaration(
+            wio, index, name, type_name, type_registry = nil, metadata = {}
+        )
             if type_name.respond_to?(:name)
                 type_registry ||= type_name.registry.minimal(type_name.name).to_xml
-                type_name  = type_name.name
+                type_name = type_name.name
             end
 
             metadata = normalize_metadata(metadata)
             metadata = YAML.dump(metadata)
-            payload = [DATA_STREAM, name.size, name,
+            payload = [
+                DATA_STREAM, name.size, name,
                 type_name.size, type_name,
                 type_registry.size, type_registry,
                 metadata.size, metadata
-            ].pack("CVa#{name.size}Va#{type_name.size}Va#{type_registry.size}Va#{metadata.size}")
+            ].pack("CVa#{name.size}Va#{type_name.size}"\
+                   "Va#{type_registry.size}Va#{metadata.size}")
             write_block(wio, STREAM_BLOCK, index, payload)
         end
 
         # Returns all streams of the given type. The type can be given by its
         # name or through a Typelib::Type subclass
         def streams_from_type(type)
-            if type.respond_to?(:name)
-                type = type.name
-            end
-
+            type = type.name if type.respond_to?(:name)
             streams.find_all { |s| s.type.name == type }
         end
 
@@ -492,9 +517,11 @@ module Pocolog
         def stream_from_type(type)
             matches = streams_from_type(type)
             if matches.empty?
-                raise ArgumentError, "there is no stream in this file with the required type"
+                raise ArgumentError,
+                      'there is no stream in this file with the required type'
             elsif matches.size > 1
-                raise ArgumentError, "there is more than one stream in this file with the required type"
+                raise ArgumentError,
+                      'there is more than one stream in this file with the required type'
             else
                 return matches.first
             end
@@ -502,17 +529,17 @@ module Pocolog
 
         # Explicitely creates a new stream named +name+, of the given type and
         # metadata
-        def create_stream(name, type, metadata = Hash.new)
-            if type.respond_to?(:to_str)
-                type = registry.get(type)
-            end
+        def create_stream(name, type, metadata = {})
+            type = registry.get(type) if type.respond_to?(:to_str)
 
             registry = type.registry.minimal(type.name).to_xml
 
-            @streams ||= Array.new
+            @streams ||= []
             new_index = @streams.size
             pos = io.tell
-            Logfiles.write_stream_declaration(io, new_index, name, type.name, registry, metadata)
+            Logfiles.write_stream_declaration(
+                io, new_index, name, type.name, registry, metadata
+            )
 
             stream = DataStream.new(self, new_index, name, type, metadata)
             stream.info.declaration_blocks << pos
@@ -526,20 +553,28 @@ module Pocolog
         # If +create+ is false, raises ArgumentError if the stream does not
         # exist.
         def stream(name, type = nil, create = false)
-            if matching_stream = streams.find { |s| s.name == name }
-                return matching_stream
+            if (matching_stream = streams.find { |s| s.name == name })
+                matching_stream
             elsif !type || !create
                 raise ArgumentError, "no such stream #{name}"
             else
-                Pocolog.warn_deprecated "the 'create' flag of #stream is deprecated, use #create_stream directly instead"
+                Pocolog.warn_deprecated(
+                    'the "create" flag of #stream is deprecated, '\
+                    'use #create_stream directly instead'
+                )
                 create_stream(name, type)
             end
         end
 
+        # Enumerate this file's streams
+        def each_stream(&block)
+            streams.each(&block)
+        end
+
         # Returns true if +name+ is the name of an existing stream
         def has_stream?(name)
-            !!stream(name)
-        rescue ArgumentError
+            stream(name)
+        rescue ArgumentError # rubocop:disable Lint/HandleExceptions
         end
 
         # Creates a JointStream object on the streams whose names are given.
@@ -558,13 +593,15 @@ module Pocolog
         DATA_BLOCK_HEADER_FORMAT = "VVx#{TIME_PADDING}VVx#{TIME_PADDING}VC"
 
         def self.write_data_block(io, stream_index, rt, lg, compress, data)
-            if rt.kind_of?(Time)
-                payload = [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
-                    data.length, compress, data]
-            else
-                payload = [rt / 1_000_000, rt % 1_000_000, lg / 1_000_000, lg % 1_000_000,
-                           data.length, compress, data]
-            end
+            payload =
+                if rt.kind_of?(Time)
+                    [rt.tv_sec, rt.tv_usec, lg.tv_sec, lg.tv_usec,
+                     data.length, compress, data]
+                else
+                    [rt / 1_000_000, rt % 1_000_000,
+                     lg / 1_000_000, lg % 1_000_000,
+                     data.length, compress, data]
+                end
             payload = payload.pack("#{DATA_BLOCK_HEADER_FORMAT}a#{data.size}")
             write_block(io, DATA_BLOCK, stream_index, payload)
         end
@@ -575,7 +612,6 @@ module Pocolog
         def write_data_block(stream, rt, lg, data) # :nodoc:
             compress = 0
             if compress? && data.size > COMPRESSION_MIN_SIZE
-                raise
                 data = Zlib::Deflate.deflate(data)
                 compress = 1
             end
@@ -595,4 +631,3 @@ module Pocolog
         file.stream(stream_name)
     end
 end
-

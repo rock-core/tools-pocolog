@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pocolog/format/v2'
 
 module Pocolog

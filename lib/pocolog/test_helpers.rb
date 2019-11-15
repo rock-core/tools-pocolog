@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'tmpdir'
 require 'pocolog'
 
@@ -40,10 +42,13 @@ module Pocolog
             end
             @__current_logfile = Pocolog::Logfiles.create(path)
 
-            if block_given?
-                begin yield
-                ensure close_logfile
-                end
+            return path unless block_given?
+
+            begin
+                yield
+                path
+            ensure
+                close_logfile
             end
         end
 
@@ -53,15 +58,19 @@ module Pocolog
 
         # Close the current logfile (either created or opened)
         def close_logfile
-            if @__current_logfile
-                @__current_logfile.close
-                logfile, @__current_logfile = @__current_logfile, nil
-                logfile
-            end
+            return unless @__current_logfile
+
+            @__current_logfile.close
+            logfile = @__current_logfile
+            @__current_logfile = nil
+            logfile
         end
 
         # Create a stream on the last created logfile
-        def create_logfile_stream(name, samples_rt = Array.new, samples_lg = Array.new, samples_value = Array.new, type: int32_t, metadata: Hash.new)
+        def create_logfile_stream(
+            name, samples_rt = [], samples_lg = [], samples_value = [],
+            type: int32_t, metadata: {}
+        )
             stream = @__current_logfile.create_stream(name, type, metadata)
             samples_rt.zip(samples_lg, samples_value).each do |rt, lg, v|
                 stream.write(rt, lg, v)
@@ -76,9 +85,7 @@ module Pocolog
 
         # Open an existing logfile
         def open_logfile(path, index_dir: nil, close_current: true)
-            if @__current_logfile
-                close_logfile
-            end
+            close_logfile if @__current_logfile && close_current
 
             logfile = Pocolog::Logfiles.open(logfile_path(path), index_dir: index_dir)
             if block_given?
@@ -90,9 +97,10 @@ module Pocolog
             end
         end
 
-        def open_logfile_stream(basename, stream_name, close_current: true, index_dir: nil)
-            open_logfile(basename, close_current: close_current, index_dir: index_dir).
-                stream(stream_name)
+        def open_logfile_stream(basename, stream_name,
+                                close_current: true, index_dir: nil)
+            open_logfile(basename, close_current: close_current, index_dir: index_dir)
+                .stream(stream_name)
         end
 
         def logfiles_dir

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pastel'
 require 'tty-progressbar'
 
@@ -53,19 +55,19 @@ module Pocolog
             end
 
             def title(msg)
-                log(c_title.(msg))
+                log(c_title.call(msg))
             end
 
             def info(msg)
-                log(c_info.(msg))
+                log(c_info.call(msg))
             end
 
             def warn(msg)
-                log(c_warn.(msg))
+                log(c_warn.call(msg))
             end
 
             def error(msg)
-                log(c_error.(msg))
+                log(c_error.call(msg))
             end
 
             def finish
@@ -74,4 +76,3 @@ module Pocolog
         end
     end
 end
-

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Pocolog
     # Raw stream information gathered while passing through a log file, to build
     # an index
@@ -23,13 +25,14 @@ module Pocolog
         # The first pass extracts information from the file itself, but
         # avoiding as much tests-in-the-loop as possible. This array
         # therefore only stores the declaration block and index map
-        raw_stream_info = Array.new
+        raw_stream_info = []
         block_pos = block_stream.tell
-        while block = block_stream.read_next_block_header
+        while (block = block_stream.read_next_block_header)
             stream_index = block.stream_index
 
             if block.kind == STREAM_BLOCK
-                raw_stream_info[stream_index] = IndexBuilderStreamInfo.new(block_pos, Array.new)
+                raw_stream_info[stream_index] =
+                    IndexBuilderStreamInfo.new(block_pos, [])
             elsif block.kind == DATA_BLOCK
                 data_block = block_stream.read_data_block_header
                 index_map  = raw_stream_info[stream_index].index_map
@@ -49,13 +52,13 @@ module Pocolog
     # @return [Array<StreamInfo,nil>]
     def self.create_index_from_raw_info(block_stream, raw_info)
         raw_info.map do |stream_info|
-            next if !stream_info
+            next unless stream_info
 
             index_map = stream_info.index_map
-            interval_rt = Array.new
+            interval_rt = []
             base_time = nil
             # Read the realtime of the first and last samples
-            if !index_map.empty?
+            unless index_map.empty?
                 block_stream.seek(index_map.first)
                 block_stream.read_next_block_header
                 first_block = block_stream.read_data_block_header
@@ -72,7 +75,10 @@ module Pocolog
                     [block_pos, lg_time - base_time, sample_index]
                 end
             end
-            StreamInfo.from_raw_data(stream_info.stream_block_pos, interval_rt, base_time, index_map)
+            StreamInfo.from_raw_data(
+                stream_info.stream_block_pos,
+                interval_rt, base_time, index_map
+            )
         end
     end
 end
