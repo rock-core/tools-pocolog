@@ -3,24 +3,11 @@
 # frozen_string_literal: true
 
 require 'pocolog'
+require 'pocolog/repair'
+require 'pocolog/cli/tty_reporter'
 
+reporter = Pocolog::CLI::TTYReporter.new("[:bar]", total: 0)
 ARGV.each do |path|
-    file = Pocolog::Logfiles.open(path)
-    current_pos = 0
-    begin
-        while !file.eof?
-            current_pos = file.rio.tell
-            if block_info  = file.read_one_block
-                if block_info.type == Pocolog::DATA_BLOCK
-                    file.validate_data_block
-                end
-            end
-        end
-    rescue Pocolog::InvalidFile => e
-        puts "#{path}: broken at position #{current_pos}"
-        puts "  copying the current file as #{path}.broken"
-        FileUtils.cp path, "#{path}.broken"
-        puts "  truncating the existing file"
-        File.open(path, 'a') { |io| io.truncate(current_pos) }
-    end
+    reporter.info "Processing #{path} ..."
+    Pocolog.repair_file(path, reporter: reporter)
 end

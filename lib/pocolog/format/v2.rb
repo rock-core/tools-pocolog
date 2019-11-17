@@ -47,18 +47,15 @@ module Pocolog
             #   tells whether the file's data is encoded as big or little endian
             def self.read_prologue(io, validate_version: true)
                 header = io.read(PROLOGUE_SIZE) || ''
+                if !header || (header.size < PROLOGUE_SIZE)
+                    raise MissingPrologue, "#{io.path} too small"
+                end
+
                 magic = header[0, MAGIC.size]
-
                 if magic != MAGIC
-                    message =
-                        if magic
-                            "#{io.path} is not a pocolog log file. "\
-                            "Got #{magic} at #{io.tell}, but was expecting #{MAGIC}"
-                        else
-                            "#{io.path} is empty"
-                        end
-
-                    raise MissingPrologue, message
+                    raise MissingPrologue,
+                          "#{io.path} is not a pocolog log file. "\
+                          "Got #{magic} at #{io.tell}, but was expecting #{MAGIC}"
                 end
 
                 format_version, big_endian = header[MAGIC.size, 9].unpack('xVV')
@@ -142,7 +139,7 @@ module Pocolog
                 index_size, index_mtime = index_io.read(16).unpack('Q>Q>')
                 if expected_file_size && expected_file_size != index_size
                     raise InvalidIndex,
-                          "file size in index (#{file_size}) and actual file "\
+                          "file size in index (#{index_size}) and actual file "\
                           "size (#{expected_file_size}) mismatch"
                 end
                 if expected_mtime
