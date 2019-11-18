@@ -146,7 +146,7 @@ class TC_DataStream < Minitest::Test
 
         stream.seek(10)
         assert_equal 0, stream.first[2]
-        assert_equal nil, stream.previous
+        assert_nil stream.previous
         assert_equal 0, stream.next[2]
     end
 
@@ -158,7 +158,7 @@ class TC_DataStream < Minitest::Test
 
         stream.seek(10)
         assert_equal 99, stream.last[2]
-        assert_equal nil, stream.next
+        assert_nil stream.next
         assert_equal 99, stream.previous[2]
     end
 
@@ -179,7 +179,7 @@ class TC_DataStream < Minitest::Test
         stream_output2 = output.create_stream("test2",stream.type)
         stream_output3 = output.create_stream("test3",stream.type)
 
-        #copy samples according to the given intervals 
+        #copy samples according to the given intervals
         stream.copy_to(0,120,stream_output1)
         stream.copy_to(20,30,stream_output2)
         stream.copy_to(Time.at(10*100),Time.at(30*100),stream_output3)
@@ -190,7 +190,7 @@ class TC_DataStream < Minitest::Test
         assert_equal(100,logfile.stream("test1").size)
         assert_equal(10,logfile.stream("test2").size)
         assert_equal(20,logfile.stream("test3").size)
-        
+
         test3_stream = logfile.stream("test3")
         while(data = test3_stream.next)
             assert_equal expected_data[test3_stream.sample_index+10], data[2]

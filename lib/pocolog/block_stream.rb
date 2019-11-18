@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Pocolog
     # Enumeration of blocks in a pocolog-compatible stream
     class BlockStream
@@ -38,7 +40,7 @@ module Pocolog
 
         # Create a {BlockStream} object to sequentially interpret a stream of data
         def initialize(io, buffer_read: DEFAULT_BUFFER_READ)
-            @io  = io
+            @io = io
             @big_endian = nil
             @native_endian = nil
             @payload_size = 0
@@ -89,6 +91,11 @@ module Pocolog
             io.close
         end
 
+        # Move to the beginning of the stream
+        def rewind
+            seek(0)
+        end
+
         # Seek to the current raw position in the IO
         #
         # The new position is assumed to be at the start of a block
@@ -102,18 +109,18 @@ module Pocolog
         #
         # Read bytes
         def read(size)
-            if data = @buffer_io.read(size)
-                remaining = (size - data.size)
-            else
-                remaining = size
-            end
-            if remaining > 0
-                @buffer_io = StringIO.new(io.read([buffer_read, remaining].max) || "")
-                if buffer_data = @buffer_io.read(remaining)
-                    (data || "") + buffer_data
+            remaining =
+                if (data = @buffer_io.read(size))
+                    (size - data.size)
                 else
-                    data
+                    size
                 end
+
+            return data if remaining == 0
+
+            @buffer_io = StringIO.new(io.read([buffer_read, remaining].max) || '')
+            if (buffer_data = @buffer_io.read(remaining))
+                (data || '') + buffer_data
             else
                 data
             end
@@ -141,23 +148,21 @@ module Pocolog
         end
 
         def self.read_block_header(io, pos = nil)
-            if pos
-                io.seek(pos, IO::SEEK_SET)
-            end
+            io.seek(pos, IO::SEEK_SET) if pos
             BlockHeader.parse(io.read(BLOCK_HEADER_SIZE))
         end
 
         # Read the header of the next block
         def read_next_block_header
-            if @payload_size != 0
-                skip(@payload_size)
-            end
+            skip(@payload_size) if @payload_size != 0
 
             header = read(BLOCK_HEADER_SIZE)
-            if !header
-                return
-            elsif header.size != BLOCK_HEADER_SIZE
-                raise NotEnoughData, "truncated block header (got #{header.size} bytes, expected #{BLOCK_HEADER_SIZE})"
+            return unless header
+
+            if header.size != BLOCK_HEADER_SIZE
+                raise NotEnoughData,
+                      "truncated block header (got #{header.size} bytes, "\
+                      "expected #{BLOCK_HEADER_SIZE})"
             end
 
             block = BlockHeader.parse(header)
@@ -174,14 +179,16 @@ module Pocolog
 
             def self.read(raw_data, offset, count)
                 if raw_data.size < offset + count
-                    raise NotEnoughData, "expected stream block header to be at least of size #{offset + count}, but got only #{raw_data.size}"
+                    raise NotEnoughData,
+                          'expected stream block header to be at least of size '\
+                          "#{offset + count}, but got only #{raw_data.size}"
                 end
                 raw_data[offset, count]
             end
 
             def self.read_string(raw_data, offset)
                 size = read(raw_data, offset, 4).unpack('V').first
-                return read(raw_data, offset + 4, size), (offset + 4 + size)
+                [read(raw_data, offset + 4, size), (offset + 4 + size)]
             end
 
             def self.parse(raw_data)
@@ -200,15 +207,19 @@ module Pocolog
                     metadata_yaml = "--- {}\n"
                 end
                 if offset != raw_data.size
-                    raise InvalidBlockFound, "#{raw_data.size - offset} bytes unclaimed in stream declaration block"
+                    raise InvalidBlockFound,
+                          "#{raw_data.size - offset} bytes unclaimed in "\
+                          'stream declaration block'
                 end
 
                 new(name, typename, registry_xml, metadata_yaml)
             end
 
             def initialize(name, typename, registry_xml, metadata_yaml)
-                @name, @typename, @registry_xml, @metadata_yaml =
-                    name, typename, registry_xml, metadata_yaml
+                @name = name
+                @typename = typename
+                @registry_xml = registry_xml
+                @metadata_yaml = metadata_yaml
 
                 @type = nil
                 @metadata = nil
@@ -224,15 +235,16 @@ module Pocolog
             end
 
             def metadata
-                @metadata ||= YAML.load(metadata_yaml)
+                @metadata ||= YAML.safe_load(metadata_yaml)
             end
         end
 
         def self.read_stream_block(io, pos = nil)
             block = read_block(io, pos)
             if block.kind != STREAM_BLOCK
-                raise InvalidFile, "expected stream declaration block"
+                raise InvalidFile, 'expected stream declaration block'
             end
+
             StreamBlock.parse(io.read(block.payload_size))
         end
 
@@ -247,12 +259,16 @@ module Pocolog
         # {#read_next_block_header}
         def read_payload(count = @payload_size)
             if count > @payload_size
-                raise ArgumentError, "expected read count #{count} greater than remaining payload size #{@payload_size}"
+                raise ArgumentError,
+                      "expected read count #{count} greater than remaining "\
+                      "payload size #{@payload_size}"
             end
 
             result = read(count)
             if !result || result.size != count
-                raise NotEnoughData, "expected to read #{count} bytes but got #{result ? result.size : 'EOF'}"
+                raise NotEnoughData,
+                      "expected to read #{count} bytes but got "\
+                      "#{result ? result.size : 'EOF'}"
             end
 
             @payload_size -= count
@@ -268,11 +284,16 @@ module Pocolog
             attr_reader :rt_time
             attr_reader :lg_time
             attr_reader :data_size
-            def compressed?; @compressed end
+
+            def compressed?
+                @compressed
+            end
 
             def self.parse(raw_data)
                 if raw_data.size < Format::Current::DATA_BLOCK_HEADER_SIZE
-                    raise NotEnoughData, "expected #{Format::Current::DATA_BLOCK_HEADER_SIZE} bytes for a data block header, but got only #{raw_data.size}"
+                    raise NotEnoughData,
+                          "expected #{Format::Current::DATA_BLOCK_HEADER_SIZE} bytes "\
+                          "for a data block header, but got only #{raw_data.size}"
                 end
 
                 rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
@@ -304,7 +325,9 @@ module Pocolog
         # The IO is assumed to be positioned at the beginning of the block's
         # payload
         def read_data_block_header
-            DataBlockHeader.parse(read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE))
+            DataBlockHeader.parse(
+                read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE)
+            )
         end
 
         # Read the marshalled version of a data block
@@ -319,7 +342,7 @@ module Pocolog
                 # Payload is compressed
                 raw_data = Zlib::Inflate.inflate(raw_data)
             end
-            return raw_header, raw_data
+            [raw_header, raw_data]
         end
 
         # Read the data payload of a data block, not parsing the header
@@ -338,4 +361,3 @@ module Pocolog
         end
     end
 end
-

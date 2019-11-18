@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Pocolog
     # @api private
     #
@@ -27,11 +29,11 @@ module Pocolog
 
         def initialize(base_time: nil)
             @base_time = base_time
-            @index_map = Array.new
+            @index_map = []
         end
 
-        def initialize_copy(copy)
-            raise NotImplementedError, "StreamInfo is non-copyable"
+        def initialize_copy(_copy)
+            raise NotImplementedError, 'StreamInfo is non-copyable'
         end
 
         # Change this stream's base time
@@ -39,13 +41,12 @@ module Pocolog
         # @param [Integer,Time] value the new base time, either in StreamIndex's
         #   internal representation, or as a Time object
         def base_time=(value)
-            if value.respond_to?(:to_time)
-                value = StreamIndex.time_to_internal(value, 0)
-            end
+            value = StreamIndex.time_to_internal(value, 0) if value.respond_to?(:to_time)
 
             @base_time ||= value
             offset = @base_time - value
             return if offset == 0
+
             @index_map = index_map.map do |file_pos, time, sample_index|
                 [file_pos, time + offset, sample_index]
             end
@@ -103,7 +104,7 @@ module Pocolog
 
         # Create a Time object from the index' own internal Time representation
         def self.time_from_internal(time, base_time)
-            time = time + base_time
+            time += base_time
             Time.at(time / 1_000_000, time % 1_000_000)
         end
 
@@ -155,7 +156,10 @@ module Pocolog
         # @return [Time] the sample's time in the index' internal encoding
         # @raise (see internal_time_by_sample_number)
         def time_by_sample_number(sample_number)
-            StreamIndex.time_from_internal(internal_time_by_sample_number(sample_number), base_time)
+            StreamIndex.time_from_internal(
+                internal_time_by_sample_number(sample_number),
+                base_time
+            )
         end
     end
 end
