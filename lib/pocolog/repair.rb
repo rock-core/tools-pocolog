@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pocolog/cli/null_reporter'
 
 module Pocolog

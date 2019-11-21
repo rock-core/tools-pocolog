@@ -6,7 +6,7 @@ require 'pocolog'
 require 'pocolog/repair'
 require 'pocolog/cli/tty_reporter'
 
-reporter = Pocolog::CLI::TTYReporter.new("[:bar]", total: 0)
+reporter = Pocolog::CLI::TTYReporter.new('[:bar]', total: 0)
 ARGV.each do |path|
     reporter.info "Processing #{path} ..."
     Pocolog.repair_file(path, reporter: reporter)

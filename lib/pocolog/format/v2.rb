@@ -150,7 +150,8 @@ module Pocolog
                               "(#{expected_mtime_i}) mismatch"
                     end
                 end
-                [index_version, index_size, StreamIndex.time_from_internal(index_mtime, 0)]
+                [index_version, index_size,
+                 StreamIndex.time_from_internal(index_mtime, 0)]
             end
 
             # Write a prologue on an index file

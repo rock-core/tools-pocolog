@@ -18,10 +18,11 @@ module Pocolog
             # underlying progress handler
             attr_accessor :base
 
-            def initialize(format, **options)
+            def initialize(format, colors: true, progress: true, **options)
                 @base = 0
+                @progress_enabled = progress
                 reset_progressbar(format, **options)
-                pastel = Pastel.new
+                pastel = Pastel.new(enabled: colors)
                 @c_warn = pastel.yellow.detach
                 @c_info = pastel.yellow.detach
                 @c_error = pastel.bright_red.detach
@@ -29,13 +30,15 @@ module Pocolog
             end
 
             def reset_progressbar(format, **options)
+                return unless @progress_enabled
+
                 progress_bar.reset if @progress_bar
                 @progress_bar = TTY::ProgressBar.new(format, **options)
                 progress_bar.resize(60)
             end
 
             def log(msg)
-                if progress_bar.send(:tty?)
+                if progress_bar&.send(:tty?)
                     progress_bar.log(msg)
                 else
                     $stdout.puts(msg)
@@ -43,14 +46,20 @@ module Pocolog
             end
 
             def current
+                return unless @progress_enabled
+
                 progress_bar.current - base
             end
 
             def current=(value)
+                return unless @progress_enabled
+
                 progress_bar.current = value + base
             end
 
             def advance(step = 1)
+                return unless @progress_enabled
+
                 progress_bar.advance(step)
             end
 
@@ -71,6 +80,8 @@ module Pocolog
             end
 
             def finish
+                return unless @progress_enabled
+
                 progress_bar.finish
             end
         end
