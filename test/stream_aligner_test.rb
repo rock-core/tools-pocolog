@@ -54,6 +54,17 @@ module Pocolog
             assert_equal [1, Time.at(3*10)], aligner.seek_to_pos(4, false)
         end
 
+        it "successfully aligns empty streams" do
+            aligner, _s0, s1 = create_aligner([1, 2], [])
+            assert aligner.stream_index_for_stream(s1)
+        end
+
+        it "successfully aligns a set of completely empty streams" do
+            aligner, s0, s1 = create_aligner([], [])
+            assert aligner.stream_index_for_stream(s0)
+            assert aligner.stream_index_for_stream(s1)
+        end
+
         describe "#time" do
             it "returns nil on a rewound stream aligner" do
                 aligner, _ = create_aligner [1, 2], [1.1, 1.2]
