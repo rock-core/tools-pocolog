@@ -303,7 +303,7 @@ module Pocolog
         # if the end of file has been reached. Unlike +next+, it does not
         # decodes the data payload.
         def advance
-            if sample_index < size-1
+            if sample_index < size - 1
                 @sample_index += 1
                 file_pos = stream_index.file_position_by_sample_number(@sample_index)
                 logfile.read_one_block(file_pos)
