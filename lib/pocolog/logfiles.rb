@@ -482,24 +482,51 @@ module Pocolog
             result
         end
 
-        # Encodes and writes a stream declaration block to +wio+
-        def self.write_stream_declaration(
-            wio, index, name, type_name, type_registry = nil, metadata = {}
+        # Produce the encoded (on-disk) version of a stream definition
+        #
+        # Note that raw and object forms can be mixed, i.e. you may pass the
+        # type and registry as string, but the metadata as Hash
+        #
+        # @overload using raw data
+        #   @param [String] name the stream name
+        #   @param [String] type_name the name of the stream type
+        #   @param [String] type_registry the type registry in XML form
+        #   @param [String] metadata the metadata marshalled as YAML
+        #
+        # @overload using objects
+        #   @param [String] name the stream name
+        #   @param [Class<Typelib::Type>] type the stream type
+        #   @param [Hash] metadata the metadata
+        def self.encode_stream_declaration_payload(
+            name, type_name, type_registry: nil, metadata: {}
         )
             if type_name.respond_to?(:name)
                 type_registry ||= type_name.registry.minimal(type_name.name).to_xml
                 type_name = type_name.name
+            elsif !type_registry
+                raise ArgumentError,
+                      "cannot give a type name without a corresponding type registry"
+            elsif type_registry.respond_to?(:to_xml)
+                type_registry = type_registry.to_xml
             end
 
-            metadata = normalize_metadata(metadata)
-            metadata = YAML.dump(metadata)
-            payload = [
-                DATA_STREAM, name.size, name,
-                type_name.size, type_name,
-                type_registry.size, type_registry,
-                metadata.size, metadata
-            ].pack("CVa#{name.size}Va#{type_name.size}"\
-                   "Va#{type_registry.size}Va#{metadata.size}")
+            unless metadata.respond_to?(:to_str)
+                metadata = normalize_metadata(metadata)
+                metadata = YAML.dump(metadata)
+            end
+
+            BlockStream::StreamBlock
+                .new(name, type_name, type_registry, metadata)
+                .encode
+        end
+
+        # Encodes and writes a stream declaration block to +wio+
+        def self.write_stream_declaration(
+            wio, index, name, type_name, type_registry = nil, metadata = {}
+        )
+            payload = encode_stream_declaration_payload(
+                name, type_name, type_registry: type_registry, metadata: metadata
+            )
             write_block(wio, STREAM_BLOCK, index, payload)
         end
 
