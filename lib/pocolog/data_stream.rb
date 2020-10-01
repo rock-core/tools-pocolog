@@ -15,7 +15,7 @@ module Pocolog
         # until it returned nil
         attr_reader :sample_index
         # The stream associated metadata
-        attr_reader :metadata
+        attr_accessor :metadata
 
         def typename
             type.name
@@ -25,7 +25,8 @@ module Pocolog
             type.name
         end
 
-        def initialize(logfile, index, name, stream_type, metadata = Hash.new, info = StreamInfo.new)
+        def initialize(logfile, index, name, stream_type,
+                       metadata = {}, info = StreamInfo.new)
             @logfile, @index, @name, @metadata, @info =
                 logfile, index, name, metadata, info
 
