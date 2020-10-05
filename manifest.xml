@@ -14,7 +14,7 @@
 
     <depend package="typelib" />
     <depend package="utilrb" />
-    <depend package="hoe" />
-    <depend package="hoe-yard" optional="1" />
+    <depend package="tty-progressbar" />
+    <depend_optional package="rgl" />
 </package>
 

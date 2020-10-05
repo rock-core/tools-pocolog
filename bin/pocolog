@@ -260,8 +260,6 @@ module Pocolog
         end
 
         def eval_expr(string)
-            Typelib.load_typelib_plugins
-            samples.stream.reload_registry
             eval "self.expr = Proc.new { |sample| #{string} }"
         end
 
@@ -308,6 +306,9 @@ module Pocolog
 		    subnames = type.to_csv
 		    name + subnames.gsub(/ \./, " #{name}.")
 		end
+                if time
+                    header_names.unshift time
+                end
 		puts header_names.join(" ")
 
             elsif !expr
@@ -323,10 +324,12 @@ module Pocolog
 			else index
 			end
 		    end.compact
-		    puts field_names.values_at(*field_indexes).join(" ")
-		else
-		    puts field_names.join(' ')
-		end
+                    field_names = field_names.values_at(*field_indexes).join(" ")
+                end
+                if time
+                    field_names.unshift('time')
+                end
+                puts field_names.join(' ')
 	    end
 
 	    samples.raw_each do |rt, lg, data|
@@ -391,7 +394,6 @@ module Pocolog
 	end
 
 	def display_file_info
-	    logfiles.read_prologue
 	    mode = if logfiles.endian_swap ^ Pocolog.big_endian?
 			   "big endian"
 		   else
@@ -409,18 +411,18 @@ module Pocolog
             end
 
 	    streams.each do |stream|
-		first_sample, last_sample = stream.time_interval
+		first_sample, last_sample = stream.interval_lg
 		count = stream.size
 
 		if count == 0
-		    empty_streams[stream.name] = "#{stream.name} [#{stream.typename}]\n"
+                    empty_streams[stream.name] = "#{stream.name} [#{stream.type.name}]\n"
                     if !stream.metadata.empty? && @show_metadata
                         stream.metadata.sort.each do |key, value|
                             empty_streams[stream.name] << "    #{key}: #{value}\n"
                         end
                     end
 		else
-		    info[stream.name] = "#{stream.name} [#{stream.typename}]\n"
+                    info[stream.name] = "#{stream.name} [#{stream.type.name}]\n"
                     if !stream.metadata.empty? && @show_metadata
                         stream.metadata.sort.each do |key, value|
                             info[stream.name] << "  #{key}: #{value}\n"

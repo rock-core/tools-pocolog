@@ -1,4 +1,4 @@
-require 'pocolog/test'
+require 'test_helper'
 
 class TC_3264 < Minitest::Test
     DATA_PATH  = File.expand_path("data", File.dirname(__FILE__))

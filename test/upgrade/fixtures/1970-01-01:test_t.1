@@ -1,0 +1,9 @@
+# Converter created at 2016-06-22 11:12:02 -0300 from /tmp/d20160622-11529-1ob94ty/test.0.log
+define "1970-01-01 00:00:00 -0300", "/test_t", "/test_t" do |target_value, source_value|
+    # This would copy everything that can be copied from the source to the target
+    # deep_cast(target_value, source_value)
+
+    # It is important to realize that the result is in 'target_value', e.g. if
+    # you want to 
+    copy(target_value, to_ruby(source_value) * 2)
+end

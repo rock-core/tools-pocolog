@@ -1,5 +1,4 @@
 module Pocolog
-    class OutOfBounds < Exception;end
     class StreamAligner
         attr_reader :use_rt
         attr_reader :use_sample_time
@@ -20,6 +19,11 @@ module Pocolog
         #
         # @return [Integer]
         attr_reader :size
+
+        # Whether there are no samples in the aligner
+        def empty?
+            size == 0
+        end
 
         # The index of the current sample
         attr_reader :sample_index
@@ -44,29 +48,37 @@ module Pocolog
         # @return [Array<IndexEntry>]
         attr_reader :full_index
 
-        # The time of the first and last samples in the stream
+        # The time of the first and last samples in the stream, in logical time
         #
         # @return [(Time,Time)]
-        attr_reader :time_interval
+        attr_reader :interval_lg
+
+        def time_interval
+            Pocolog.warn_deprecated "StreamAligner#time_interval is deprecated in favor of #interval_lg"
+            interval_lg
+        end
 
         def initialize(use_rt = false, *streams)
             @use_sample_time = use_rt == :use_sample_time
             @use_rt  = use_rt
-            @global_pos_first_sample = Hash.new
-            @global_pos_last_sample = Hash.new
-            @streams = streams
+            @global_pos_first_sample = Array.new
+            @global_pos_last_sample = Array.new
+
+            @size = 0
+            @interval_lg = Array.new
+            @base_time = nil
             @stream_state = Array.new
+            @streams = Array.new
 
             @sample_index = -1
-            build_index(streams)
-            rewind
+            add_streams(*streams)
         end
 
         # Returns the time of the last played back sample
         #
         # @return [Time]
         def time
-            if entry = full_index[sample_index]
+            if (sample_index != -1) && (entry = full_index[sample_index])
                 StreamIndex.time_from_internal(entry.time, base_time)
             end
         end
@@ -89,41 +101,164 @@ module Pocolog
 
         IndexEntry = Struct.new :time, :stream_number, :position_in_stream, :position_global
 
-        # @api private
-        #
-        # This method builds {#full_index} and fills in some of the global
-        # attributes based on the information contained in the underlying
-        # streams
-        def build_index(streams)
-            @size = streams.inject(0) { |s, stream| s + stream.size }
-            Pocolog.info("got #{streams.size} streams with #{size} samples")
+        # Add new streams to the alignment
+        def add_streams(*streams)
+            return if streams.empty?
+
+            if sample_index != -1
+                if eof?
+                    eof = true
+                    current_entry = full_index[-1]
+                else
+                    current_entry = full_index[sample_index]
+                end
+            end
+
+            streams_size = streams.inject(0) { |s, stream| s + stream.size }
+            size = (@size += streams_size)
+            Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
+
             tic = Time.now
-            @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
+            if !base_time
+                @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
+            end
 
-            time_ranges = @streams.map {|s| s.time_interval(use_rt)}.flatten.compact
-            @time_interval = [time_ranges.min,time_ranges.max]
-
-            full_index = Array.new
-            streams.each_with_index do |stream, i|
-                stream.stream_index.base_time = base_time if base_time
-                stream.stream_index.time_to_position_map.each do |time, position|
-                    full_index << [time, i, position]
+            sort_index = Array.new
+            all_streams = (@streams + streams)
+            if base_time
+                all_streams.each_with_index do |stream, i|
+                    stream.stream_index.base_time = base_time
+                    for entry in stream.stream_index.index_map
+                        sort_index << entry[1] * size + i
+                    end
                 end
             end
 
             Pocolog.info "concatenated indexes in #{"%.2f" % [Time.now - tic]} seconds"
-            full_index.sort!
-            @full_index = full_index.each_with_index.map do |entry, position_global|
-                entry = IndexEntry.new(*entry, position_global)
+
+            tic = Time.now
+            sort_index.sort!
+
+            @global_pos_first_sample = Array.new
+            @global_pos_last_sample = Array.new
+            current_positions = Array.new(all_streams.size, 0)
+            @full_index = Array.new(size)
+            position_global = 0
+            for sort_code in sort_index
+                time         = sort_code / size
+                stream_index = sort_code % size
+                position_in_stream = current_positions[stream_index]
+                current_positions[stream_index] = position_in_stream + 1
+
+                entry = IndexEntry.new(time, stream_index, position_in_stream, position_global)
                 global_pos_first_sample[entry.stream_number] ||= position_global
                 global_pos_last_sample[entry.stream_number] = position_global
-                entry
+                @full_index[position_global] = entry
+                position_global += 1
             end
-            if full_index.size != size
-                raise
+            @streams = all_streams
+            update_interval_lg
+            Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
+
+            if current_entry
+                @sample_index = @full_index.
+                    index do |e|
+                        e.stream_number == current_entry.stream_number &&
+                            e.position_in_stream == current_entry.position_in_stream
+                    end
+
+                if eof
+                    step
+                end
+            end
+        end
+
+        # Remove the given streams in the stream aligner
+        #
+        # The index-to-stream mapping changes after this. Refer to {#streams} to
+        # map indexes to streams
+        def remove_streams(*streams)
+            # First, build a map of the current stream indexes to the new
+            # stream indexes
+            stream_indexes = Array.new
+            for_removal = Array.new
+            streams.each do |s|
+                s_index = stream_index_for_stream(s)
+                stream_indexes << s_index
+                for_removal[s_index] = true
+            end
+            index_map = Array.new
+            new_index = 0
+            self.streams.size.times do |stream_index|
+                if for_removal[stream_index]
+                    index_map[stream_index] = nil
+                else
+                    index_map[stream_index] = new_index
+                    new_index += 1
+                end
             end
 
-            Pocolog.info "built index in #{"%.2f" % [Time.now - tic]} seconds"
+            if eof?
+                eof = true
+            elsif sample_index != -1
+                current_entry = full_index[sample_index]
+                changed_sample = for_removal[current_entry.stream_number]
+            end
+
+            # Then, transform the index accordingly
+            @global_pos_first_sample = Array.new
+            @global_pos_last_sample = Array.new
+            global_position = 0
+            @full_index = full_index.find_all do |entry|
+                if current_entry && (current_entry == entry)
+                    @sample_index = global_position
+                    current_entry = nil # speedup comparison for the rest of the filtering
+                end
+
+                if new_index = index_map[entry.stream_number]
+                    global_pos_first_sample[new_index] ||= global_position
+                    global_pos_last_sample[new_index] = global_position
+                    entry.position_global = global_position
+                    entry.stream_number = new_index
+                    global_position += 1
+                end
+            end
+
+            @stream_state.clear
+
+            if @full_index.empty?
+                @sample_index = -1
+            elsif eof
+                @sample_index = size
+            elsif @sample_index != -1
+                sample_info = seek_to_pos(@sample_index, false)
+            end
+
+            # Remove the streams, and update the global attributes
+            stream_indexes.reverse.each do |i|
+                s = @streams.delete_at(i)
+                @size -= s.size
+            end
+            update_interval_lg
+
+            if sample_info && changed_sample && (sample_index != full_index.size)
+                return *sample_info, single_data(sample_info[0])
+            end
+        end
+
+        # @api private
+        #
+        # Update {#interval_lg} based on the information currently in
+        # {#full_index}
+        def update_interval_lg
+            if full_index.empty?
+                @interval_lg = []
+            else
+                @interval_lg = [
+                    StreamIndex.time_from_internal(full_index.first.time, base_time),
+                    StreamIndex.time_from_internal(full_index.last.time, base_time)
+                ]
+            end
         end
 
         # Seek at the given position or time
@@ -147,8 +282,10 @@ module Pocolog
         # @return [(Integer,Time[,Typelib::Type])] the stream index, sample time
         #   and the sample itself if read_data is true
         def seek_to_time(time, read_data = true)
-            if(time < time_interval[0] || time > time_interval[1])
-                raise RangeError, "#{time} is out of bounds valid interval #{time_interval[0]} to #{time_interval[1]}"
+            if empty?
+                raise RangeError, "#{time} is out of bounds, the stream is empty"
+            elsif time < interval_lg[0] || time > interval_lg[1]
+                raise RangeError, "#{time} is out of bounds valid interval #{interval_lg[0]} to #{interval_lg[1]}"
             end
 
             target_time = StreamIndex.time_to_internal(time, base_time)
@@ -163,8 +300,10 @@ module Pocolog
         # @return [(Integer,Time[,Typelib::Type])] the stream index, sample time
         #   and the sample itself if read_data is true
         def seek_to_pos(pos, read_data = true)
-            if pos < 0 || pos > size
-                raise OutOfBounds, "#{pos} is out of bounds [0..#{size}]."
+            if empty?
+                raise RangeError, "empty stream"
+            elsif pos < 0 || pos > size
+                raise RangeError, "#{pos} is out of bounds [0..#{size}]."
             end
 
             seek_to_index_entry(@full_index[pos], read_data)
@@ -211,12 +350,7 @@ module Pocolog
         # @param [String] name
         # @return [Integer,nil]
         def stream_index_for_name(name)
-            streams.each_with_index do |s,i|
-                if(s.name == name)
-                    return i
-                end
-            end
-            return nil
+            streams.index { |s| s.name == name }
         end
 
         # Returns the stream index of the stream whose type has this name
@@ -224,15 +358,19 @@ module Pocolog
         # @param [String] name
         # @return [Integer,nil]
         # @raise [ArgumentError] if more than one stream has this type
-        def stream_index_for_type(name)
-            stream = nil
-            streams.each_with_index do |s,i|
-                if(s.type_name == name)
-                    raise ArgumentError, "There exists more than one stream with type #{name}" if stream
-                    stream = i
-                end
+        def stream_index_for_type(type)
+            if type.respond_to?(:name)
+                type = type.name
             end
-            stream
+
+            match_i = streams.index { |s| s.type.name == type }
+            if match_i
+                rmatch_i = streams.rindex { |s| s.type.name == type }
+                if match_i != rmatch_i
+                    raise ArgumentError, "There exists more than one stream with type #{type}"
+                end
+                match_i
+            end
         end
 
         # Advances one step in the joint stream, and returns the index of the
@@ -308,29 +446,12 @@ module Pocolog
         end
 
         def pretty_print(pp)
-            pp.text "next_samples:"
-            pp.nest(2) do
-                pp.breakable
-
-                pp.seplist(streams.each_index) do |i|
-                    ih = @stream_index_to_index_helpers[i]
-                    if ih
-                        pp.text "#{i} #{ih.time.to_f}"
-                    else
-                        pp.text "#{i} -"
-                    end
-                end
-            end
-            pp.breakable
-            pp.text "streams:"
+            pp.text "Stream aligner with #{streams.size} streams and #{size} samples"
             pp.nest(2) do
                 pp.breakable
                 pp.seplist(streams.each_with_index) do |s, i|
-                    if s.eof?
-                        pp.text "#{i} eof"
-                    else
-                        pp.text "#{i} #{s.time.last.to_f}"
-                    end
+                    pp.text "[#{i}] "
+                    s.pretty_print(pp)
                 end
             end
         end
@@ -439,6 +560,14 @@ module Pocolog
             return search_pos + 1
         end
 
+        private def validate_stream_index_from_stream(stream)
+            unless stream_idx = streams.index(stream)
+                raise ArgumentError, "#{stream.name} (#{stream}) is not aligned in "\
+                    "#{self}. Aligned streams are: #{streams.map(&:name).sort.join(", ")}"
+            end
+            stream_idx
+        end
+
         # Returns the global sample position of the first sample
         # of the given stream
         #
@@ -446,7 +575,7 @@ module Pocolog
         # @return [nil,Integer]
         def first_sample_pos(stream)
             if stream.kind_of?(DataStream)
-                stream = streams.index(stream)
+                stream = validate_stream_index_from_stream(stream)
             end
             @global_pos_first_sample[stream]
         end
@@ -458,7 +587,7 @@ module Pocolog
         # @return [nil,Integer]
         def last_sample_pos(stream)
             if stream.kind_of?(DataStream)
-                stream = streams.index(stream)
+                stream = validate_stream_index_from_stream(stream)
             end
             @global_pos_last_sample[stream]
         end
