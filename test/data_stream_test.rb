@@ -354,6 +354,7 @@ module Pocolog
                 assert_equal 1, stream.read_one_data_sample(1)
             end
         end
+
         describe "#samples?" do
             attr_reader :base_time, :stream
             before do
@@ -414,5 +415,84 @@ module Pocolog
             end
         end
 
+        describe "#raw_each" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                    stream.write base_time + 2, base_time + 12, 2
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "enumerates the times and raw typelib value" do
+                data = @stream.raw_each.to_a.transpose
+                assert_equal [base_time, base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [0, 1, 2], data[2].map(&:to_ruby)       #
+            end
+
+            it "rewinds by default" do
+                @stream.next
+                data = @stream.raw_each.to_a.transpose
+                assert_equal [base_time, base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [0, 1, 2], data[2].map(&:to_ruby)       #
+            end
+
+            it "optionally does not rewind" do
+                @stream.next
+                data = @stream.raw_each(rewind: false).to_a.transpose
+                assert_equal [base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 11, base_time + 12], data[1]
+                assert_equal [1, 2], data[2].map(&:to_ruby)       #
+            end
+        end
+
+        describe "#each" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                    stream.write base_time + 2, base_time + 12, 2
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "enumerates the times and converted typelib value" do
+                data = @stream.raw_each.to_a.transpose
+                assert_equal [base_time, base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [0, 1, 2], data[2]
+            end
+
+            it "rewinds by default" do
+                @stream.next
+                data = @stream.raw_each.to_a.transpose
+                assert_equal [base_time, base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 10, base_time + 11, base_time + 12], data[1]
+                assert_equal [0, 1, 2], data[2]
+            end
+
+            it "optionally does not rewind" do
+                @stream.next
+                data = @stream.raw_each(rewind: false).to_a.transpose
+                assert_equal [base_time + 1, base_time + 2], data[0]
+                assert_equal [base_time + 11, base_time + 12], data[1]
+                assert_equal [base_time + 11, base_time + 12], data[1]
+                assert_equal [1, 2], data[2]
+            end
+        end
     end
 end

@@ -71,13 +71,53 @@ module Pocolog
         def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 
         # Enumerates the blocks of this stream
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yield after advancing to each new sample. Call {#data_header} to get
+        #   some information about the current data block
+        #
+        # @see #raw_each #each
         def each_block(rewind = true)
-            if rewind
-                self.rewind
-            end
+            return enum_for(__method__, rewind) unless block_given?
 
-            while advance
-                yield if block_given?
+            self.rewind if rewind
+            yield while advance
+        end
+
+        # Enumerates the samples of this stream without converting the typelib data
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yieldparam [Time] rt the sample's real time
+        # @yieldparam [Time] lg the sample's logical time
+        # @yieldparam [Typelib::Type] sample the sample
+        #
+        # @see #each_block #each
+        def raw_each(rewind: true)
+            return enum_for(__method__, rewind: rewind) unless block_given?
+
+            each_block(rewind) do
+                data_block = data_header
+                yield(data_block.rt, data_block.lg, raw_data(data_block))
+            end
+        end
+
+        # Enumerates the samples of this stream, converting the typelib data
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yieldparam [Time] rt the sample's real time
+        # @yieldparam [Time] lg the sample's logical time
+        # @yieldparam [Typelib::Type,Object] sample the sample, possibly converted
+        #   to a Ruby value if a conversion is available
+        #
+        # @see #each_block #raw_each
+        def each(rewind: true)
+            return enum_for(__method__, rewind: rewind) unless block_given?
+
+            raw_each(rewind: rewind) do |rt, lg, sample|
+                yield(rt, lg, Typelib.to_ruby(sample))
             end
         end
 
