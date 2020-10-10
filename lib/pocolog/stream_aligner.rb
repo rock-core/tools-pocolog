@@ -156,6 +156,7 @@ module Pocolog
                 @full_index[position_global] = entry
                 position_global += 1
             end
+
             @streams = all_streams
             update_interval_lg
             Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
@@ -623,7 +624,7 @@ module Pocolog
         #   in this object instead of creating a new one
         # @return [Object,nil]
         def single_data(index, sample = nil)
-            if raw = single_raw_data(index, sample)
+            if (raw = single_raw_data(index, sample))
                 return Typelib.to_ruby(raw)
             end
         end

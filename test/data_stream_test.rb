@@ -494,5 +494,106 @@ module Pocolog
                 assert_equal [1, 2], data[2]
             end
         end
+
+        describe "#from_logical_time" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                    stream.write base_time + 2, base_time + 12, 2
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "returns a data stream whose samples before the given time "\
+               "have been removed" do
+                stream = @stream.from_logical_time(base_time + 10.1)
+                assert_equal [[base_time + 1, base_time + 11, 1],
+                              [base_time + 2, base_time + 12, 2]], stream.each.to_a
+            end
+
+            it "keeps a sample whose time strictly equals the given time" do
+                stream = @stream.from_logical_time(base_time + 11)
+                assert_equal [[base_time + 1, base_time + 11, 1],
+                              [base_time + 2, base_time + 12, 2]], stream.each.to_a
+            end
+        end
+
+        describe "#to_logical_time" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    stream.write base_time + 0, base_time + 10, 0
+                    stream.write base_time + 1, base_time + 11, 1
+                    stream.write base_time + 2, base_time + 12, 2
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "returns a data stream whose samples after the given time "\
+               "have been removed" do
+                stream = @stream.to_logical_time(base_time + 11.1)
+                assert_equal [[base_time + 0, base_time + 10, 0],
+                              [base_time + 1, base_time + 11, 1]], stream.each.to_a
+            end
+
+            it "removes a sample whose time strictly equals the given time" do
+                stream = @stream.to_logical_time(base_time + 12)
+                assert_equal [[base_time + 0, base_time + 10, 0],
+                              [base_time + 1, base_time + 11, 1]], stream.each.to_a
+            end
+        end
+
+        describe "#resample_by_index" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                samples = 10.times.map { |i| [base_time + i, base_time + 10 + i, i] }
+
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    samples.each { |rt, lg, i| stream.write rt, lg, i }
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "returns a data stream with only one sample every N" do
+                stream = @stream.resample_by_index(3)
+                assert_equal [[base_time + 0, base_time + 10, 0],
+                              [base_time + 3, base_time + 13, 3],
+                              [base_time + 6, base_time + 16, 6],
+                              [base_time + 9, base_time + 19, 9]], stream.each.to_a
+            end
+        end
+
+        describe "#resample_by_time" do
+            attr_reader :base_time, :stream
+            before do
+                @base_time = Time.at(Time.now.tv_sec, Time.now.tv_usec)
+                samples = 10.times.map { |i| [base_time + i, base_time + 10 + i, i] }
+
+                create_logfile "test.0.log" do
+                    stream = create_logfile_stream "test"
+                    samples.each { |rt, lg, i| stream.write rt, lg, i }
+                end
+                @stream = open_logfile_stream "test.0.log", "test"
+            end
+
+            it "returns a data stream with only one sample every N" do
+                stream = @stream.resample_by_time(1.5)
+                assert_equal [[base_time + 0, base_time + 10, 0],
+                              [base_time + 2, base_time + 12, 2],
+                              [base_time + 3, base_time + 13, 3],
+                              [base_time + 5, base_time + 15, 5],
+                              [base_time + 6, base_time + 16, 6],
+                              [base_time + 8, base_time + 18, 8],
+                              [base_time + 9, base_time + 19, 9]], stream.each.to_a
+            end
+        end
     end
 end
