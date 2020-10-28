@@ -237,6 +237,17 @@ module Pocolog
             def metadata
                 @metadata ||= YAML.safe_load(metadata_yaml)
             end
+
+            # Return the encoded (on-disk) representation of this stream definition
+            def encode # rubocop:disable Metrics/AbcSize
+                [
+                    DATA_STREAM, name.size, name,
+                    typename.size, typename,
+                    registry_xml.size, registry_xml,
+                    metadata_yaml.size, metadata_yaml
+                ].pack("CVa#{name.size}Va#{typename.size}"\
+                       "Va#{registry_xml.size}Va#{metadata_yaml.size}")
+            end
         end
 
         def self.read_stream_block(io, pos = nil)

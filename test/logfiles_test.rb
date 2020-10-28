@@ -85,6 +85,7 @@ module Pocolog
                 end
             end
         end
+
         describe ".default_index_filename" do
             it "returns the path with .log changed into .idx" do
                 assert_equal "/path/to/file.0.idx", Logfiles.default_index_filename("/path/to/file.0.log")
@@ -96,6 +97,53 @@ module Pocolog
                 assert_raises(ArgumentError) do
                     Logfiles.default_index_filename("/path/to/file.0.log.garbage")
                 end
+            end
+        end
+
+        describe ".encode_stream_declaration_payload" do
+            before do
+                @registry = Typelib::CXXRegistry.new
+                @type = @registry.create_compound "/C" do |b|
+                    b.f = "/double"
+                end
+                @metadata = { "some" => %w[meta data] }
+            end
+
+            it "encodes the information into its binary form" do
+                encoded = Logfiles.encode_stream_declaration_payload(
+                    "stream_name", @type, metadata: @metadata
+                )
+                assert_decodes_to_expected encoded
+            end
+
+            it "handles being given a type name and type registry" do
+                metadata = { "some" => %w[meta data] }
+                encoded = Logfiles.encode_stream_declaration_payload(
+                    "stream_name", "/C", type_registry: @registry, metadata: metadata
+                )
+                assert_decodes_to_expected encoded
+            end
+
+            it "raises if given a type name but no type registry" do
+                assert_raises(ArgumentError) do
+                    Logfiles.encode_stream_declaration_payload("stream_name", "/C")
+                end
+            end
+
+            it "handles a type registry already in string form" do
+                metadata = { "some" => %w[meta data] }
+                encoded = Logfiles.encode_stream_declaration_payload(
+                    "stream_name", "/C",
+                    type_registry: @registry.to_xml, metadata: metadata
+                )
+                assert_decodes_to_expected encoded
+            end
+
+            def assert_decodes_to_expected(encoded)
+                decoded = BlockStream::StreamBlock.parse(encoded)
+                assert_equal "stream_name", decoded.name
+                assert_equal @type, decoded.type
+                assert_equal @metadata, decoded.metadata
             end
         end
     end
