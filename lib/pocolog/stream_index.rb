@@ -107,7 +107,12 @@ module Pocolog
         # @return [StreamIndex]
         def remove_before(time)
             index = sample_number_by_time(time)
-            self.class.from_raw_data(@base_time, @index_map[index..-1])
+            index_map = (index...size).map do |i|
+                e = @index_map[i].dup
+                e[2] = i - index
+                e
+            end
+            self.class.from_raw_data(@base_time, index_map)
         end
 
         # Return a new index without any sample after the given time
@@ -124,7 +129,9 @@ module Pocolog
 
             new_map = Array.new((size + period - 1) / period)
             new_map.size.times do |i|
-                new_map[i] = @index_map[i * period]
+                entry = @index_map[i * period].dup
+                entry[2] = i
+                new_map[i] = entry
             end
             self.class.from_raw_data(@base_time, new_map)
         end
@@ -143,7 +150,7 @@ module Pocolog
             @index_map.each do |entry|
                 entry_t = entry[1]
                 if entry_t >= next_time
-                    new_map << entry
+                    new_map << [entry[0], entry[1], new_map.size]
                     next_time += period_us until entry_t < next_time
                 end
             end

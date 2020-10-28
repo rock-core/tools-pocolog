@@ -520,6 +520,12 @@ module Pocolog
                 assert_equal [[base_time + 1, base_time + 11, 1],
                               [base_time + 2, base_time + 12, 2]], stream.each.to_a
             end
+
+            it "updates the stream index of the returned stream" do
+                stream = @stream.from_logical_time(base_time + 10.1)
+                assert_equal [base_time + 1, base_time + 11, 1],
+                             stream.seek(base_time + 11)
+            end
         end
 
         describe "#to_logical_time" do
@@ -547,6 +553,12 @@ module Pocolog
                 assert_equal [[base_time + 0, base_time + 10, 0],
                               [base_time + 1, base_time + 11, 1]], stream.each.to_a
             end
+
+            it "updates the stream index of the returned stream" do
+                stream = @stream.to_logical_time(base_time + 12)
+                assert_equal [base_time + 1, base_time + 11, 1],
+                             stream.seek(base_time + 11)
+            end
         end
 
         describe "#resample_by_index" do
@@ -568,6 +580,12 @@ module Pocolog
                               [base_time + 3, base_time + 13, 3],
                               [base_time + 6, base_time + 16, 6],
                               [base_time + 9, base_time + 19, 9]], stream.each.to_a
+            end
+
+            it "updates the stream index of the returned stream" do
+                stream = @stream.resample_by_index(3)
+                assert_equal [base_time + 3, base_time + 13, 3],
+                             stream.seek(base_time + 11)
             end
         end
 
@@ -593,6 +611,12 @@ module Pocolog
                               [base_time + 6, base_time + 16, 6],
                               [base_time + 8, base_time + 18, 8],
                               [base_time + 9, base_time + 19, 9]], stream.each.to_a
+            end
+
+            it "updates the stream index of the returned stream" do
+                stream = @stream.resample_by_time(1.5)
+                assert_equal [base_time + 2, base_time + 12, 2],
+                             stream.seek(base_time + 11)
             end
         end
     end
