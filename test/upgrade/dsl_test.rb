@@ -1,4 +1,5 @@
 require 'test_helper'
+require 'pathname'
 require 'pocolog/upgrade/dsl'
 
 module Pocolog
@@ -60,7 +61,7 @@ module Pocolog
                 it "loads all the converters present in the given directory" do
                     converters = DSL.load_dir(fixture_dir, converter_registry)
                     assert_equal 1, converters.size
-                    assert_equal Time.new(1970, 1, 1), converters[0].time_to
+                    assert_equal Time.new(1970, 1, 1, nil, nil, nil, "-03:00"), converters[0].time_to
 
                     source_xml = File.read(File.join(fixture_dir, "1970-01-01:test_t.1.source.tlb"))
                     assert_equal Typelib::Registry.from_xml(source_xml).get('/test_t'), converters[0].from_type
