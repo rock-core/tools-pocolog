@@ -156,6 +156,7 @@ module Pocolog
                 @full_index[position_global] = entry
                 position_global += 1
             end
+
             @streams = all_streams
             update_interval_lg
             Pocolog.info "built full index in #{"%.2f" % [Time.now - tic]} seconds"
@@ -623,7 +624,7 @@ module Pocolog
         #   in this object instead of creating a new one
         # @return [Object,nil]
         def single_data(index, sample = nil)
-            if raw = single_raw_data(index, sample)
+            if (raw = single_raw_data(index, sample))
                 return Typelib.to_ruby(raw)
             end
         end
@@ -650,15 +651,28 @@ module Pocolog
         #   contained
         # @yieldparam [Time] time the stream time
         # @yieldparam [Object] sample the sample itself
-        def each(do_rewind = true)
-            return enum_for(__method__, do_rewind) if !block_given?
-            if do_rewind
-                rewind
+        def raw_each(do_rewind = true)
+            return enum_for(__method__, do_rewind) unless block_given?
+
+            rewind if do_rewind
+            while (stream_idx, time = advance)
+                yield(stream_idx, time, single_raw_data(stream_idx))
             end
-            while sample = self.step
-                yield(*sample)
+        end
+
+        # Enumerate all samples in this stream
+        #
+        # @param [Boolean] do_rewind whether {#rewind} should be called first
+        # @yieldparam [Integer] stream_idx the stream in which the sample is
+        #   contained
+        # @yieldparam [Time] time the stream time
+        # @yieldparam [Object] sample the sample itself
+        def each(do_rewind = true)
+            return enum_for(__method__, do_rewind) unless block_given?
+
+            raw_each(do_rewind) do |index, time, raw_sample|
+                yield(index, time, Typelib.to_ruby(raw_sample))
             end
         end
     end
 end
-

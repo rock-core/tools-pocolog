@@ -431,6 +431,35 @@ module Pocolog
             end
         end
 
+        describe "#raw_each" do
+            it "enumerates the stream index, logical time and raw sample data" do
+                aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
+                expected = [
+                    [0, Time.at(10), 1],
+                    [1, Time.at(20), 2],
+                    [0, Time.at(30), 3],
+                    [1, Time.at(40), 4]
+                ]
+                assert_equal(
+                    expected,
+                    aligner.raw_each.map { |i, t, s| [i, t, s.to_ruby] }
+                )
+            end
+        end
+
+        describe "#each" do
+            it "enumerates the stream index, logical time and converted sample data" do
+                aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
+                expected = [
+                    [0, Time.at(10), 1],
+                    [1, Time.at(20), 2],
+                    [0, Time.at(30), 3],
+                    [1, Time.at(40), 4]
+                ]
+                assert_equal expected, aligner.each.to_a
+            end
+        end
+
         describe "#next" do
             it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
                 aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
@@ -442,6 +471,7 @@ module Pocolog
                 assert !aligner.next
             end
         end
+
         describe "#previous" do
             it "returns realtime, logical time and the (stream_index, data) tuple as sample" do
                 aligner, _s0, _s1 = create_aligner([1, 3], [2, 4])
@@ -529,9 +559,9 @@ class TC_StreamAligner < Minitest::Test
             assert(!last_time || last_time > time)
             cnt = cnt - 1
             last_time = time
-        end     
+        end
     end
-    
+
     def test_step_by_step_all_the_way
         2.times do
             stream_indexes, sample_indexes, all_data = Array.new, Array.new, Array.new
@@ -541,7 +571,7 @@ class TC_StreamAligner < Minitest::Test
                 all_data << data[2]
             end
             # verify that calling #step again is harmless
-            assert !stream.step 
+            assert !stream.step
             assert stream.eof?
             assert_equal 200, stream.sample_index
             assert_equal interleaved_data, all_data
@@ -555,13 +585,13 @@ class TC_StreamAligner < Minitest::Test
                 sample_indexes << stream.sample_index
                 all_data << data[2]
             end
-            
+
             assert_equal interleaved_data, all_data.reverse
             assert_equal [[0, 2, 0, 1]].to_set, stream_indexes.reverse.each_slice(4).to_set
             assert_equal (0...200).to_a, sample_indexes.reverse
         end
     end
-    
+
     # Checks that stepping and stepping back in the middle of the stream works
     # fine
     def test_step_by_step_middle
@@ -581,7 +611,7 @@ class TC_StreamAligner < Minitest::Test
         assert_equal 10, stream.sample_index
         assert_equal Time.at(5), stream.time
         assert_equal [0, Time.at(5), 5], sample
-        
+
         # Check that seeking did not break step / step_back
         assert_equal [1, Time.at(5, 500), 50000], stream.step
         assert_equal [0, Time.at(6), 6], stream.step
@@ -591,7 +621,7 @@ class TC_StreamAligner < Minitest::Test
         assert_equal [0, Time.at(4), 4], stream.step_back
         assert_equal [1, Time.at(3, 500), 30000], stream.step_back
 
-        #check if seeking is working if index is not cached 
+        #check if seeking is working if index is not cached
         #see INDEX_STEP
         sample = stream.seek(21)
         assert_equal 21, stream.sample_index
@@ -653,14 +683,14 @@ class TC_StreamAligner2 < Minitest::Test
         end
         logfile.close
     end
-    
+
     attr_reader :interleaved_data
     def setup
         create_fixture
         @logfile = Pocolog::Logfiles.open('test.0.log')
         @stream  = Pocolog::StreamAligner.new(false, logfile.stream('all'), logfile.stream('other'))
     end
-    
+
     def teardown
         FileUtils.rm_f 'test.0.log'
         FileUtils.rm_f 'test.0.idx'
@@ -692,7 +722,7 @@ class TC_StreamAligner2 < Minitest::Test
             assert_equal time, Time.at(expected_data[cnt] * 100)
             cnt = cnt + 1
         end
-        
+
         assert_equal cnt, 200
     end
 
@@ -709,10 +739,10 @@ class TC_StreamAligner2 < Minitest::Test
             assert_equal time, Time.at(expected_data[cnt] * 100)
             cnt = cnt + 1
         end
-        
+
         assert_equal cnt, 200
         cnt = cnt - 1
-        
+
         while(cnt > 1)
             cnt = cnt - 1
             stream_index, time, data = stream.step_back()
@@ -723,8 +753,8 @@ class TC_StreamAligner2 < Minitest::Test
             end
             assert_equal data, expected_data[cnt]
             assert_equal time, Time.at(expected_data[cnt] * 100)
-        end         
-        
+        end
+
     end
 
     def test_export_to_file

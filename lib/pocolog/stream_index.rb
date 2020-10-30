@@ -102,6 +102,75 @@ module Pocolog
             @index_map << [pos, time - @base_time, @index_map.size]
         end
 
+        # Return a new index without any sample before the given time
+        #
+        # @return [StreamIndex]
+        def remove_before(time)
+            index = sample_number_by_time(time)
+            index_map = (index...size).map do |i|
+                e = @index_map[i].dup
+                e[2] = i - index
+                e
+            end
+            self.class.from_raw_data(@base_time, index_map)
+        end
+
+        # Return a new index without any sample after the given time
+        #
+        # @return [StreamIndex]
+        def remove_after(time)
+            index = sample_number_by_time(time)
+            self.class.from_raw_data(@base_time, @index_map[0...index])
+        end
+
+        # Return the index with only every N-th samples
+        def resample_by_index(period)
+            self.class.from_raw_data(@base_time, @index_map) if period == 1
+
+            new_map = Array.new((size + period - 1) / period)
+            new_map.size.times do |i|
+                entry = @index_map[i * period].dup
+                entry[2] = i
+                new_map[i] = entry
+            end
+            self.class.from_raw_data(@base_time, new_map)
+        end
+
+        # Return the index with only every N-th samples
+        def resample_by_time(period, start_time: nil)
+            period_us = period * 1_000_000
+            next_time =
+                if start_time
+                    self.class.time_to_internal(start_time, @base_time)
+                else
+                    internal_time_by_sample_number(0)
+                end
+
+            new_map = []
+            @index_map.each do |entry|
+                entry_t = entry[1]
+                if entry_t >= next_time
+                    new_map << [entry[0], entry[1], new_map.size]
+                    next_time += period_us until entry_t < next_time
+                end
+            end
+            self.class.from_raw_data(@base_time, new_map)
+        end
+
+        # Return the time of the first sample
+        #
+        # @return [Time,nil]
+        def start_time
+            time_by_sample_number(0) unless empty?
+        end
+
+        # Return the time of the last sample
+        #
+        # @return [Time,nil]
+        def end_time
+            time_by_sample_number(-1) unless empty?
+        end
+
         # Create a Time object from the index' own internal Time representation
         def self.time_from_internal(time, base_time)
             time += base_time

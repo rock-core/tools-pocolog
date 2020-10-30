@@ -27,8 +27,11 @@ module Pocolog
 
         def initialize(logfile, index, name, stream_type,
                        metadata = {}, info = StreamInfo.new)
-            @logfile, @index, @name, @metadata, @info =
-                logfile, index, name, metadata, info
+            @logfile = logfile
+            @index = Integer(index)
+            @name = name.to_str
+            @metadata = metadata
+            @info = info
 
             # if we do have a registry, then adapt it to the local machine
             # if needed. Right now, this is required if containers changed
@@ -51,6 +54,46 @@ module Pocolog
             @sample_index = -1
         end
 
+        # Return a new DataStream whose all samples before the given logical
+        # time are removed
+        def from_logical_time(time)
+            updated_datastream_from_index(stream_index.remove_before(time))
+        end
+
+        # Return a new DataStream whose all samples after the given logical
+        # time are removed
+        def to_logical_time(time)
+            updated_datastream_from_index(stream_index.remove_after(time))
+        end
+
+        # Return a new DataStream with only the N-th sample
+        def resample_by_index(samples)
+            updated_datastream_from_index(stream_index.resample_by_index(samples))
+        end
+
+        # Return a new DataStream with only the N-th sample
+        #
+        # @param [Number] period period in seconds. Use a Rational if you
+        #   need a precise period
+        def resample_by_time(period, start_time: nil)
+            updated_datastream_from_index(
+                stream_index.resample_by_time(period, start_time: start_time)
+            )
+        end
+
+        # @api private
+        #
+        # Re-creates a "copy" of this new datastream using an updated index
+        #
+        # This allows to create a view of the original stream by modifying
+        # the index
+        def updated_datastream_from_index(stream_index)
+            info = StreamInfo.from_raw_data(
+                [], @info.interval_rt, stream_index.base_time, stream_index.index_map
+            )
+            self.class.new(@logfile, index, @name, @type, @metadata, info)
+        end
+
         def stream_index
             info.index
         end
@@ -71,13 +114,53 @@ module Pocolog
         def samples(read_data = true); SampleEnumerator.new(self, read_data) end
 
         # Enumerates the blocks of this stream
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yield after advancing to each new sample. Call {#data_header} to get
+        #   some information about the current data block
+        #
+        # @see #raw_each #each
         def each_block(rewind = true)
-            if rewind
-                self.rewind
-            end
+            return enum_for(__method__, rewind) unless block_given?
 
-            while advance
-                yield if block_given?
+            self.rewind if rewind
+            yield while advance
+        end
+
+        # Enumerates the samples of this stream without converting the typelib data
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yieldparam [Time] rt the sample's real time
+        # @yieldparam [Time] lg the sample's logical time
+        # @yieldparam [Typelib::Type] sample the sample
+        #
+        # @see #each_block #each
+        def raw_each(rewind: true)
+            return enum_for(__method__, rewind: rewind) unless block_given?
+
+            each_block(rewind) do
+                data_block = data_header
+                yield(data_block.rt, data_block.lg, raw_data(data_block))
+            end
+        end
+
+        # Enumerates the samples of this stream, converting the typelib data
+        #
+        # @param [Boolean] rewind whether the enumeration should start from the
+        #   first sample, or continue wherever the stream's current position is
+        # @yieldparam [Time] rt the sample's real time
+        # @yieldparam [Time] lg the sample's logical time
+        # @yieldparam [Typelib::Type,Object] sample the sample, possibly converted
+        #   to a Ruby value if a conversion is available
+        #
+        # @see #each_block #raw_each
+        def each(rewind: true)
+            return enum_for(__method__, rewind: rewind) unless block_given?
+
+            raw_each(rewind: rewind) do |rt, lg, sample|
+                yield(rt, lg, Typelib.to_ruby(sample))
             end
         end
 
@@ -286,7 +369,13 @@ module Pocolog
             file_pos = stream_index.file_position_by_sample_number(@sample_index)
             block_info = logfile.read_one_block(file_pos)
             if block_info.stream_index != self.index
-                raise InternalError, "index returned index=#{@sample_index} and pos=#{file_pos} as position for seek(#{pos}) but it seems to be a sample in stream #{logfile.stream_from_index(block_info.stream_index).name} while we were expecting #{name}"
+                block_stream_name =
+                    logfile.stream_from_index(block_info.stream_index).name
+                raise InternalError,
+                      "index returned index=#{@sample_index} and pos=#{file_pos} as "\
+                      "position for seek(#{pos}) but it seems to be a sample in "\
+                      "stream #{block_info.stream_index} (#{block_stream_name}} while "\
+                      "we were expecting #{index} (#{name})"
             end
 
             if header = self.data_header
