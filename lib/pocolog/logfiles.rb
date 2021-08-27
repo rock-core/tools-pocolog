@@ -583,7 +583,9 @@ module Pocolog
             if (matching_stream = streams.find { |s| s.name == name })
                 matching_stream
             elsif !type || !create
-                raise ArgumentError, "no such stream #{name}"
+                raise ArgumentError,
+                      "no such stream #{name}, existing streams: "\
+                      "#{streams.map(&:name).sort.join(', ')}"
             else
                 Pocolog.warn_deprecated(
                     'the "create" flag of #stream is deprecated, '\
