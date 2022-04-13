@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "pocolog/format"
+require "pocolog/stream_index"
+
 module Pocolog
     # Enumeration of blocks in a pocolog-compatible stream
     class BlockStream
@@ -20,6 +23,8 @@ module Pocolog
         attr_reader :io
 
         # The amount of bytes that should be read into the internal buffer
+        #
+        # @return [Integer]
         attr_reader :buffer_read
 
         # Whether the data in the file is stored in little or big endian
@@ -292,10 +297,27 @@ module Pocolog
 
         # Information about a data block
         class DataBlockHeader
+            # Timestamp in realtime for this block, in microseconds
+            #
+            # @return [Integer]
+            # @see rt
             attr_reader :rt_time
+
+            # Timestamp in logical time for this block, in microseconds
+            #
+            # @return [Integer]
+            # @see rt
             attr_reader :lg_time
+
+            # Size in bytes of the marshalled data sample
+            #
+            # @return [Integer]
             attr_reader :data_size
 
+            # @deprecated whether the sample is compressed
+            #
+            # Per-sample compression should simply not be used. On anything but
+            # gigantic samples it introduces a massive overhead for little gain
             def compressed?
                 @compressed
             end
@@ -308,7 +330,7 @@ module Pocolog
                 end
 
                 rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
-                    raw_data.unpack('VVVVVC')
+                    raw_data.unpack("VVVVVC")
                 new(rt_sec * 1_000_000 + rt_usec,
                     lg_sec * 1_000_000 + lg_usec,
                     data_size,
@@ -322,10 +344,16 @@ module Pocolog
                 @compressed = compressed
             end
 
+            # Timestamp in realtime
+            #
+            # @return [Time]
             def rt
                 StreamIndex.time_from_internal(rt_time, 0)
             end
 
+            # Timestamp in logical time
+            #
+            # @return [Time]
             def lg
                 StreamIndex.time_from_internal(lg_time, 0)
             end
