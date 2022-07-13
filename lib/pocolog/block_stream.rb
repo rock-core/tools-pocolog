@@ -70,6 +70,13 @@ module Pocolog
             @payload_size -= count
         end
 
+        def initialize_copy(old)
+            super
+
+            @io = @io.dup
+            @buffer_io = StringIO.new(@buffer_io.string.dup)
+        end
+
         # The IO path, if the backing IO is a file
         #
         # @return [String]
