@@ -4,7 +4,7 @@ module Pocolog
     module Format
         module V2
             # The magic code present at the beginning of each pocolog file
-            MAGIC = 'POCOSIM'
+            MAGIC = "POCOSIM"
             # Format version ID. Increment this when the file format changes in a
             # non-backward-compatible way
             VERSION = 2
@@ -12,7 +12,7 @@ module Pocolog
             PROLOGUE_SIZE = MAGIC.size + 9
 
             # The magic code at the beginning of a pocolog index
-            INDEX_MAGIC = 'POCOSIM_INDEX'
+            INDEX_MAGIC = "POCOSIM_INDEX"
             # The current index version. Unlike with the format version, a
             # changing index version will only cause rebuilding the index
             #
@@ -177,7 +177,7 @@ module Pocolog
                     index_io.seek(info.index_pos)
                     index_data = index_io.read(index_size)
                     if index_data.size != index_size
-                        raise InvalidIndex, 'not enough or too much data in index'
+                        raise InvalidIndex, "not enough or too much data in index"
                     end
 
                     index_data = index_data.unpack("Q>*")
@@ -248,7 +248,9 @@ module Pocolog
 
                 streams = []
                 stream_count.times do
-                    values = index_io.read(INDEX_STREAM_DESCRIPTION_SIZE).unpack('Q>*')
+                    values =
+                        index_io.read(INDEX_STREAM_DESCRIPTION_SIZE)
+                                .unpack("Q>*")
                     # This is (declaration_pos, index_pos, stream_size)
                     declaration_pos, index_pos, base_time, stream_size,
                         interval_rt_min, interval_rt_max,
@@ -327,12 +329,12 @@ module Pocolog
             #   should be stored
             def self.write_index(index_io, file_io, streams, version: INDEX_VERSION)
                 if index_io.path == file_io.path
-                    raise ArgumentError, 'attempting to overwrite the file by its index'
+                    raise ArgumentError, "attempting to overwrite the file by its index"
                 end
 
                 write_index_prologue(index_io, file_io.stat.size, file_io.stat.mtime,
                                      version: version)
-                index_io.write([streams.size].pack('Q>'))
+                index_io.write([streams.size].pack("Q>"))
 
                 index_list_pos = index_io.tell
                 index_data_pos = INDEX_STREAM_DESCRIPTION_SIZE * streams.size +
@@ -343,9 +345,9 @@ module Pocolog
                         index_contents_from_stream(stream_info, index_data_pos)
 
                     index_io.seek(index_list_pos)
-                    index_io.write(index_stream_info.pack('Q>*'))
+                    index_io.write(index_stream_info.pack("Q>*"))
                     index_io.seek(index_data_pos)
-                    index_io.write(index_data.pack('Q>*'))
+                    index_io.write(index_data.pack("Q>*"))
 
                     index_list_pos += INDEX_STREAM_DESCRIPTION_SIZE
                     index_data_pos += index_data.size * 8

@@ -10,7 +10,7 @@ require 'time'
 def time_from_spec(spec)
     if spec =~ /^\d+$/ then Integer(spec)
     elsif spec =~ /^\d+\.\d+$/ then Time.at(Float(spec))
-    else Time.parse(spec) 
+    else Time.parse(spec)
     end
 end
 
@@ -21,7 +21,8 @@ Typelib.load_type_plugins = false
 # by a DisplayConfig instance
 module Pocolog
     class ModeConfig
-	attr_reader :io
+        attr_reader :io
+
         def initialize(io, index_dir: nil)
             @io = io
             @index_dir = index_dir
@@ -29,108 +30,82 @@ module Pocolog
     end
 
     class BaseCopyConfig < ModeConfig
-	attr_reader :output
-	def output=(file)
-	    if io.empty?
-		raise ArgumentError, "no input file given"
-	    end
-	    @output = file
-	end
+        attr_reader :output
+        def output=(file)
+            if io.empty?
+                raise ArgumentError, "no input file given"
+            end
+            @output = file
+        end
 
-	def self.single_io?; true end
-	def initialize(io)
-	    if io.size > 1 && self.class.single_io?
-		raise ArgumentError, "too much input files given on command line"
-	    end
-	    super
-	end
+        def self.single_io?; true end
+        def initialize(io)
+            if io.size > 1 && self.class.single_io?
+                raise ArgumentError, "too much input files given on command line"
+            end
 
-	def init(&block)
-	    if io.any? { |input| input.path == output }
-		# Special case ... generate a temporary file and move the file
-		# only when we're done
-		begin
-		    save_output = @output
-		    @output = "#{@output}.log"
-		    init(&block)
+            super
+        end
 
-		    FileUtils.rm_f save_output
-		    FileUtils.mv output, save_output
-		    return
-		rescue
-		    FileUtils.rm_f output
-		    raise
-		end
-	    end
+        def init(&block)
+            if io.any? { |input| input.path == output }
+                # Special case ... generate a temporary file and move the file
+                # only when we're done
+                begin
+                    save_output = @output
+                    @output = "#{@output}.log"
+                    init(&block)
 
-	    File.open(output, 'w', :encoding => 'BINARY') do |to|
-		if self.class.single_io?
-		    yield(io.first, to)
-		else
-		    yield(io, to)
-		end
-	    end
-	end
+                    FileUtils.rm_f save_output
+                    FileUtils.mv output, save_output
+                    return
+                rescue
+                    FileUtils.rm_f output
+                    raise
+                end
+            end
+
+            File.open(output, 'w', :encoding => 'BINARY') do |to|
+                if self.class.single_io?
+                    yield(io.first, to)
+                else
+                    yield(io, to)
+                end
+            end
+        end
     end
 
     class ToNewFormatConfig < BaseCopyConfig
-	def self.optname; "--to-new-format" end
-	attr_reader :big_endian
+        def self.optname; "--to-new-format" end
+        attr_reader :big_endian
 
-	# For #convert, specifies the byte order of the original file. This is
-	# needed for v1 files. See also #big_endian.
-	def little_endian
-	    @big_endian = false
-	end
+        # For #convert, specifies the byte order of the original file. This is
+        # needed for v1 files. See also #big_endian.
+        def little_endian
+            @big_endian = false
+        end
 
-	# For #convert, specifies the byte order of the original file. This is
-	# needed for v1 files. See also #little_endian.
-	def big_endian
-	    @big_endian = true
-	end
+        # For #convert, specifies the byte order of the original file. This is
+        # needed for v1 files. See also #little_endian.
+        def big_endian
+            @big_endian = true
+        end
 
-	def execute
-	    init { |from, to| Logfiles.to_new_format(from, to, @big_endian) }
-	end
+        def execute
+            init { |from, to| Logfiles.to_new_format(from, to, @big_endian) }
+        end
     end
     class CompressConfig < BaseCopyConfig
-	def self.optname; "--compress" end
-	def execute
-	    init { |from, to| Logfiles.compress(from, to) }
-	end
+        def self.optname; "--compress" end
+        def execute
+            init { |from, to| Logfiles.compress(from, to) }
+        end
     end
 
     class SampleModeConfig < ModeConfig
-	attr_reader :logfiles
-	attr_reader :specs
+        attr_reader :logfiles
+        attr_reader :specs
 
-	def current; specs.last end
-
-	def stream(name)
-	    unless s = logfiles.streams.find { |n| n.name == name }
-		raise ArgumentError, "no such stream #{name}"
-	    end
-	    unless s.type
-		raise ArgumentError, "no type definition found for #{name}"
-	    end
-	    specs << (spec = self.class::Spec.new(s.samples))
-	    if @default_at
-		spec.samples.at(@default_at)
-	    end
-	end
-
-	def at(value)
-	    @default_at = value
-	    super if current
-	end
-
-	def method_missing(name, *args, &block)
-	    if current.respond_to?(name)
-		current.send(name, *args)
-	    else
-		current.samples.send(name, *args)
-	    end
-	end
         def initialize(io, index_dir: nil)
             super
 
@@ -138,23 +113,51 @@ module Pocolog
             @specs      = []
         end
 
+        def current; specs.last end
+
+        def stream(name)
+            unless s = logfiles.streams.find { |n| n.name == name }
+                raise ArgumentError, "no such stream #{name}"
+            end
+            unless s.type
+                raise ArgumentError, "no type definition found for #{name}"
+            end
+            specs << (spec = self.class::Spec.new(s.samples))
+            if @default_at
+                spec.samples.at(@default_at)
+            end
+        end
+
+        def at(value)
+            @default_at = value
+            super if current
+        end
+
+        def method_missing(name, *args, &block)
+            if current.respond_to?(name)
+                current.send(name, *args)
+            else
+                current.samples.send(name, *args)
+            end
+        end
+
     end
 
     class ExtractConfig < BaseCopyConfig
-	def self.optname; "--extract" end
+        def self.optname; "--extract" end
 
-	def self.single_io?; false end
-	attr_accessor :streams
+        def self.single_io?; false end
+        attr_accessor :streams
         def initialize(io, index_dir: nil)
             super
             @streams = Hash.new
         end
 
-	def execute
-	    buffer = ""
-	    init do |from, to|
+        def execute
+            buffer = ""
+            init do |from, to|
                 Logfiles.write_prologue(to, Pocolog.big_endian?)
-                
+
                 next_index = 0
                 enabled = Hash.new
                 sample_count = Array.new
@@ -201,33 +204,33 @@ module Pocolog
                         end
                     end
                 end
-	    end
-	end
+            end
+        end
     end
 
     class TypeConfig < ModeConfig
-	def self.optname; "--type" end
-	attr_reader :logfiles
+        def self.optname; "--type" end
+        attr_reader :logfiles
         def initialize(io, index_dir: nil)
             super
             @logfiles   = Logfiles.new(*io, index_dir: index_dir)
         end
 
-	def execute
-	    logfiles.streams.each do |stream|
-		next unless stream.type
-		if type = stream.type.registry.get(@typename)
-		    pp type
-		    return
-		end
-	    end
+        def execute
+            logfiles.streams.each do |stream|
+                next unless stream.type
+                if type = stream.type.registry.get(@typename)
+                    pp type
+                    return
+                end
+            end
 
-	    # Try harder
-	end
+            # Try harder
+        end
 
-	def typename(name)
-	    @typename = name
-	end
+        def typename(name)
+            @typename = name
+        end
     end
 
 
@@ -265,10 +268,10 @@ module Pocolog
             eval "self.expr = Proc.new { |sample| #{string} }"
         end
 
-	def execute
-	    stream = samples.stream
+        def execute
+            stream = samples.stream
 
-	    if !expr && fields
+            if !expr && fields
                 field_operations = fields.map do |name|
                     ops = []
                     name.split('.').each do |subname|
@@ -293,7 +296,7 @@ module Pocolog
                     [name, ops]
                 end
 
-		header_names = field_operations.map do |name, field_ops| 
+                header_names = field_operations.map do |name, field_ops|
                     type = field_ops.inject(stream.type) do |type, op|
                         if op[0] == :deference
                             type.deference
@@ -305,37 +308,37 @@ module Pocolog
                             end
                         end
                     end
-		    subnames = type.to_csv
-		    name + subnames.gsub(/ \./, " #{name}.")
-		end
+                    subnames = type.to_csv
+                    name + subnames.gsub(/ \./, " #{name}.")
+                end
                 if time
                     header_names.unshift time
                 end
-		puts header_names.join(" ")
+                puts header_names.join(" ")
 
             elsif !expr
-		header = stream.type.to_csv(stream.name)
-		field_names = header.split(' ')
-		if remove_prefix
-		    field_names.map! { |name| name.gsub!(remove_prefix, '') if name }
-		end
-		if filter || filter_out
-		    field_indexes = field_names.enum_with_index.map do |field, index|
-			if filter_out && filter_out === field then nil
-			elsif filter && !(filter === field) then nil
-			else index
-			end
-		    end.compact
+                header = stream.type.to_csv(stream.name)
+                field_names = header.split(' ')
+                if remove_prefix
+                    field_names.map! { |name| name.gsub!(remove_prefix, '') if name }
+                end
+                if filter || filter_out
+                    field_indexes = field_names.enum_with_index.map do |field, index|
+                        if filter_out && filter_out === field then nil
+                        elsif filter && !(filter === field) then nil
+                        else index
+                        end
+                    end.compact
                     field_names = field_names.values_at(*field_indexes).join(" ")
                 end
                 if time
                     field_names.unshift('time')
                 end
                 puts field_names.join(' ')
-	    end
+            end
 
-	    samples.raw_each do |rt, lg, data|
-		if time
+            samples.raw_each do |rt, lg, data|
+                if time
                     if user_readable_time
                         if samples.use_rt
                             print rt.strftime("%H:%M:%S.%6N ")
@@ -349,62 +352,62 @@ module Pocolog
                             print "%i.%06i " % [lg.tv_sec, lg.tv_usec]
                         end
                     end
-		end
+                end
 
                 if expr
                     puts expr.call(Typelib.to_ruby(data))
-		elsif fields
+                elsif fields
                     values = field_operations.map do |_, field_ops|
                         display_fields(data, field_ops)
-		    end
-		    puts values.join(" ")
-		else
-		    data = display_fields(data, [])
+                    end
+                    puts values.join(" ")
+                else
+                    data = display_fields(data, [])
 
-		    if field_indexes
-			puts data.split(' ').values_at(*field_indexes).join(' ')
-		    else
-			puts data
-		    end
-		end
-	    end
-	end
+                    if field_indexes
+                        puts data.split(' ').values_at(*field_indexes).join(' ')
+                    else
+                        puts data
+                    end
+                end
+            end
+        end
     end
 
     class DisplayConfig < SampleModeConfig
-	def self.optname; "--show" end
-	Spec = DisplaySpec
+        def self.optname; "--show" end
+        Spec = DisplaySpec
         def show_metadata
             @show_metadata = true
         end
 
-	def execute
-	    if specs.empty?
-		return display_file_info
-	    elsif @show_type
-		specs.each do |s|
-		    stream = s.samples.stream
-		    pp stream.type
-		end
+        def execute
+            if specs.empty?
+                return display_file_info
+            elsif @show_type
+                specs.each do |s|
+                    stream = s.samples.stream
+                    pp stream.type
+                end
 
-	    else specs.each { |s| s.execute }
-	    end
-	end
+            else specs.each { |s| s.execute }
+            end
+        end
 
-	def type
-	    @show_type = true
-	end
+        def type
+            @show_type = true
+        end
 
-	def display_file_info
-	    mode = if logfiles.endian_swap ^ Pocolog.big_endian?
-			   "big endian"
-		   else
-			   "little endian"
-		   end
+        def display_file_info
+            mode = if logfiles.endian_swap ^ Pocolog.big_endian?
+                           "big endian"
+                   else
+                           "little endian"
+                   end
 
-	    puts "File data is in #{mode} byte order" 
-	    empty_streams = Hash.new
-	    info = Hash.new
+            puts "File data is in #{mode} byte order"
+            empty_streams = Hash.new
+            info = Hash.new
 
             streams = logfiles.streams
             if streams.empty?
@@ -412,76 +415,76 @@ module Pocolog
                 return
             end
 
-	    streams.each do |stream|
-		first_sample, last_sample = stream.interval_lg
-		count = stream.size
+            streams.each do |stream|
+                first_sample, last_sample = stream.interval_lg
+                count = stream.size
 
-		if count == 0
+                if count == 0
                     empty_streams[stream.name] = "#{stream.name} [#{stream.type.name}]\n"
                     if !stream.metadata.empty? && @show_metadata
                         stream.metadata.sort.each do |key, value|
                             empty_streams[stream.name] << "    #{key}: #{value}\n"
                         end
                     end
-		else
+                else
                     info[stream.name] = "#{stream.name} [#{stream.type.name}]\n"
                     if !stream.metadata.empty? && @show_metadata
                         stream.metadata.sort.each do |key, value|
                             info[stream.name] << "  #{key}: #{value}\n"
                         end
                     end
-		    info[stream.name] <<
-			"  #{count} samples"
+                    info[stream.name] <<
+                        "  #{count} samples"
 
-		    diff = last_sample - first_sample
-		    diff = Time.at(diff).to_hms if diff > 0
+                    diff = last_sample - first_sample
+                    diff = Time.at(diff).to_hms if diff > 0
                     first_sample = first_sample.strftime("%a %d/%m/%Y %H:%M:%S")
                     last_sample  = last_sample.strftime("%a %d/%m/%Y %H:%M:%S")
-		    info[stream.name] << " from #{first_sample} to #{last_sample} [#{diff}]"
-		end
-	    end
-	    info.keys.sort.each do |name|
-		puts "Stream #{info[name]}"
-	    end
-	    if !empty_streams.empty?
-		print "No samples for\n  "
-		puts empty_streams.values_at(*empty_streams.keys.sort).join("  ")
-	    end
-	end
+                    info[stream.name] << " from #{first_sample} to #{last_sample} [#{diff}]"
+                end
+            end
+            info.keys.sort.each do |name|
+                puts "Stream #{info[name]}"
+            end
+            if !empty_streams.empty?
+                print "No samples for\n  "
+                puts empty_streams.values_at(*empty_streams.keys.sort).join("  ")
+            end
+        end
     end
 
     class RegistryDisplay < ModeConfig
-	def self.optname; "--types" end
-	attr_reader :logfiles
+        def self.optname; "--types" end
+        attr_reader :logfiles
         def initialize(io, index_dir: nil)
             super
             @logfiles = Logfiles.new(*io, index_dir: index_dir)
         end
 
-	def execute
+        def execute
             registry = Typelib::Registry.new
-	    logfiles.streams.each do |stream|
+            logfiles.streams.each do |stream|
                 registry.merge stream.registry
-	    end
+            end
             registry.each do |type|
                 pp type
             end
-	end
+        end
     end
 
     class XMLRegistryDisplay < ModeConfig
-	def self.optname; "--types-xml" end
-	attr_reader :logfiles
+        def self.optname; "--types-xml" end
+        attr_reader :logfiles
         def initialize(io, index_dir: nil)
             super
             @logfiles   = Logfiles.new(*io, index_dir: index_dir)
         end
 
-	def execute
-	    logfiles.streams.each do |stream|
+        def execute
+            logfiles.streams.each do |stream|
                 puts stream.marshalled_registry
-	    end
-	end
+            end
+        end
     end
 
     class Config
@@ -515,7 +518,7 @@ module Pocolog
         def types
             self.mode = RegistryDisplay
         end
-	
+
         def types_xml
             self.mode = XMLRegistryDisplay
         end
@@ -523,52 +526,52 @@ module Pocolog
         def show_metadata
             @show_metadata = true
         end
-	
-	# Displays samples from +name+
-	def type(name)
-	    if mode_config
-		mode_config.type
-	    else
-		self.mode = TypeConfig
-		mode_config.typename(name)
-	    end
-	end
 
-	# Converts a file in an old format into the new format
-	def convert(file)
-	    self.mode = ToNewFormatConfig
-	    mode_config.output = file
-	end
+        # Displays samples from +name+
+        def type(name)
+            if mode_config
+                mode_config.type
+            else
+                self.mode = TypeConfig
+                mode_config.typename(name)
+            end
+        end
 
-	# Compresses the log file
-	def compress(file)
-	    self.mode = CompressConfig
-	    mode_config.output = file
-	end
+        # Converts a file in an old format into the new format
+        def convert(file)
+            self.mode = ToNewFormatConfig
+            mode_config.output = file
+        end
 
-	# Compresses the log file
-	def extract(file)
-	    self.mode = ExtractConfig
-	    mode_config.output = file
-	end
+        # Compresses the log file
+        def compress(file)
+            self.mode = CompressConfig
+            mode_config.output = file
+        end
 
-	# Adds a file to the file list
-	def input(file)
-	    if mode
-		raise ArgumentError, "cannot add files here"
-	    end
-	    @files << file
-	end
+        # Compresses the log file
+        def extract(file)
+            self.mode = ExtractConfig
+            mode_config.output = file
+        end
 
-	def method_missing(*args, &block) # :nodoc:
-	    if mode_config
-		mode_config.send(*args, &block)
-	    else super
-	    end
-	end
+        # Adds a file to the file list
+        def input(file)
+            if mode
+                raise ArgumentError, "cannot add files here"
+            end
+            @files << file
+        end
 
-	# Process the file according to the given mode and options
-	def execute
+        def method_missing(*args, &block) # :nodoc:
+            if mode_config
+                mode_config.send(*args, &block)
+            else super
+            end
+        end
+
+        # Process the file according to the given mode and options
+        def execute
             if mode_config
                 mode_config.execute
             else
@@ -578,7 +581,7 @@ module Pocolog
                 end
                 mode.execute
             end
-	end
+        end
     end
 
 end
@@ -600,11 +603,11 @@ parser = OptionParser.new do |opts|
     opts.separator ""
     opts.separator "Displays samples with"
     opts.separator "  pocolog FILE FILE --show STREAM [options]"
-    opts.on('--csv', String, "display stream data in a CSV-compatible format") do |name| 
+    opts.on('--csv', String, "display stream data in a CSV-compatible format") do |name|
         Pocolog.logger.level = Logger::FATAL
     end
-    opts.on('-s', '--show NAME', String, "display info/samples from the specified streams") do |name| 
-	config.show(name)
+    opts.on('-s', '--show NAME', String, "display info/samples from the specified streams") do |name|
+        config.show(name)
     end
     opts.on('--types', 'display the types registered in the file') do
         config.types
@@ -614,43 +617,43 @@ parser = OptionParser.new do |opts|
     end
 
     opts.on('--type [NAME]', String, 'display type definitions', 'pocolog --show NAME --type displays the stream type', 'pocolog --type NAME displays the definition of NAME') do |name|
-	config.type(name)
+        config.type(name)
     end
     opts.on('--rt', 'use real time as time reference') do
-	config.realtime
+        config.realtime
     end
     opts.on('-t', '--time', 'display time of samples') do
-	config.time = true
+        config.time = true
     end
     opts.on('-h', '--human', 'display time in a human-readable form') do
-	config.user_readable_time = true
+        config.user_readable_time = true
     end
     opts.on('--expr=EXPR', String, "a Ruby expression to evaluate for each sample. In the code, 'sample' refers to the current stream value") do |spec|
         config.eval_expr(spec)
     end
-    opts.on('--at SPEC', String, 'config only specified sample, see below for definition of SPEC') do |spec| 
-	config.at(time_from_spec(spec))
+    opts.on('--at SPEC', String, 'config only specified sample, see below for definition of SPEC') do |spec|
+        config.at(time_from_spec(spec))
     end
-    opts.on('--from SPEC', String, 'begin at the specified sample, see below for definition of SPEC') do |spec| 
-	config.from(time_from_spec(spec))
+    opts.on('--from SPEC', String, 'begin at the specified sample, see below for definition of SPEC') do |spec|
+        config.from(time_from_spec(spec))
     end
     opts.on('--to SPEC', String, 'stop at the specified sample, see below for definition of SPEC') do |spec|
-	config.to(time_from_spec(spec))
+        config.to(time_from_spec(spec))
     end
-    opts.on('--every SPEC', String, 'skip the specified amount of samples or time between two displayed samples', 'see below for definition of SPEC') do |spec| 
-	config.every(time_from_spec(spec))
+    opts.on('--every SPEC', String, 'skip the specified amount of samples or time between two displayed samples', 'see below for definition of SPEC') do |spec|
+        config.every(time_from_spec(spec))
     end
     opts.on('--fields x,y,z', Array, 'selects a comma-separated set of fields') do |fields|
-	config.fields = fields
+        config.fields = fields
     end
     opts.on('--filter REGEX', String, 'select the fields whose name matches REGEX') do |filter|
-	config.filter = Regexp.new(filter)
+        config.filter = Regexp.new(filter)
     end
     opts.on('--filter-out REGEX', String, 'remove the fields whose name matches REGEX') do |filter_out|
-	config.filter_out = Regexp.new(filter_out)
+        config.filter_out = Regexp.new(filter_out)
     end
     opts.on('--remove-prefix STRING', String, 'remove the prefix PREFIX from the front of field names') do |remove_prefix|
-	config.remove_prefix = Regexp.new("^#{Regexp.quote(remove_prefix)}")
+        config.remove_prefix = Regexp.new("^#{Regexp.quote(remove_prefix)}")
     end
     opts.separator ""
     opts.separator "  For --at, --from and --to, either a sample index or a time can be specified"
@@ -660,13 +663,13 @@ parser = OptionParser.new do |opts|
     opts.separator ""
     opts.separator 'File convertion:'
     opts.on('--compress [OUTPUT]', 'compresses the log files into OUTPUT') do |output|
-	config.compress(output || config.io.first.path)
+        config.compress(output || config.io.first.path)
     end
     opts.on('--to-new-format OUTPUT', 'converts the source file into the new format in OUTPUT') do |output|
-	config.convert(output)
+        config.convert(output)
     end
     opts.on('--extract [OUTPUT]', "creates a new log file with only the streams specified", "by the following --stream options") do |output|
-	config.extract(output || config.io.first.path)
+        config.extract(output || config.io.first.path)
     end
     opts.on("--streams NAME[:start_index[:end_index]]", Array, 'specifies the stream names for --extract') do |names|
         names.each do |n|
@@ -677,18 +680,18 @@ parser = OptionParser.new do |opts|
         end
     end
     opts.on('--little-endian', 'the source file of --to-new-format is little-endian', 'Needed by --to-new-format to convert v1 files') do
-	config.little_endian
+        config.little_endian
     end
     opts.on('--big-endian', 'the source file of --to-new-format is big-endian', 'Needed by --to-new-format to convert v1 files') do
-	config.big_endian
+        config.big_endian
     end
 
     opts.separator ""
     opts.separator "Common options"
-    opts.on("--help", "this help") do 
-	puts opts
-	puts
-	exit
+    opts.on("--help", "this help") do
+        puts opts
+        puts
+        exit
     end
 end
 

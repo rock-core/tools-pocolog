@@ -294,14 +294,13 @@ module Pocolog
             marshalled_data = logfile.read_one_data_payload(block_pos)
             data = sample || type.new
             data.from_buffer_direct(marshalled_data)
-            if logfile.endian_swap
-                data = data.endian_swap
-            end
+            data = data.endian_swap if logfile.endian_swap
             data
         rescue Interrupt
             raise
-        rescue Exception => e
-            raise e, "failed to unmarshal sample in block at position #{block_pos}: #{e.message}", e.backtrace
+        rescue StandardError => e
+            raise e, "failed to unmarshal sample in block at position #{block_pos}: "\
+                     "#{e.message}", e.backtrace
         end
 
         def data(data_header = nil)
