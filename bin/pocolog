@@ -22,7 +22,10 @@ Typelib.load_type_plugins = false
 module Pocolog
     class ModeConfig
 	attr_reader :io
-	def initialize(io); @io = io end
+        def initialize(io, index_dir: nil)
+            @io = io
+            @index_dir = index_dir
+        end
     end
 
     class BaseCopyConfig < ModeConfig
@@ -101,13 +104,6 @@ module Pocolog
 	attr_reader :logfiles
 	attr_reader :specs
 
-	def initialize(io)
-	    super
-
-	    @logfiles   = Logfiles.new(*io)
-	    @specs      = []
-	end
-
 	def current; specs.last end
 
 	def stream(name)
@@ -135,6 +131,12 @@ module Pocolog
 		current.samples.send(name, *args)
 	    end
 	end
+        def initialize(io, index_dir: nil)
+            super
+
+            @logfiles   = Logfiles.new(*io, index_dir: index_dir)
+            @specs      = []
+        end
 
     end
 
@@ -143,10 +145,10 @@ module Pocolog
 
 	def self.single_io?; false end
 	attr_accessor :streams
-	def initialize(io)
-	    super
-	    @streams = Hash.new
-	end
+        def initialize(io, index_dir: nil)
+            super
+            @streams = Hash.new
+        end
 
 	def execute
 	    buffer = ""
@@ -206,10 +208,10 @@ module Pocolog
     class TypeConfig < ModeConfig
 	def self.optname; "--type" end
 	attr_reader :logfiles
-	def initialize(io)
-	    super
-	    @logfiles   = Logfiles.new(*io)
-	end
+        def initialize(io, index_dir: nil)
+            super
+            @logfiles   = Logfiles.new(*io, index_dir: index_dir)
+        end
 
 	def execute
 	    logfiles.streams.each do |stream|
@@ -451,10 +453,10 @@ module Pocolog
     class RegistryDisplay < ModeConfig
 	def self.optname; "--types" end
 	attr_reader :logfiles
-	def initialize(io)
-	    super
-	    @logfiles   = Logfiles.new(*io)
-	end
+        def initialize(io, index_dir: nil)
+            super
+            @logfiles = Logfiles.new(*io, index_dir: index_dir)
+        end
 
 	def execute
             registry = Typelib::Registry.new
@@ -470,10 +472,10 @@ module Pocolog
     class XMLRegistryDisplay < ModeConfig
 	def self.optname; "--types-xml" end
 	attr_reader :logfiles
-	def initialize(io)
-	    super
-	    @logfiles   = Logfiles.new(*io)
-	end
+        def initialize(io, index_dir: nil)
+            super
+            @logfiles   = Logfiles.new(*io, index_dir: index_dir)
+        end
 
 	def execute
 	    logfiles.streams.each do |stream|
@@ -486,6 +488,7 @@ module Pocolog
 	attr_reader :mode
 	attr_reader :mode_config
 	attr_reader :files
+        attr_accessor :index_dir
 
 	def initialize
 	    @files = []
@@ -500,7 +503,7 @@ module Pocolog
 		raise ArgumentError, "#{mode.optname} must be the first option"
 	    end
 	    @mode   = mode
-	    @mode_config = mode.new(io)
+	    @mode_config = mode.new(io, index_dir: index_dir)
 	end
 
 	# Displays samples from +name+
@@ -583,6 +586,10 @@ end
 csv_mode = false
 config = Pocolog::Config.new
 parser = OptionParser.new do |opts|
+    opts.on "--index-dir=PATH", String, "path from which log indexes are saved and loaded" do |path|
+        config.index_dir = path
+    end
+
     opts.separator ""
     opts.separator "Displays file information with"
     opts.separator "  pocolog FILE"
