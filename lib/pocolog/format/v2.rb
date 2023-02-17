@@ -23,7 +23,7 @@ module Pocolog
             # Size of a stream description in the index
             INDEX_STREAM_DESCRIPTION_SIZE = 8 * 8
             # Size of an entry in the index table
-            INDEX_STREAM_ENTRY_SIZE = 8 * 3
+            INDEX_STREAM_ENTRY_SIZE = 8 * 2
 
             # The size of the generic block header
             BLOCK_HEADER_SIZE = 8
@@ -189,8 +189,7 @@ module Pocolog
                         raise InvalidIndex, 'not enough or too much data in index'
                     end
 
-                    index_data = index_data.unpack('Q>*')
-                                           .each_slice(3).to_a
+                    index_data = index_data.unpack("Q>*")
                     StreamInfo.from_raw_data(
                         info.declaration_pos, info.interval_rt, info.base_time,
                         index_data
@@ -378,7 +377,7 @@ module Pocolog
                     interval_lg[0] || 0, interval_lg[1] || 0
                 ]
 
-                [index_stream_info, stream_info.index.index_map.flatten]
+                [index_stream_info, stream_info.index.index_map]
             end
         end
     end
