@@ -4,7 +4,7 @@ module Pocolog
     module Format
         module V2
             # The magic code present at the beginning of each pocolog file
-            MAGIC = 'POCOSIM'
+            MAGIC = "POCOSIM"
             # Format version ID. Increment this when the file format changes in a
             # non-backward-compatible way
             VERSION = 2
@@ -12,7 +12,7 @@ module Pocolog
             PROLOGUE_SIZE = MAGIC.size + 9
 
             # The magic code at the beginning of a pocolog index
-            INDEX_MAGIC = 'POCOSIM_INDEX'
+            INDEX_MAGIC = "POCOSIM_INDEX"
             # The current index version. Unlike with the format version, a
             # changing index version will only cause rebuilding the index
             #
@@ -353,9 +353,9 @@ module Pocolog
                         index_contents_from_stream(stream_info, index_data_pos)
 
                     index_io.seek(index_list_pos)
-                    index_io.write(index_stream_info.pack('Q>*'))
+                    index_io.write(index_stream_info.pack("Q>*"))
                     index_io.seek(index_data_pos)
-                    index_io.write(index_data.pack('Q>*'))
+                    index_io.write(index_data.pack("Q>*"))
 
                     index_list_pos += INDEX_STREAM_DESCRIPTION_SIZE
                     index_data_pos += index_data.size * 8
