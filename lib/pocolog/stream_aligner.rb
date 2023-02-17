@@ -128,9 +128,8 @@ module Pocolog
             if base_time
                 all_streams.each_with_index do |stream, i|
                     stream.stream_index.base_time = base_time
-                    for entry in stream.stream_index.index_map
-                        sort_index << entry[1] * size + i
-                    end
+                    times = stream.stream_index.raw_each_time.map { |t| t * size + i }
+                    sort_index.concat(times)
                 end
             end
 

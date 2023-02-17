@@ -25,11 +25,11 @@ module Pocolog
             end
         end
 
-        describe "#size" do
+        describe "#sample_count" do
             it "returns the number of samples in the index" do
-                assert_equal 0, stream_index.size
+                assert_equal 0, stream_index.sample_count
                 stream_index.add_sample(0, 10)
-                assert_equal 1, stream_index.size
+                assert_equal 1, stream_index.sample_count
             end
         end
 
@@ -104,7 +104,7 @@ module Pocolog
             end
             it "adds the new index' entries to the existing" do
                 stream_index.concat(new_index)
-                assert_equal 5, stream_index.size
+                assert_equal 5, stream_index.sample_count
                 assert_equal 3, stream_index.file_position_by_sample_number(3)
                 assert_equal Time.at(0, base_time + 4), stream_index.time_by_sample_number(3)
             end

@@ -57,6 +57,7 @@ module Pocolog
             index_map = stream_info.index_map
             interval_rt = []
             base_time = nil
+
             # Read the realtime of the first and last samples
             unless index_map.empty?
                 block_stream.seek(index_map.first)
@@ -69,12 +70,11 @@ module Pocolog
                 interval_rt = [first_block.rt_time, last_block.rt_time]
 
                 base_time = index_map[1]
-                sample_index = -1
-                index_map = index_map.each_slice(2).map do |block_pos, lg_time|
-                    sample_index += 1
-                    [block_pos, lg_time - base_time, sample_index]
+                index_map = StreamIndex.map_entries_internal(index_map) do |pos, time|
+                    [pos, time - base_time]
                 end
             end
+
             StreamInfo.from_raw_data(
                 stream_info.stream_block_pos,
                 interval_rt, base_time, index_map

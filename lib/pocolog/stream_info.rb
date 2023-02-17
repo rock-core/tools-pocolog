@@ -23,7 +23,9 @@ module Pocolog
         attr_reader :index
 
         # True if this stream is empty
-        def empty?; size == 0 end
+        def empty?
+            size == 0
+        end
 
         # Initialize a stream info object from raw information
         def self.from_raw_data(declaration_block, interval_rt, base_time, index_map)
@@ -105,15 +107,15 @@ module Pocolog
             @declaration_blocks = [declaration_block]
             @index = StreamIndex.from_raw_data(base_time, index_map)
             @interval_rt = interval_rt
-            @size = index.size
-            if !index.empty?
-                @interval_io =
-                    [index.file_position_by_sample_number(0),
-                     index.file_position_by_sample_number(-1)]
-                @interval_lg =
-                    [index.internal_time_by_sample_number(0) + index.base_time,
-                     index.internal_time_by_sample_number(-1) + index.base_time]
-            end
+            @size = index.sample_count
+            return if index.empty?
+
+            @interval_io =
+                [index.file_position_by_sample_number(0),
+                 index.file_position_by_sample_number(-1)]
+            @interval_lg =
+                [index.internal_time_by_sample_number(0) + index.base_time,
+                 index.internal_time_by_sample_number(-1) + index.base_time]
         end
     end
 end
