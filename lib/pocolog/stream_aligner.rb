@@ -119,18 +119,17 @@ module Pocolog
             Pocolog.info "adding #{streams.size} streams with #{streams_size} samples"
 
             tic = Time.now
-            if !base_time
+            unless base_time
                 @base_time = streams.map { |s| s.stream_index.base_time }.compact.min
             end
 
-            sort_index = Array.new
+            sort_index = []
             all_streams = (@streams + streams)
             if base_time
                 all_streams.each_with_index do |stream, i|
                     stream.stream_index.base_time = base_time
-                    for entry in stream.stream_index.index_map
-                        sort_index << entry[1] * size + i
-                    end
+                    times = stream.stream_index.raw_each_time.map { |t| t * size + i }
+                    sort_index.concat(times)
                 end
             end
 
