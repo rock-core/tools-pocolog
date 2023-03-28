@@ -39,7 +39,7 @@ module Pocolog
         end
 
         def self.single_io?; true end
-        def initialize(io)
+        def initialize(io, index_dir: nil)
             if io.size > 1 && self.class.single_io?
                 raise ArgumentError, "too much input files given on command line"
             end
