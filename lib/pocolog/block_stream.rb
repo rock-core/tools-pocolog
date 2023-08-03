@@ -33,6 +33,8 @@ module Pocolog
         end
 
         # Create a BlockStream object that acts on a given file
+        #
+        # @return [BlockStream]
         def self.open(path)
             if block_given?
                 File.open(path) do |io|
@@ -167,6 +169,7 @@ module Pocolog
             io.read(BLOCK_HEADER_SIZE)
         end
 
+        # @return [BlockHeader]
         def self.read_block_header(io, pos = nil)
             BlockHeader.parse(read_block_header_raw(io, pos))
         end
@@ -188,6 +191,8 @@ module Pocolog
         end
 
         # Read the header of the next block
+        #
+        # @return [BlockHeader,nil]
         def read_next_block_header
             skip(@payload_size) if @payload_size != 0
 

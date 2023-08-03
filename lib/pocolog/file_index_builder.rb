@@ -27,21 +27,27 @@ module Pocolog
         # therefore only stores the declaration block and index map
         raw_stream_info = []
         block_pos = block_stream.tell
+        interval_rt = []
         while (block = block_stream.read_next_block_header)
             stream_index = block.stream_index
+            interval_rt[stream_index] ||= []
 
             if block.kind == STREAM_BLOCK
                 raw_stream_info[stream_index] =
                     IndexBuilderStreamInfo.new(block_pos, [])
             elsif block.kind == DATA_BLOCK
                 data_block = block_stream.read_data_block_header
-                index_map  = raw_stream_info[stream_index].index_map
+                interval_rt[stream_index][0] ||= data_block.rt_time
+                interval_rt[stream_index][1] = data_block.rt_time
+                index_map = raw_stream_info[stream_index].index_map
                 index_map << block_pos << data_block.lg_time
             end
             block_stream.skip_payload
             block_pos = block_stream.tell
         end
-        create_index_from_raw_info(block_stream, raw_stream_info)
+        create_index_from_raw_info(
+            block_stream, raw_stream_info, interval_rt: interval_rt
+        )
     end
 
     # Create an list of {StreamInfo} object based on basic information about the
@@ -50,24 +56,18 @@ module Pocolog
     # @param [Array<IndexBuilderStreamInfo>] raw_info minimal stream information
     #   needed to build the index
     # @return [Array<StreamInfo,nil>]
-    def self.create_index_from_raw_info(block_stream, raw_info)
-        raw_info.map do |stream_info|
+    def self.create_index_from_raw_info(block_stream, raw_info, interval_rt: [])
+        raw_info.each_with_index.map do |stream_info, stream_i|
             next unless stream_info
 
             index_map = stream_info.index_map
-            interval_rt = []
             base_time = nil
+            stream_interval_rt = interval_rt[stream_i]
 
-            # Read the realtime of the first and last samples
             unless index_map.empty?
-                block_stream.seek(index_map.first)
-                block_stream.read_next_block_header
-                first_block = block_stream.read_data_block_header
-
-                block_stream.seek(index_map[-2])
-                block_stream.read_next_block_header
-                last_block = block_stream.read_data_block_header
-                interval_rt = [first_block.rt_time, last_block.rt_time]
+                # Read the realtime of the first and last samples if they are
+                # not provided
+                stream_interval_rt ||= create_index_read_interval_rt(block_stream, index_map)
 
                 base_time = index_map[1]
                 index_map = StreamIndex.map_entries_internal(index_map) do |pos, time|
@@ -77,8 +77,19 @@ module Pocolog
 
             StreamInfo.from_raw_data(
                 stream_info.stream_block_pos,
-                interval_rt, base_time, index_map
+                stream_interval_rt || [], base_time, index_map
             )
         end
+    end
+
+    def self.create_index_read_interval_rt(block_stream, index_map)
+        block_stream.seek(index_map.first)
+        block_stream.read_next_block_header
+        first_block = block_stream.read_data_block_header
+
+        block_stream.seek(index_map[-2])
+        block_stream.read_next_block_header
+        last_block = block_stream.read_data_block_header
+        [first_block.rt_time, last_block.rt_time]
     end
 end
