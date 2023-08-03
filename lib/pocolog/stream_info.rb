@@ -3,7 +3,9 @@ module Pocolog
     #
     # Information about a stream for indexing purposes
     class StreamInfo
-        # Positions of the declaration blocks
+        # Positions in the file of the declaration blocks
+        #
+        # @return [Array<Integer>]
         attr_reader :declaration_blocks
         # The position of the first and last samples in the file set, as
         # [[raw_pos, io_index], [raw_pos, io_index]]. It is empty for empty
