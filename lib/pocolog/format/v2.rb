@@ -185,9 +185,6 @@ module Pocolog
                     expected_file_size: expected_file_size,
                     expected_mtime: expected_mtime
                 )
-
-                index_file_validate_size(index_io, index_stream_info)
-
                 index_stream_info.map { read_stream_info(index_io, _1) }
             end
 
@@ -200,7 +197,7 @@ module Pocolog
                 index_size = info.stream_size * INDEX_STREAM_ENTRY_SIZE
                 index_data = index_io.pread(index_size, info.index_pos)
                 if index_data.size != index_size
-                    raise InvalidIndex, "not enough or too much data in index"
+                    raise InvalidIndex, "index file seem truncated"
                 end
 
                 index_data = index_data.unpack("Q>*")
@@ -319,17 +316,12 @@ module Pocolog
                                     expected_mtime: expected_mtime,
                                     expected_file_size: expected_file_size)
 
-                index_size = index_io.size
-                if index_size < INDEX_PROLOGUE_SIZE + 8
-                    raise InvalidIndex, "index file too small"
-                end
+                stream_count_data = index_io.read(8)
 
-                stream_count = index_io.read(8).unpack1("Q>")
-                minimum_index_size = INDEX_PROLOGUE_SIZE + 8 +
-                                     INDEX_STREAM_DESCRIPTION_SIZE * stream_count
-                if index_size < minimum_index_size
+                if stream_count_data.size < 8
                     raise InvalidIndex, "index file too small"
                 end
+                stream_count_data.unpack1("Q>")
             end
 
             # Read basic stream information from an index file
@@ -341,15 +333,22 @@ module Pocolog
                 stream_count.times.map do
                     read_index_single_stream_info(index_io)
                 end
-                stream_count
             end
 
+            # Read from IO the index stream info for a single stream
+            #
+            # @return [IndexStreamInfo]
             def self.read_index_single_stream_info(index_io) # rubocop:disable Metrics/AbcSize
+                data = index_io.read(INDEX_STREAM_DESCRIPTION_SIZE)
+                if !data || data.size < INDEX_STREAM_DESCRIPTION_SIZE
+                    raise InvalidIndex,
+                          "not enough data to read stream description in index"
+                end
+
                 declaration_pos, index_pos, base_time, stream_size,
                     interval_rt_min, interval_rt_max,
                     interval_lg_min, interval_lg_max =
-                    index_io.read(INDEX_STREAM_DESCRIPTION_SIZE)
-                            .unpack("Q>*")
+                    data.unpack("Q>*")
 
                 if stream_size == 0
                     base_time = nil

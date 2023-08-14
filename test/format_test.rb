@@ -55,23 +55,15 @@ module Pocolog
             end
 
             describe "#read_index" do
-                it "raises InvalidIndex if the file is smaller than the expected file size" do
+                it "raises InvalidIndex if trying to read the index from a truncated file" do
                     index_real_size = index_io.size
-                    flexmock(index_io).should_receive(:size).and_return(index_real_size - 1)
+                    index_io.close
+                    File.truncate(logfile_path("test.0.idx"), index_real_size - 1)
+                    index_io = File.open(logfile_path("test.0.idx"))
                     e = assert_raises(InvalidIndex) do
                         Format::Current.read_index(index_io)
                     end
-                    assert_equal "index file should be of size #{index_real_size} "\
-                                 "but is of size #{index_io.size}", e.message
-                end
-                it "raises InvalidIndex if the file is bigger than the expected file size" do
-                    index_real_size = index_io.size
-                    flexmock(index_io).should_receive(:size).and_return(index_real_size + 1)
-                    e = assert_raises(InvalidIndex) do
-                        Format::Current.read_index(index_io)
-                    end
-                    assert_equal "index file should be of size #{index_real_size} but "\
-                                 "is of size #{index_io.size}", e.message
+                    assert_equal "index file seem truncated", e.message
                 end
             end
         end
