@@ -21,7 +21,7 @@ module Pocolog
             end
 
             it "saves the stream info" do
-                info = Format::Current.read_index_stream_info(index_io)
+                info = Format::Current.read_index_minimal_info(index_io)
                 assert_equal 1, info.size
 
                 stream_info = info.first

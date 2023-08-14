@@ -180,7 +180,7 @@ module Pocolog
             # @return [Array<StreamInfo>] the information contained in the index
             #   file
             def self.read_index(index_io, expected_file_size: nil, expected_mtime: nil)
-                index_stream_info = read_index_stream_info(
+                index_stream_info = read_index_minimal_info(
                     index_io,
                     expected_file_size: expected_file_size,
                     expected_mtime: expected_mtime
@@ -208,6 +208,25 @@ module Pocolog
                     info.declaration_pos, info.interval_rt, info.base_time,
                     index_data
                 )
+            end
+
+            # Read the full stream definition as well as index data for a string without
+            # reading any actual data (no index data and no stream data)
+            #
+            # @return [Array<(BlockStream::StreamBlock,IndexStreamInfo)>]
+            def self.read_minimal_info(index_io, file_io)
+                index_stream_info = read_index_minimal_info(
+                    index_io,
+                    expected_file_size: file_io.size
+                )
+
+                index_stream_info.map do |info|
+                    file_io.seek(info.declaration_pos)
+                    block_stream = BlockStream.new(file_io)
+                    block_stream.read_next_block_header
+                    stream_block = block_stream.read_stream_block
+                    [stream_block, info]
+                end
             end
 
             IndexStreamInfo = Struct.new(
@@ -241,7 +260,7 @@ module Pocolog
                 stat = file_path.stat
                 begin
                     File.open(index_path) do |index_io|
-                        streams_info = read_index_stream_info(
+                        streams_info = read_index_minimal_info(
                             index_io, expected_file_size: stat.size
                         )
                         index_file_validate_size(index_io, streams_info)
@@ -273,26 +292,26 @@ module Pocolog
                       "but is of size #{index_io.size}"
             end
 
-            # Read basic stream information from an index file
+            # Read the stream definitions from an index, but no the index data
             #
-            # @param [IO] index_io the index IO
-            # @return [Array<IndexStreamInfo>] the stream-related information
-            #   contained in the index file
-            def self.read_index_stream_info(
+            # @return [Array<IndexStreamInfo>]
+            def self.read_index_minimal_info(
                 index_io, expected_file_size: nil, expected_mtime: nil
             )
-                stream_count = read_index_stream_info_validate(
+                stream_count = read_index_header(
                     index_io,
                     expected_mtime: expected_mtime,
                     expected_file_size: expected_file_size
                 )
 
-                stream_count.times.map do
-                    read_index_single_stream_info(index_io)
-                end
+                read_index_stream_info(index_io, stream_count)
             end
 
-            def self.read_index_stream_info_validate(
+            # Read and optionally validate the header information from an index file
+            #
+            # @return [Integer] the amount of streams in the index
+            # @see write_index_header
+            def self.read_index_header(
                 index_io, expected_file_size: nil, expected_mtime: nil
             )
                 read_index_prologue(index_io,
@@ -311,7 +330,17 @@ module Pocolog
                 if index_size < minimum_index_size
                     raise InvalidIndex, "index file too small"
                 end
+            end
 
+            # Read basic stream information from an index file
+            #
+            # @param [IO] index_io the index IO
+            # @return [Array<IndexStreamInfo>] the stream-related information
+            #   contained in the index file
+            def self.read_index_stream_info(index_io, stream_count)
+                stream_count.times.map do
+                    read_index_single_stream_info(index_io)
+                end
                 stream_count
             end
 
@@ -341,25 +370,6 @@ module Pocolog
                     lg_min: interval_lg[0],
                     lg_max: interval_lg[1]
                 )
-            end
-
-            # Read the stream information, but not the actual block index, from
-            # an index file
-            #
-            # @return [Array<(BlockStream::StreamBlock,IndexStreamInfo)>]
-            def self.read_minimal_stream_info(index_io, file_io)
-                index_stream_info = read_index_stream_info(
-                    index_io,
-                    expected_file_size: file_io.size
-                )
-
-                index_stream_info.map do |info|
-                    file_io.seek(info.declaration_pos)
-                    block_stream = BlockStream.new(file_io)
-                    block_stream.read_next_block_header
-                    stream_block = block_stream.read_stream_block
-                    [stream_block, info]
-                end
             end
 
             # Rebuild a pocolog file's index and saves it to file
@@ -392,12 +402,19 @@ module Pocolog
                     raise ArgumentError, "attempting to overwrite the file by its index"
                 end
 
-                write_index_prologue(index_io, file_io.stat.size, file_io.stat.mtime,
-                                     version: version)
-                index_io.write([streams.size].pack("Q>"))
-
+                size = file_io.stat.size
+                mtime = file_io.stat.mtime
+                write_index_header(index_io, size, mtime, streams.size, version: version)
                 write_index_stream_info(index_io, streams)
                 write_index_stream_data(index_io, streams)
+            end
+
+            # Write index file information before the actual index data
+            def self.write_index_header(
+                index_io, size, mtime, stream_count, version: INDEX_VERSION
+            )
+                write_index_prologue(index_io, size, mtime, version: version)
+                index_io.write([stream_count].pack("Q>"))
             end
 
             # Write the stream info part of a file index for all given streams
@@ -405,11 +422,14 @@ module Pocolog
                 index_data_pos = INDEX_STREAM_DESCRIPTION_SIZE * streams.size +
                                  index_io.tell
                 streams.each do |stream_info|
-                    index_stream_info = index_stream_info(stream_info, index_data_pos)
-                    index_io.write(index_stream_info.to_a.pack("Q>*"))
-
+                    write_index_single_stream_info(index_io, stream_info, index_data_pos)
                     index_data_pos += stream_info.index.index_map.size * 8
                 end
+            end
+
+            def self.write_index_single_stream_info(index_io, stream_info, index_data_pos)
+                index_stream_info = index_stream_info(stream_info, index_data_pos)
+                index_io.write(index_stream_info.to_a.pack("Q>*"))
             end
 
             # Write the stream data part of a file index for all given streams
