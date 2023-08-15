@@ -33,6 +33,8 @@ module Pocolog
         end
 
         # Create a BlockStream object that acts on a given file
+        #
+        # @return [BlockStream]
         def self.open(path)
             if block_given?
                 File.open(path) do |io|
@@ -137,6 +139,16 @@ module Pocolog
         # Raises MissingPrologue if no prologue is found, or ObsoleteVersion if
         # the file format is not up-to-date (in which case one has to run
         # pocolog --to-new-format).
+        def read_prologue_raw # :nodoc:
+            Format::Current.read_prologue_raw(io)
+        end
+
+        # If the IO is a file, it starts with a prologue to describe the file
+        # format
+        #
+        # Raises MissingPrologue if no prologue is found, or ObsoleteVersion if
+        # the file format is not up-to-date (in which case one has to run
+        # pocolog --to-new-format).
         def read_prologue # :nodoc:
             big_endian = Format::Current.read_prologue(io)
             @format_version = Format::Current::VERSION
@@ -152,17 +164,22 @@ module Pocolog
             end
         end
 
-        def self.read_block_header(io, pos = nil)
+        def self.read_block_header_raw(io, pos = nil)
             io.seek(pos, IO::SEEK_SET) if pos
-            BlockHeader.parse(io.read(BLOCK_HEADER_SIZE))
+            io.read(BLOCK_HEADER_SIZE)
         end
 
-        # Read the header of the next block
-        def read_next_block_header
-            skip(@payload_size) if @payload_size != 0
+        # @return [BlockHeader]
+        def self.read_block_header(io, pos = nil)
+            BlockHeader.parse(read_block_header_raw(io, pos))
+        end
 
-            header = read(BLOCK_HEADER_SIZE)
-            return unless header
+        # Read the bytes from the block header at the current position
+        #
+        # Unlike {#read_next_block_header}, it does not skip remaining payload
+        # bytes, and does not prepare the stream to
+        def read_block_header_raw
+            return unless (header = read(BLOCK_HEADER_SIZE))
 
             if header.size != BLOCK_HEADER_SIZE
                 raise NotEnoughData,
@@ -170,9 +187,36 @@ module Pocolog
                       "expected #{BLOCK_HEADER_SIZE})"
             end
 
+            header
+        end
+
+        # Read the header of the next block
+        #
+        # @return [BlockHeader,nil]
+        def read_next_block_header
+            skip(@payload_size) if @payload_size != 0
+
+            return unless (header = read_block_header_raw)
+
             block = BlockHeader.parse(header)
             @payload_size = block.payload_size
             block
+        end
+
+        # Read the bytes from the block at the current position
+        #
+        # @return [(BlockHeader, String, String)]
+        def read_block_raw
+            header_raw = read_block_header_raw
+            header = BlockHeader.parse(header_raw)
+            payload = read(header.payload_size)
+            if !payload || payload.size != header.payload_size
+                raise NotEnoughData,
+                      "expected to read #{header.payload_size} payload bytes but got "\
+                      "#{payload ? payload.size : 'EOF'}"
+            end
+
+            [header, header_raw, payload]
         end
 
         # Information about a stream declaration block

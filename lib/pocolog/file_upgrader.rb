@@ -74,14 +74,22 @@ module Pocolog
 
             block_stream = BlockStream.open(in_path)
             block_stream.read_prologue
-            while block = block_stream.read_next_block_header
+            interval_rt = []
+            while (block = block_stream.read_next_block_header)
                 if block.kind == DATA_BLOCK
                     index = block.stream_index
-                    ops   = stream_ops[index]
-                    block_pos   = wio.tell
+
+                    ops = stream_ops[index]
+                    block_pos = wio.tell
                     payload_header, in_marshalled_sample =
                         block_stream.read_data_block(uncompress: false)
                     data_header = BlockStream::DataBlockHeader.parse(payload_header)
+                    if interval_rt[index]
+                        interval_rt[index][1] = data_header.rt_time
+                    else
+                        rt_time = data_header.rt_time
+                        interval_rt[index] = [rt_time, rt_time]
+                    end
 
                     if ops.identity?
                         wio.write block.raw_data
@@ -114,10 +122,15 @@ module Pocolog
             wio.flush
             wio.rewind
             block_stream = BlockStream.new(wio)
-            raw_stream_info = stream_pos.each_with_index.map do |block_pos, stream_i|
-                IndexBuilderStreamInfo.new(block_pos, stream_index_map[stream_i])
-            end
-            stream_info = Pocolog.create_index_from_raw_info(block_stream, raw_stream_info)
+            raw_stream_info =
+                stream_pos.each_with_index.map do |stream_block_pos, stream_i|
+                    IndexBuilderStreamInfo.new(
+                        stream_block_pos, stream_index_map[stream_i]
+                    )
+                end
+            stream_info = Pocolog.create_index_from_raw_info(
+                block_stream, raw_stream_info, interval_rt: interval_rt
+            )
             File.open(Logfiles.default_index_filename(out_path), 'w') do |io|
                 Format::Current.write_index(io, block_stream.io, stream_info)
             end

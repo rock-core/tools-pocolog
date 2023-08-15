@@ -43,6 +43,19 @@ module Pocolog
             # have a min
             STREAM_BLOCK_DECLARATION_HEADER_SIZE_MIN = 9
 
+            # Read the raw bytes from the prologue and return them
+            #
+            # @return [String]
+            # @raise MissingPrologue
+            def self.read_prologue_raw(io)
+                header = io.read(PROLOGUE_SIZE)
+                if !header || (header.size < PROLOGUE_SIZE)
+                    raise MissingPrologue, "#{io.path} too small"
+                end
+
+                header
+            end
+
             # Read a file's prologue
             #
             # @param [IO] io the file from which to read the prologue
@@ -51,11 +64,7 @@ module Pocolog
             # @return [(Integer,Boolean)] the file format version and a flag that
             #   tells whether the file's data is encoded as big or little endian
             def self.read_prologue(io, validate_version: true)
-                header = io.read(PROLOGUE_SIZE) || ''
-                if !header || (header.size < PROLOGUE_SIZE)
-                    raise MissingPrologue, "#{io.path} too small"
-                end
-
+                header = read_prologue_raw(io)
                 magic = header[0, MAGIC.size]
                 if magic != MAGIC
                     raise MissingPrologue,
