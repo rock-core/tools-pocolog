@@ -211,10 +211,10 @@ module Pocolog
             # reading any actual data (no index data and no stream data)
             #
             # @return [Array<(BlockStream::StreamBlock,IndexStreamInfo)>]
-            def self.read_minimal_info(index_io, file_io)
+            def self.read_minimal_info(index_io, file_io, validate: true)
                 index_stream_info = read_index_minimal_info(
                     index_io,
-                    expected_file_size: file_io.size
+                    expected_file_size: (file_io.size if validate)
                 )
 
                 index_stream_info.map do |info|
