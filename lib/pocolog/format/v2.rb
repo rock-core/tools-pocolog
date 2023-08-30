@@ -249,6 +249,37 @@ module Pocolog
                         []
                     end
                 end
+
+                def marshal
+                    to_a.pack("Q>*")
+                end
+
+                def self.unmarshal(data) # rubocop:disable Metrics/AbcSize
+                    declaration_pos, index_pos, base_time, stream_size,
+                        interval_rt_min, interval_rt_max,
+                        interval_lg_min, interval_lg_max =
+                        data.unpack("Q>*")
+
+                    if stream_size == 0
+                        base_time = nil
+                        interval_rt = []
+                        interval_lg = []
+                    else
+                        interval_rt = [interval_rt_min, interval_rt_max]
+                        interval_lg = [interval_lg_min, interval_lg_max]
+                    end
+
+                    IndexStreamInfo.new(
+                        declaration_pos: declaration_pos,
+                        index_pos: index_pos,
+                        base_time: base_time,
+                        stream_size: stream_size,
+                        rt_min: interval_rt[0],
+                        rt_max: interval_rt[1],
+                        lg_min: interval_lg[0],
+                        lg_max: interval_lg[1]
+                    )
+                end
             end
 
             # Tests whether the index whose path is given is valid for the given
@@ -338,37 +369,14 @@ module Pocolog
             # Read from IO the index stream info for a single stream
             #
             # @return [IndexStreamInfo]
-            def self.read_index_single_stream_info(index_io) # rubocop:disable Metrics/AbcSize
+            def self.read_index_single_stream_info(index_io)
                 data = index_io.read(INDEX_STREAM_DESCRIPTION_SIZE)
                 if !data || data.size < INDEX_STREAM_DESCRIPTION_SIZE
                     raise InvalidIndex,
                           "not enough data to read stream description in index"
                 end
 
-                declaration_pos, index_pos, base_time, stream_size,
-                    interval_rt_min, interval_rt_max,
-                    interval_lg_min, interval_lg_max =
-                    data.unpack("Q>*")
-
-                if stream_size == 0
-                    base_time = nil
-                    interval_rt = []
-                    interval_lg = []
-                else
-                    interval_rt = [interval_rt_min, interval_rt_max]
-                    interval_lg = [interval_lg_min, interval_lg_max]
-                end
-
-                IndexStreamInfo.new(
-                    declaration_pos: declaration_pos,
-                    index_pos: index_pos,
-                    base_time: base_time,
-                    stream_size: stream_size,
-                    rt_min: interval_rt[0],
-                    rt_max: interval_rt[1],
-                    lg_min: interval_lg[0],
-                    lg_max: interval_lg[1]
-                )
+                IndexStreamInfo.unmarshal(data)
             end
 
             # Rebuild a pocolog file's index and saves it to file
@@ -428,7 +436,7 @@ module Pocolog
 
             def self.write_index_single_stream_info(index_io, stream_info, index_data_pos)
                 index_stream_info = index_stream_info(stream_info, index_data_pos)
-                index_io.write(index_stream_info.to_a.pack("Q>*"))
+                index_io.write(index_stream_info.marshal)
             end
 
             # Write the stream data part of a file index for all given streams

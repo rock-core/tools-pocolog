@@ -18,7 +18,7 @@ module Pocolog
     # @param [BlockStream] block_stream the block stream that represents the log
     #   file
     # @return [Array<StreamInfo,nil>]
-    def self.file_index_builder(block_stream)
+    def self.file_index_builder(block_stream, skip_payload: true)
         # We build the information expected by StreamInfo.from_raw_data
         # That is (declaration_block, interval_rt, base_time, index_map)
         #
@@ -42,7 +42,12 @@ module Pocolog
                 index_map = raw_stream_info[stream_index].index_map
                 index_map << block_pos << data_block.lg_time
             end
-            block_stream.skip_payload
+
+            if skip_payload
+                block_stream.skip_payload
+            else
+                block_stream.read_payload
+            end
             block_pos = block_stream.tell
         end
         create_index_from_raw_info(
