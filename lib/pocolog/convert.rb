@@ -11,8 +11,8 @@ module Pocolog
 
         def self.copy_block(block_info, from_io, to_io, buffer)
             # copy the block as-is
-            from_io.seek(block_info.pos)
-            buffer = from_io.read(BLOCK_HEADER_SIZE + block_info.payload_size, buffer)
+            from_io.seek(block_info.interval_io[0])
+            buffer = from_io.read(BLOCK_HEADER_SIZE + block_info.size, buffer)
             if block_given?
                 buffer = yield(buffer)
             end
