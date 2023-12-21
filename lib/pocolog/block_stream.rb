@@ -236,7 +236,7 @@ module Pocolog
             end
 
             def self.read_string(raw_data, offset)
-                size = read(raw_data, offset, 4).unpack('V').first
+                size = read(raw_data, offset, 4).unpack1("V")
                 [read(raw_data, offset + 4, size), (offset + 4 + size)]
             end
 
@@ -420,7 +420,7 @@ module Pocolog
         def read_data_block(uncompress: true)
             raw_header = read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE)
             raw_data   = read_payload
-            compressed = raw_header[-1, 1].unpack('C').first
+            compressed = raw_header[-1, 1].unpack1("C")
             if uncompress && (compressed != 0)
                 # Payload is compressed
                 raw_data = Zlib::Inflate.inflate(raw_data)
@@ -434,7 +434,7 @@ module Pocolog
         # after read_next_block_header)
         def read_data_block_payload
             skip(Format::Current::DATA_BLOCK_HEADER_SIZE - 1)
-            compressed = read_payload(1).unpack('C').first
+            compressed = read_payload(1).unpack1("C")
             data = read_payload
             if compressed != 0
                 # Payload is compressed

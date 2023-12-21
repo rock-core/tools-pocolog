@@ -13,13 +13,13 @@ module Pocolog
 
     # true if this machine is big endian
     def self.big_endian?
-        "LAAS".unpack('L').pack('N') == "LAAS"
+        "LAAS".unpack("L").pack("N") == "LAAS"
     end
 
     STREAM_BLOCK           = 1
     DATA_BLOCK             = 2
     CONTROL_BLOCK          = 3
-    BLOCK_TYPES            = [STREAM_BLOCK, DATA_BLOCK, CONTROL_BLOCK]
+    BLOCK_TYPES            = [STREAM_BLOCK, DATA_BLOCK, CONTROL_BLOCK].freeze
 
     DATA_STREAM            = 1
 

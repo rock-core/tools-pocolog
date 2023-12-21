@@ -545,12 +545,12 @@ module Pocolog
             matches = streams_from_type(type)
             if matches.empty?
                 raise ArgumentError,
-                      'there is no stream in this file with the required type'
+                      "there is no stream in this file with the required type"
             elsif matches.size > 1
                 raise ArgumentError,
-                      'there is more than one stream in this file with the required type'
+                      "there is more than one stream in this file with the required type"
             else
-                return matches.first
+                matches.first
             end
         end
 
