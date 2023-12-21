@@ -143,6 +143,11 @@ module Pocolog
             Format::Current.read_prologue_raw(io)
         end
 
+        def skip_prologue
+            # Slightly inefficient ... but we're not doing that a lot
+            read_prologue_raw
+        end
+
         # If the IO is a file, it starts with a prologue to describe the file
         # format
         #
@@ -435,11 +440,16 @@ module Pocolog
         def read_data_block_payload
             skip(Format::Current::DATA_BLOCK_HEADER_SIZE - 1)
             compressed = read_payload(1).unpack1("C")
+            read_data_block_data(compressed: compressed != 0)
+        end
+
+        # Read the data part of a data block, assuming the I/O is at the beginning of it
+        #
+        # This is only different from {#read_payload} because it handles the
+        # (deprecated) pre-block compression
+        def read_data_block_data(compressed: false)
             data = read_payload
-            if compressed != 0
-                # Payload is compressed
-                data = Zlib::Inflate.inflate(data)
-            end
+            data = Zlib::Inflate.inflate(data) if compressed
             data
         end
     end

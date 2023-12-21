@@ -86,6 +86,57 @@ module Pocolog
             end
         end
 
+        describe "#each_block_header" do
+            it "enumerates the file's blocks after the prologue" do
+                logfile = open_logfile "test.0.log"
+                blocks = logfile.each_block_header.to_a
+                assert_equal 101, blocks.size
+                assert_equal ([STREAM_BLOCK] + [DATA_BLOCK] * 100),
+                             blocks.map(&:kind)
+                assert(blocks.all? { |b| b.stream_index == 0 })
+            end
+        end
+
+        describe "#each_data_block_header" do
+            it "enumerates the file's data block headers after the prologue" do
+                logfile = open_logfile "test.0.log"
+                blocks = logfile.each_data_block_header.to_a
+                assert_equal 100, blocks.size
+                assert(blocks.all? { |index, _| index == 0 })
+                rt_times = blocks.map { |_, header| header.rt }
+                assert_equal(@stream_all_samples.map { |rt, _, _| rt }, rt_times)
+                lg_times = blocks.map { |_, header| header.lg }
+                assert_equal(@stream_all_samples.map { |_, lg, _| lg }, lg_times)
+            end
+        end
+
+        describe "#raw_each" do
+            it "enumerates the file's data sequentially, "\
+               "not converting the data itself to Ruby" do
+                logfile = open_logfile "test.0.log"
+                blocks = logfile.raw_each.to_a
+                expected = 100.times.map do |i|
+                    [0, @stream_all_samples[i][1],
+                     Typelib.from_ruby(i, logfile.stream("all").type)]
+                end
+
+                assert_equal expected, blocks
+            end
+        end
+
+        describe "#raw_each" do
+            it "enumerates the file's data sequentially, "\
+               "converting the data itself to Ruby" do
+                logfile = open_logfile "test.0.log"
+                blocks = logfile.each.to_a
+                expected = 100.times.map do |i|
+                    [0, @stream_all_samples[i][1], i]
+                end
+
+                assert_equal expected, blocks
+            end
+        end
+
         describe ".default_index_filename" do
             it "returns the path with .log changed into .idx" do
                 assert_equal "/path/to/file.0.idx", Logfiles.default_index_filename("/path/to/file.0.log")
