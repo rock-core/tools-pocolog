@@ -84,6 +84,13 @@ module Pocolog
                     assert_run_successful(logfile_path('test.0.log'), "-s", "s#{stream_i}")
                 end
             end
+            it "creates an empty file via #new_file after the Logfiles creation" do
+                logfile = Logfiles.new
+                path = logfile_path("new_file.0.log")
+                logfile.new_file(path.to_s)
+                logfile.close
+                Logfiles.open(path.to_s)
+            end
         end
 
         describe "#each_block_header" do

@@ -113,9 +113,8 @@ module Pocolog
             @data = nil
             @streams = nil
             @compress = false
-            @data_header_buffer = ''
             @streams =
-                if write_only
+                if write_only || io.empty?
                     []
                 else
                     load_stream_info(io, index_dir: index_dir, silent: silent)
@@ -178,7 +177,7 @@ module Pocolog
         # files are named
         def new_file(filename = nil)
             name = filename || "#{basename}.#{num_io}.log"
-            io = File.new(name, 'w+')
+            io = File.new(name, "w+")
             Format::Current.write_prologue(io)
             streams.each_with_index do |s, i|
                 Logfiles.write_stream_declaration(

@@ -66,6 +66,8 @@ module Pocolog
 
         # Seek to the beginning of the file
         def rewind
+            return if ios.empty?
+
             select_io_from_pos(0)
         end
 

@@ -100,7 +100,9 @@ module Pocolog
 
         # Move to the beginning of the stream
         def rewind
-            seek(0)
+            io.rewind
+            @buffer_io = StringIO.new
+            @payload_size = 0
         end
 
         # Seek to the current raw position in the IO
