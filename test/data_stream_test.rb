@@ -525,6 +525,7 @@ module Pocolog
                 stream = @stream.from_logical_time(base_time + 10.1)
                 assert_equal [base_time + 1, base_time + 11, 1],
                              stream.seek(base_time + 11)
+                assert_equal base_time + 11, stream.stream_index.start_time
             end
         end
 
@@ -548,16 +549,17 @@ module Pocolog
                               [base_time + 1, base_time + 11, 1]], stream.each.to_a
             end
 
-            it "removes a sample whose time strictly equals the given time" do
-                stream = @stream.to_logical_time(base_time + 12)
+            it "keeps a sample whose time strictly equals the given time" do
+                stream = @stream.to_logical_time(base_time + 11)
                 assert_equal [[base_time + 0, base_time + 10, 0],
                               [base_time + 1, base_time + 11, 1]], stream.each.to_a
             end
 
             it "updates the stream index of the returned stream" do
-                stream = @stream.to_logical_time(base_time + 12)
+                stream = @stream.to_logical_time(base_time + 11)
                 assert_equal [base_time + 1, base_time + 11, 1],
                              stream.seek(base_time + 11)
+                assert_equal base_time + 11, stream.stream_index.end_time
             end
         end
 

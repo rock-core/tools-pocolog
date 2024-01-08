@@ -157,12 +157,14 @@ module Pocolog
             self.class.from_raw_data(@base_time, new_map)
         end
 
-        # Return a new index without any sample at or after the given time
+        # Return a new index without any sample after the given time
         #
         # @param [Time] time
         # @return [StreamIndex]
         def remove_after(time)
-            index = sample_number_by_time(time)
+            sample_time = StreamIndex.time_to_internal(time, base_time)
+            index = sample_number_by_internal_time(sample_time)
+            index += 1 if @index_map[index * 2 + 1] == sample_time
             new_map = @index_map[0...(index * 2)]
             self.class.from_raw_data(@base_time, new_map)
         end
