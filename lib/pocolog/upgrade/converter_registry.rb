@@ -20,6 +20,10 @@ module Pocolog
                 @type_by_type_name = Hash.new { |h, k| h[k] = Set.new }
             end
 
+            def empty?
+                converters_by_from_type.empty?
+            end
+
             # Add a custom converter to this registry
             #
             # This is a convenience method to create and add a {Ops::Custom}
@@ -153,7 +157,7 @@ module Pocolog
                 graph = RGL::DirectedAdjacencyGraph.new
                 each_converter do |converter|
                     next if converter.time_to < time
-                    
+
                     converters = converters_by_from_type.fetch(converter.to_type, Array.new)
                     if next_converter = converters.sort_by(&:time_to).find { |c| converter.time_to < c.time_to }
                         graph.add_edge(converter, next_converter)
@@ -187,8 +191,6 @@ module Pocolog
                 else
                     return nil, from_failures + to_failures
                 end
-
-
             end
         end
     end
