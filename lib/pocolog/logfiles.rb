@@ -113,9 +113,8 @@ module Pocolog
             @data = nil
             @streams = nil
             @compress = false
-            @data_header_buffer = ''
             @streams =
-                if write_only
+                if write_only || io.empty?
                     []
                 else
                     load_stream_info(io, index_dir: index_dir, silent: silent)
@@ -150,6 +149,12 @@ module Pocolog
             io.open
         end
 
+        def rewind
+            block_stream.rewind
+            # Read the prologue, but does not re-interpret it
+            block_stream.skip_prologue
+        end
+
         # True if we read the last block in the file set
         def eof?
             io.eof?
@@ -172,7 +177,7 @@ module Pocolog
         # files are named
         def new_file(filename = nil)
             name = filename || "#{basename}.#{num_io}.log"
-            io = File.new(name, 'w+')
+            io = File.new(name, "w+")
             Format::Current.write_prologue(io)
             streams.each_with_index do |s, i|
                 Logfiles.write_stream_declaration(
@@ -290,6 +295,8 @@ module Pocolog
                 end
             end
             streams
+        ensure
+            rewind
         end
 
         # Get the index for the file backed by the given IO
@@ -398,6 +405,65 @@ module Pocolog
             @data = nil
             @data_header = nil
             header
+        end
+
+        # Sequentially read the file and yield block headers
+        #
+        # @yieldparam [BlockStream::BlockHeader] header
+        def each_block_header
+            return enum_for(__method__) unless block_given?
+
+            while (block = block_stream.read_next_block_header)
+                yield(block)
+            end
+        end
+
+        # Sequentially read the file and yield data block headers
+        #
+        # @yieldparam [Integer] stream_index
+        # @yieldparam [BlockStream::DataBlockHeader] the data block header
+        def each_data_block_header
+            return enum_for(__method__) unless block_given?
+
+            each_block_header do |block_header|
+                next unless block_header.kind == DATA_BLOCK
+
+                yield block_header.stream_index, block_stream.read_data_block_header
+            end
+        end
+
+        # Sequentially read the file and yield unmarshalled typelib data as it comes
+        #
+        # @yieldparam [Integer] stream_index the stream index. Get the stream definition
+        #   object with {#stream_from_index}
+        # @yieldparam [Time] time the block's logical time
+        # @yieldparam [Typelib::Type] data the unmarshalled raw data, not applying
+        #   defined Ruby conversion
+        def raw_each
+            return enum_for(__method__) unless block_given?
+
+            each_data_block_header do |stream_index, header|
+                marshalled_data = block_stream.read_data_block_data(
+                    compressed: header.compressed?
+                )
+                sample = streams[stream_index].unmarshal_data(marshalled_data)
+                yield(stream_index, header.lg, sample)
+            end
+        end
+
+        # Sequentially read the file and yield data as it comes
+        #
+        # @yieldparam [Integer] stream_index the stream index. Get the stream definition
+        #   object with {#stream_from_index}
+        # @yieldparam [Time] time the block's logical time
+        # @yieldparam [Object] data the unmarshalled raw data, possibly converted to Ruby
+        #   for types that have Ruby conversions
+        def each
+            return enum_for(__method__) unless block_given?
+
+            raw_each do |stream_index, time, raw_data|
+                yield(stream_index, time, Typelib.to_ruby(raw_data))
+            end
         end
 
         # Read the data payload for a data block present at a certain position
@@ -545,12 +611,12 @@ module Pocolog
             matches = streams_from_type(type)
             if matches.empty?
                 raise ArgumentError,
-                      'there is no stream in this file with the required type'
+                      "there is no stream in this file with the required type"
             elsif matches.size > 1
                 raise ArgumentError,
-                      'there is more than one stream in this file with the required type'
+                      "there is more than one stream in this file with the required type"
             else
-                return matches.first
+                matches.first
             end
         end
 

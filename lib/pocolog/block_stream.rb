@@ -100,7 +100,9 @@ module Pocolog
 
         # Move to the beginning of the stream
         def rewind
-            seek(0)
+            io.rewind
+            @buffer_io = StringIO.new
+            @payload_size = 0
         end
 
         # Seek to the current raw position in the IO
@@ -141,6 +143,11 @@ module Pocolog
         # pocolog --to-new-format).
         def read_prologue_raw # :nodoc:
             Format::Current.read_prologue_raw(io)
+        end
+
+        def skip_prologue
+            # Slightly inefficient ... but we're not doing that a lot
+            read_prologue_raw
         end
 
         # If the IO is a file, it starts with a prologue to describe the file
@@ -236,7 +243,7 @@ module Pocolog
             end
 
             def self.read_string(raw_data, offset)
-                size = read(raw_data, offset, 4).unpack('V').first
+                size = read(raw_data, offset, 4).unpack1("V")
                 [read(raw_data, offset + 4, size), (offset + 4 + size)]
             end
 
@@ -420,7 +427,7 @@ module Pocolog
         def read_data_block(uncompress: true)
             raw_header = read_payload(Format::Current::DATA_BLOCK_HEADER_SIZE)
             raw_data   = read_payload
-            compressed = raw_header[-1, 1].unpack('C').first
+            compressed = raw_header[-1, 1].unpack1("C")
             if uncompress && (compressed != 0)
                 # Payload is compressed
                 raw_data = Zlib::Inflate.inflate(raw_data)
@@ -434,12 +441,17 @@ module Pocolog
         # after read_next_block_header)
         def read_data_block_payload
             skip(Format::Current::DATA_BLOCK_HEADER_SIZE - 1)
-            compressed = read_payload(1).unpack('C').first
+            compressed = read_payload(1).unpack1("C")
+            read_data_block_data(compressed: compressed != 0)
+        end
+
+        # Read the data part of a data block, assuming the I/O is at the beginning of it
+        #
+        # This is only different from {#read_payload} because it handles the
+        # (deprecated) pre-block compression
+        def read_data_block_data(compressed: false)
             data = read_payload
-            if compressed != 0
-                # Payload is compressed
-                data = Zlib::Inflate.inflate(data)
-            end
+            data = Zlib::Inflate.inflate(data) if compressed
             data
         end
     end

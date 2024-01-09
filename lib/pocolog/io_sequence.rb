@@ -54,7 +54,7 @@ module Pocolog
         def eof?
             (@current_io == ios.last) && @current_io.eof?
         end
-        
+
         def open
             @io = io.map do |file|
                 if file.closed?
@@ -66,6 +66,8 @@ module Pocolog
 
         # Seek to the beginning of the file
         def rewind
+            return if ios.empty?
+
             select_io_from_pos(0)
         end
 
@@ -97,7 +99,7 @@ module Pocolog
                 buffer
             end
         end
-        
+
         # @api private
         #
         # Selects the IO that can provide the given position, and sets the

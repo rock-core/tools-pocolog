@@ -267,22 +267,29 @@ module Pocolog
         # header.
         #
         # Block headers are returned by #rewind
-        def raw_data(data_header = nil, sample = nil)
-            if(@data && !data_header) then @data
+        def raw_data(data_header = nil, sample = @type.new)
+            if @data && !data_header
+                @data
             else
                 data_header ||= logfile.data_header
                 marshalled_data = logfile.data(data_header)
-                data = sample || type.new
-                data.from_buffer_direct(marshalled_data)
-                if logfile.endian_swap
-                    data = data.endian_swap
-                end
-                data
+                unmarshal_data(marshalled_data, sample: sample)
             end
         rescue Interrupt
             raise
-        rescue Exception => e
-            raise e, "failed to unmarshal sample in block at position #{data_header.block_pos}: #{e.message}", e.backtrace
+        rescue StandardError => e
+            raise e, "failed to unmarshal sample in block at position "\
+                     "#{data_header.block_pos}: #{e.message}", e.backtrace
+        end
+
+        # Converts data as read from disk into a Typelib value
+        #
+        # @param [String] marshalled_data the raw marshalled data as read from I/O,
+        #   but already decompressed (should the block be compressed)
+        def unmarshal_data(marshalled_data, sample: type.new)
+            sample.from_buffer_direct(marshalled_data)
+            sample = sample.endian_swap if logfile.endian_swap
+            sample
         end
 
         def read_one_data_sample(position)
