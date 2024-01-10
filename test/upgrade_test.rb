@@ -180,12 +180,25 @@ module Pocolog
                 end
             end
 
-            describe "to containers" do
+            describe "containers" do
                 attr_reader :source_element_t, :target_element_t
                 before do
                     @source_element_t = registry.create_numeric '/int32', 4, :sint
                     @target_element_t = @target_registry.create_numeric '/int64', 8, :sint
                 end
+
+                it "converts from a container with an identical type" do
+                    source_t = registry.create_container "/std/vector", source_element_t
+                    target_element_t = @target_registry.create_numeric '/int32_t', 4, :sint
+                    assert_equal source_element_t, target_element_t
+                    target_t = @target_registry.create_container '/std/vector', target_element_t
+                    ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
+                    result = ops.convert(Typelib.from_ruby([1, 2, 3], source_t))
+                    assert_kind_of target_t, result
+                    assert_equal 3, result.size
+                    assert_equal [1, 2, 3], result.to_a
+                end
+
                 describe "from an array" do
                     it "resizes the target container and copies elements one by one" do
                         source_t = registry.create_array source_element_t, 3
