@@ -12,6 +12,15 @@ module Pocolog
                 @base_time = Time.now
             end
 
+            it "starts empty" do
+                assert @registry.empty?
+            end
+
+            it "is not empty as soon as a conversion is registered" do
+                registry.add(Time.now, int_t, int_t) {}
+                refute @registry.empty?
+            end
+
             describe "#build_converter_graph" do
                 it "ignores converters that are not valid for the given time" do
                     minus_05 = registry.add(base_time - 05, int_t, int_t) {}

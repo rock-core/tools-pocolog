@@ -50,17 +50,28 @@ module Pocolog
         end
 
         describe 'deep casting' do
+            before do
+                @target_registry = Typelib::Registry.new
+            end
+
             describe "numerics" do
                 it "casts a numeric type" do
                     int_t = registry.create_numeric '/int', 4, :sint
-                    double_t = registry.create_numeric '/double', 8, :float
+                    double_t = @target_registry.create_numeric '/double', 8, :float
+                    ops = Upgrade.compute(Time.now, int_t, double_t, converter_registry)
+                    result = ops.convert(Typelib.from_ruby(1, int_t))
+                    assert_equal 1, Typelib.to_ruby(result)
+                end
+                it "casts a vector of numeric types" do
+                    int_t = registry.create_numeric '/int', 4, :sint
+                    double_t = @target_registry.create_numeric '/double', 8, :float
                     ops = Upgrade.compute(Time.now, int_t, double_t, converter_registry)
                     result = ops.convert(Typelib.from_ruby(1, int_t))
                     assert_equal 1, Typelib.to_ruby(result)
                 end
                 it "checks for underflows because of signed-ness changes" do
                     int_t = registry.create_numeric '/int', 2, :sint
-                    uint_t = registry.create_numeric '/uint', 2, :uint
+                    uint_t = @target_registry.create_numeric '/uint', 2, :uint
                     ops = Upgrade.compute(Time.now, int_t, uint_t, converter_registry)
                     assert_raises(RangeError) do
                         ops.convert(Typelib.from_ruby(-100, int_t))
@@ -68,7 +79,7 @@ module Pocolog
                 end
                 it "checks for overflows if the source is a bigger integer" do
                     int32_t = registry.create_numeric '/int32', 4, :sint
-                    int8_t = registry.create_numeric '/int8', 1, :sint
+                    int8_t = @target_registry.create_numeric '/int8', 1, :sint
                     ops = Upgrade.compute(Time.now, int32_t, int8_t, converter_registry)
                     assert_raises(RangeError) do
                         ops.convert(Typelib.from_ruby(512, int32_t))
@@ -76,7 +87,7 @@ module Pocolog
                 end
                 it "checks for overflows if the source is a float" do
                     double_t = registry.create_numeric '/double', 4, :float
-                    int_t = registry.create_numeric '/int', 4, :sint
+                    int_t = @target_registry.create_numeric '/int', 4, :sint
                     ops = Upgrade.compute(Time.now, double_t, int_t, converter_registry)
                     assert_raises(RangeError) do
                         ops.convert(Typelib.from_ruby(2**33, double_t))
@@ -84,7 +95,7 @@ module Pocolog
                 end
                 it "raises if the target type is not a numeric type" do
                     int_t = registry.create_numeric '/int32', 4, :sint
-                    target_t = registry.create_enum '/E' do |e|
+                    target_t = @target_registry.create_enum '/E' do |e|
                         e.add 'SYM'
                     end
                     assert_raises Upgrade::NoChain do
@@ -94,16 +105,16 @@ module Pocolog
             end
 
             it "raises if attempting to convert an array to a non-enumerable" do
-                element_t = registry.create_numeric '/int32', 4, :sint
-                array_t = registry.create_array element_t, 8
+                element_t = @target_registry.create_numeric '/int32', 4, :sint
+                array_t = @target_registry.create_array element_t, 8
                 assert_raises(Upgrade::NoChain) do
                     Upgrade.compute(Time.now, array_t, element_t, converter_registry)
                 end
             end
 
             it "raises if attempting to convert a container to a non-enumerable" do
-                element_t = registry.create_numeric '/int32', 4, :sint
-                container_t = registry.create_container '/std/vector', element_t, 8
+                element_t = @target_registry.create_numeric '/int32', 4, :sint
+                container_t = @target_registry.create_container '/std/vector', element_t, 8
                 assert_raises(Upgrade::NoChain) do
                     Upgrade.compute(Time.now, container_t, element_t, converter_registry)
                 end
@@ -113,26 +124,27 @@ module Pocolog
                 attr_reader :element_t
                 before do
                     @element_t = registry.create_numeric '/int32', 4, :sint
+                    @target_element_t = @target_registry.create_numeric '/int32', 4, :sint
                 end
                 it "raises at model time if the source has less elements" do
                     source_t = registry.create_array element_t, 8
-                    target_t = registry.create_array element_t, 10
+                    target_t = @target_registry.create_array @target_element_t, 10
                     assert_raises(Upgrade::NoChain) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end
                 it "raises at model time if the source has more elements" do
                     source_t = registry.create_array element_t, 10
-                    target_t = registry.create_array element_t, 8
+                    target_t = @target_registry.create_array @target_element_t, 8
                     assert_raises(Upgrade::NoChain) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end
                 it "converts elements one by one if the sizes match" do
                     int4_t = registry.create_numeric '/int4', 4, :sint
-                    int8_t = registry.create_numeric '/int8', 8, :uint
+                    int8_t = @target_registry.create_numeric '/int8', 8, :uint
                     source_t = registry.create_array int4_t, 3
-                    target_t = registry.create_array int8_t, 3
+                    target_t = @target_registry.create_array int8_t, 3
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     result = ops.convert(Typelib.from_ruby([1, 2, 3], source_t))
                     assert_kind_of target_t, result
@@ -147,9 +159,9 @@ module Pocolog
                 end
                 it "raises ArraySizeMismatch at execution time if the sizes are different" do
                     int4_t = registry.create_numeric '/int4', 4, :sint
-                    int8_t = registry.create_numeric '/int8', 8, :uint
+                    int8_t = @target_registry.create_numeric '/int8', 8, :uint
                     source_t = registry.create_container '/std/vector', int4_t, 3
-                    target_t = registry.create_array int8_t, 3
+                    target_t = @target_registry.create_array int8_t, 3
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     assert_raises(Upgrade::ArraySizeMismatch) do
                         ops.convert(Typelib.from_ruby([1, 2], source_t))
@@ -158,9 +170,9 @@ module Pocolog
 
                 it "converts elements one by one if the sizes match" do
                     int4_t = registry.create_numeric '/int4', 4, :sint
-                    int8_t = registry.create_numeric '/int8', 8, :uint
+                    int8_t = @target_registry.create_numeric '/int8', 8, :uint
                     source_t = registry.create_container '/std/vector', int4_t, 3
-                    target_t = registry.create_array int8_t, 3
+                    target_t = @target_registry.create_array int8_t, 3
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     result = ops.convert(Typelib.from_ruby([1, 2, 3], source_t))
                     assert_kind_of target_t, result
@@ -168,16 +180,29 @@ module Pocolog
                 end
             end
 
-            describe "to containers" do
+            describe "containers" do
                 attr_reader :source_element_t, :target_element_t
                 before do
                     @source_element_t = registry.create_numeric '/int32', 4, :sint
-                    @target_element_t = registry.create_numeric '/int64', 8, :sint
+                    @target_element_t = @target_registry.create_numeric '/int64', 8, :sint
                 end
+
+                it "converts from a container with an identical type" do
+                    source_t = registry.create_container "/std/vector", source_element_t
+                    target_element_t = @target_registry.create_numeric '/int32_t', 4, :sint
+                    assert_equal source_element_t, target_element_t
+                    target_t = @target_registry.create_container '/std/vector', target_element_t
+                    ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
+                    result = ops.convert(Typelib.from_ruby([1, 2, 3], source_t))
+                    assert_kind_of target_t, result
+                    assert_equal 3, result.size
+                    assert_equal [1, 2, 3], result.to_a
+                end
+
                 describe "from an array" do
                     it "resizes the target container and copies elements one by one" do
                         source_t = registry.create_array source_element_t, 3
-                        target_t = registry.create_container '/std/vector', target_element_t, 5
+                        target_t = @target_registry.create_container '/std/vector', target_element_t, 5
                         ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                         result = ops.convert(Typelib.from_ruby([1, 2, 3], source_t))
                         assert_kind_of target_t, result
@@ -198,7 +223,7 @@ module Pocolog
                 end
 
                 it "translates symbols to symbols" do
-                    target_t = registry.create_enum '/target' do |e|
+                    target_t = @target_registry.create_enum '/target' do |e|
                         e.add :SYM0, 10
                     end
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
@@ -207,7 +232,7 @@ module Pocolog
                     assert_equal :SYM0, Typelib.to_ruby(result)
                 end
                 it "raises InvalidCast at runtime if the source value is a symbol that the target does not have" do
-                    target_t = registry.create_enum '/target' do |e|
+                    target_t = @target_registry.create_enum '/target' do |e|
                         e.add :SYM0, 10
                     end
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
@@ -216,7 +241,7 @@ module Pocolog
                     end
                 end
                 it "raises InvalidCast if trying to convert to an enum that has no common symbol" do
-                    target_t = registry.create_enum '/target' do |e|
+                    target_t = @target_registry.create_enum '/target' do |e|
                         e.add :SYM10, 10
                     end
                     assert_raises(Upgrade::InvalidCast) do
@@ -224,7 +249,7 @@ module Pocolog
                     end
                 end
                 it "raises InvalidCast if trying to convert to a non-enum" do
-                    target_t = registry.create_numeric '/int', 2, :sint
+                    target_t = @target_registry.create_numeric '/int', 2, :sint
                     assert_raises(Upgrade::InvalidCast) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
@@ -237,15 +262,16 @@ module Pocolog
                     @int_t = registry.create_numeric '/int', 4, :sint
                     @int_array_t = registry.create_array int_t, 3
                     @double_t = registry.create_numeric '/double', 4, :float
+                    @target_double_t = @target_registry.create_numeric '/double', 4, :float
                     @source_t = registry.create_compound '/source' do |c|
                         c.add 'a', int_t
                         c.add 'b', int_array_t
                     end
                 end
                 it "applies the conversion on a per-field basis" do
-                    double_array_t = registry.create_array double_t, 3
-                    target_t = registry.create_compound '/target' do |c|
-                        c.add 'a', double_t
+                    double_array_t = @target_registry.create_array double_t, 3
+                    target_t = @target_registry.create_compound '/target' do |c|
+                        c.add 'a', @target_double_t
                         c.add 'b', double_array_t
                     end
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
@@ -255,14 +281,14 @@ module Pocolog
                     assert_equal source.to_simple_value, target.to_simple_value
                 end
                 it "raises InvalidCast if the target is not a compound" do
-                    target_t = registry.create_numeric '/target', 4, :sint
+                    target_t = @target_registry.create_numeric '/target', 4, :sint
                     assert_raises(Upgrade::InvalidCast) do
                         Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     end
                 end
                 it "raises InvalidCast if the target compound has non-sequence fields that the source compound does not have" do
-                    double_array_t = registry.create_array double_t, 3
-                    target_t = registry.create_compound '/target' do |c|
+                    double_array_t = @target_registry.create_array @target_double_t, 3
+                    target_t = @target_registry.create_compound '/target' do |c|
                         c.add 'a', double_t
                         c.add 'b', double_array_t
                         c.add 'c', double_t
@@ -272,8 +298,8 @@ module Pocolog
                     end
                 end
                 it "ignores fields in the source that are not in the target" do
-                    target_t = registry.create_compound '/target' do |c|
-                        c.add 'a', double_t
+                    target_t = @target_registry.create_compound '/target' do |c|
+                        c.add 'a', @target_double_t
                     end
                     ops = Upgrade.compute(Time.now, source_t, target_t, converter_registry)
                     source = Typelib.from_ruby(Hash[a: 10, b: [1, 2, 3]], source_t)
@@ -282,10 +308,10 @@ module Pocolog
                     assert_equal Hash['a' => 10], target.to_simple_value
                 end
                 it "passes if the target compound only adds sequence fields" do
-                    double_array_t = registry.create_array double_t, 3
-                    seq_array_t = registry.create_container '/std/vector', double_t
-                    target_t = registry.create_compound '/target' do |c|
-                        c.add 'a', double_t
+                    double_array_t = @target_registry.create_array @target_double_t, 3
+                    seq_array_t = @target_registry.create_container '/std/vector', @target_double_t
+                    target_t = @target_registry.create_compound '/target' do |c|
+                        c.add 'a', @target_double_t
                         c.add 'b', double_array_t
                         c.add 'c', seq_array_t
                     end

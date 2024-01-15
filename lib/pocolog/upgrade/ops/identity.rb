@@ -3,7 +3,7 @@ module Pocolog
         module Ops
             class Identity < Base
                 def convert(value)
-                    value
+                    value.cast(@to_type)
                 end
 
                 def call(target, value)

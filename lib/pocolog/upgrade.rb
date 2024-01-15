@@ -34,30 +34,42 @@ module Pocolog
                 if !(to_type < Typelib::NumericType)
                     raise InvalidCast, "cannot automatically cast a numeric type into a non-numeric type"
                 end
-                Ops::NumericCast.new(from_type, to_type)
+
+                handle_identity(from_type, to_type) do
+                    Ops::NumericCast.new(from_type, to_type)
+                end
             elsif from_type < Typelib::ArrayType || from_type < Typelib::ContainerType
                 if to_type < Typelib::ArrayType
                     if from_type < Typelib::ArrayType
                         if from_type.length != to_type.length
-                            raise ArraySizeMismatch, "cannot convert between arrays of different sizes"
+                            raise ArraySizeMismatch,
+                                  "cannot convert between arrays of different sizes"
                         end
                     end
-                    element_conversion =
-                        compute(time, from_type.deference, to_type.deference, registered_converters, relax: relax)
-                    Ops::ArrayCast.new(to_type, element_conversion)
+                    handle_identity(from_type, to_type) do
+                        element_conversion = compute(
+                            time, from_type.deference, to_type.deference,
+                            registered_converters, relax: relax
+                        )
+                        Ops::ArrayCast.new(to_type, element_conversion)
+                    end
 
                 elsif to_type < Typelib::ContainerType
                     # Can convert to arrays or containers
                     element_conversion =
-                        compute(time, from_type.deference, to_type.deference, registered_converters)
+                        compute(time, from_type.deference, to_type.deference,
+                                registered_converters)
                     Ops::ContainerCast.new(to_type, element_conversion)
                 else
-                    raise InvalidCast, "cannot automatically cast an array/container to a non-array/container"
+                    raise InvalidCast,
+                          "cannot automatically cast an array/container to a "\
+                          "non-array/container"
                 end
             elsif from_type < Typelib::EnumType
-                if !(to_type < Typelib::EnumType)
+                unless to_type < Typelib::EnumType
                     raise InvalidCast, "cannot automatically cast an enum to a non-enum"
                 end
+
                 Ops::EnumCast.new(from_type, to_type)
             elsif from_type < Typelib::CompoundType
                 if !(to_type < Typelib::CompoundType)
@@ -86,6 +98,15 @@ module Pocolog
                 Ops::CompoundCast.new(field_convertions, to_type)
             end
         end
+
+        # @api private
+        #
+        # Return Ops::Identity if from_type is equal (but not the same than) to_type.
+        # Otherwise, yield to get a specific conversion op
+        def self.handle_identity(from_type, to_type)
+            return Ops::Identity.new(to_type) if from_type == to_type
+
+            yield
+        end
     end
 end
-
