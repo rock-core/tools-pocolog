@@ -50,7 +50,9 @@ module Pocolog
             end
             reporter.finish
             true
-        rescue InvalidFile
+        rescue Interrupt
+            raise
+        rescue StandardError
             reporter.finish
             remaining = File.stat(path).size - current_pos
             reporter.error "#{path}: broken at position #{current_pos} "\
