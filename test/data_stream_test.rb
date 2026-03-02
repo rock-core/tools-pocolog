@@ -621,5 +621,83 @@ module Pocolog
                              stream.seek(base_time + 11)
             end
         end
+
+        describe ".update_container_types_to_native" do
+            it "resizes container fields if the local native type is bigger " \
+               "than the one from the registry" do
+                registry = Typelib::CXXRegistry.new
+                registry.create_container "/std/vector", "/uint32_t", 1
+                c = registry.create_compound "/C" do |c|
+                    c.a = "/uint8_t"
+                    c.b = "/std/vector</uint32_t>"
+                    c.c = "/uint8_t"
+                end
+                assert_equal 2, c.offset_of("c")
+
+                flexmock(registry.get("/std/vector</uint32_t>"))
+                    .should_receive(natural_size: 2)
+                updated_registry = DataStream.update_container_types_to_native(registry)
+                updated_c = updated_registry.get("/C")
+
+                assert_equal 3, updated_c.offset_of("c")
+            end
+
+            it "returns the registry as-is if no types were modified" do
+                registry = Typelib::CXXRegistry.new
+                registry.create_container "/std/vector", "/uint32_t"
+                c = registry.create_compound "/C" do |c|
+                    c.a = "/uint8_t"
+                    c.b = "/std/vector</uint32_t>"
+                    c.c = "/uint8_t"
+                end
+
+                updated = DataStream.update_container_types_to_native(registry)
+                assert_same updated, registry
+            end
+
+            it "bla" do
+                registry = Typelib::CXXRegistry.new
+                registry.create_container "/std/vector", "/uint32_t", 1
+
+                target = Typelib::Registry.new
+                target.merge(registry)
+            end
+
+            it "does not modify the input registry" do
+                registry = Typelib::CXXRegistry.new
+                registry.create_container "/std/vector", "/uint32_t", 1
+                c = registry.create_compound "/C" do |c|
+                    c.a = "/uint8_t"
+                    c.b = "/std/vector</uint32_t>"
+                    c.c = "/uint8_t"
+                end
+                assert_equal 1, registry.get("/std/vector</uint32_t>").size
+
+                updated = DataStream.update_container_types_to_native(registry)
+                refute_same updated, registry
+
+                assert_equal 1, registry.get("/std/vector</uint32_t>").size
+                assert_equal 2, c.offset_of("c")
+                assert_equal 3, c.size
+            end
+
+            it "does not modify types when the local native type size is smaller " \
+               "than the one from the registry" do
+                registry = Typelib::CXXRegistry.new
+                registry.create_container "/std/vector", "/uint32_t", 3
+                c = registry.create_compound "/C" do |c|
+                    c.a = "/uint8_t"
+                    c.b = "/std/vector</uint32_t>"
+                    c.c = "/uint8_t"
+                end
+                assert_equal 4, c.offset_of("c")
+
+                flexmock(registry.get("/std/vector</uint32_t>"))
+                    .should_receive(natural_size: 2)
+                updated = DataStream.update_container_types_to_native(registry)
+                assert_same updated, registry # no modifications
+            end
+        end
     end
 end
+
