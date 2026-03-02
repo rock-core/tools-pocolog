@@ -128,22 +128,21 @@ if mode == "show"
         Pocolog::DATA_BLOCK => "DATA_BLOCK",
         Pocolog::STREAM_BLOCK => "STREAM_BLOCK" }
 
-    while block_type = file.read_one_block
-        block_info = file.block_info
-
-        type = block_types[block_info.type]
+    while (block_info = file.read_one_block(file.tell))
+        block_type = block_info.kind
         if block_type != Pocolog::CONTROL_BLOCK
             stream_info = file.stream_from_index(block_info.index)
             stream_name = stream_info.name
             index = "#{stream_name}(#{block_info.index})"
         end
 
+        type = block_types[block_type]
         print "#{block_info.io}:#{block_info.pos} #{type} #{index} #{block_info.payload_size}"
-	if block_type == Pocolog::DATA_BLOCK
-	    print " #{file.data_header.compressed ? "compressed" : "uncompressed"}"
-	end
+        if block_type == Pocolog::DATA_BLOCK
+            print " #{file.data_header.compressed ? "compressed" : "uncompressed"}"
+        end
 
-	puts
+        puts
 
         if block_type == Pocolog::DATA_BLOCK && decode_data
             stream_type = stream_info.type
