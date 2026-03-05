@@ -33,25 +33,27 @@ module Pocolog
             @metadata = metadata
             @info = info
 
-            # if we do have a registry, then adapt it to the local machine
-            # if needed. Right now, this is required if containers changed
-            # size.
-            registry = stream_type.registry
-            resize_containers = Hash.new
+            registry = DataStream.update_container_types_to_native(stream_type.registry)
+            @type = registry.get(stream_type.name)
+            @data = nil
+            @sample_index = -1
+        end
+
+        # Update the size of the registry's container types to be at least this machine's
+        # native size
+        def self.update_container_types_to_native(registry)
+            resize_containers = {}
             registry.each do |type|
-                if type <= Typelib::ContainerType && type.size != type.natural_size
+                if type <= Typelib::ContainerType && type.natural_size > type.size
                     resize_containers[type] = type.natural_size
                 end
             end
-            if resize_containers.empty?
-                @type = stream_type
-            else
-                registry.resize(resize_containers)
-                @type = registry.get(stream_type.name)
-            end
 
-            @data = nil
-            @sample_index = -1
+            return registry if resize_containers.empty?
+
+            registry = registry.dup
+            registry.resize(resize_containers)
+            registry
         end
 
         # Return a new DataStream whose all samples before the given logical
