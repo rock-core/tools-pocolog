@@ -381,7 +381,7 @@ module Pocolog
                 end
 
                 rt_sec, rt_usec, lg_sec, lg_usec, data_size, compressed =
-                    raw_data.unpack("VVVVVC")
+                    raw_data.unpack("V5C")
                 new(rt_sec * 1_000_000 + rt_usec,
                     lg_sec * 1_000_000 + lg_usec,
                     data_size,
