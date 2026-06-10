@@ -1,0 +1,21 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug pocolog command",
+            "type": "Ruby",
+            "request": "launch",
+            "program": "${rock:srcDir}/bin/pocolog",
+            "args": [
+                "${rock:srcDir}/test/data/laser_scanner_Logger.0.log",
+                "--extract",
+                "${rock:srcDir}/test/data/sample_velodyne_only.log",
+                "--stream",
+                "velodyne.laser_scans:0:5"
+            ]
+        }
+    ]
+}
