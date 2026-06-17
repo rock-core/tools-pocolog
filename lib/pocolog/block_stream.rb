@@ -352,13 +352,13 @@ module Pocolog
             #
             # @return [Integer]
             # @see rt
-            attr_reader :rt_time
+            attr_accessor :rt_time
 
             # Timestamp in logical time for this block, in microseconds
             #
             # @return [Integer]
             # @see rt
-            attr_reader :lg_time
+            attr_accessor :lg_time
 
             # Size in bytes of the marshalled data sample
             #
